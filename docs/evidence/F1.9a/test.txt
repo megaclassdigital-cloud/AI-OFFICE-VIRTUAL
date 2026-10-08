@@ -1,0 +1,2 @@
+ ✓ tests/qa-deterministic.test.mjs (8 tests) 25352ms
+      Tests  8 passed (8)
