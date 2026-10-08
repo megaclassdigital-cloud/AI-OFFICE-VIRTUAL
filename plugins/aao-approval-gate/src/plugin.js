@@ -16,6 +16,7 @@
 
 import { definePlugin } from '@paperclipai/plugin-sdk';
 import { makeAgentTools, TOOL_DEFS } from './agent-tools.js';
+import { registerUsageGuard } from './guard-wiring.js';
 
 export const plugin = definePlugin({
   async setup(ctx) {
@@ -59,6 +60,8 @@ export const plugin = definePlugin({
         };
       }
     );
+
+    registerUsageGuard(ctx);
 
     const agentTools = makeAgentTools(ctx);
     for (const [name, def] of Object.entries(TOOL_DEFS)) {

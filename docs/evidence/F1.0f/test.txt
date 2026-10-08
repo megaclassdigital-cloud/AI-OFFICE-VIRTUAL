@@ -1,0 +1,3 @@
+ ✓ tests/usage-guard.test.mjs (14 tests) 21ms
+      Tests  14 passed (14)
+aao-approval-gate ready 0.3.0

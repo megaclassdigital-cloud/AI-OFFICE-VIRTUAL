@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T08:16:03.361Z",
+    "updated_at": "2026-10-08T08:20:33.207Z",
     "current_task": ""
   },
   "tasks": [
@@ -264,10 +264,10 @@
       "deps": [
         "G0"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
+      "evidence": "docs/evidence/F1.0f",
       "notes": "Blocker 3 dari spike: billed_cents selalu 0 dengan codex_local."
     },
     {

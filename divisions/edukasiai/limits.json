@@ -1,0 +1,5 @@
+{
+  "maxRunsPerAgentPerDay": 6,
+  "maxMinutesPerAgentPerDay": 60,
+  "timezoneOffsetMinutes": 420
+}

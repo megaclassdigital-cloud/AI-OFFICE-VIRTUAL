@@ -14,13 +14,13 @@
 export default {
   id: 'aao-approval-gate',
   apiVersion: 1,
-  version: '0.2.3',
+  version: '0.3.0',
   displayName: 'AAO Approval Gate',
   description:
     'Tool deterministik untuk AI Agent Office. F0.4: versi hello dengan satu tool uji tanpa efek samping.',
   author: 'AI Agent Office',
   categories: ['automation'],
-  capabilities: ['agent.tools.register', 'issues.read', 'issues.update', 'issue.comments.create', 'issue.documents.write'],
+  capabilities: ['agent.tools.register', 'issues.read', 'issues.update', 'issue.comments.create', 'issue.documents.write', 'events.subscribe', 'agents.read', 'agents.pause', 'activity.log.write'],
   entrypoints: {
     worker: 'src/worker.js',
   },
