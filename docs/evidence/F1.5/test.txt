@@ -1,0 +1,2 @@
+ ✓ tests/check-carousel.test.mjs (16 tests) 590ms
+      Tests  16 passed (16)
