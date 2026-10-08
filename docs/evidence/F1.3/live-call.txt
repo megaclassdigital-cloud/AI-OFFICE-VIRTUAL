@@ -1,0 +1,8 @@
+https://apnews.com/article/trump-jay-clayton-artificial-intelligence-t
+  HTTP 200 431ms {"ok":true,"checks":{"urlReachable":{"ok":false,"httpStatus":403,"finalUrl":"https://apnews.com/article/trump-jay-clayton-artificial-intelligence-task-force-b8689ea07de9102a52bd1cd2049b5901","error":"HTTP 403"},"dateWithinWindow":{"ok":true,"publishedAt":"2026-10-04","ageDays":4.35}},"redirects":0,"suspectedInjection":false}
+https://apnews.com/article/halaman-yang-tidak-ada-0000
+  HTTP 200 634ms {"ok":true,"checks":{"urlReachable":{"ok":false,"httpStatus":403,"finalUrl":"https://apnews.com/article/halaman-yang-tidak-ada-0000","error":"HTTP 403"},"dateWithinWindow":{"ok":true,"publishedAt":"2026-10-07","ageDays":1.35}},"redirects":0,"suspectedInjection":false}
+http://127.0.0.1:3177/api/health
+  HTTP 200 24ms {"ok":true,"checks":{"urlReachable":{"ok":false,"finalUrl":"http://127.0.0.1:3177/api/health","error":"skema http: tidak diizinkan"},"dateWithinWindow":{"ok":true,"publishedAt":"2026-10-07","ageDays":1.35}},"redirects":0,"suspectedInjection":false}
+https://example.com/
+  HTTP 200 802ms {"ok":true,"checks":{"urlReachable":{"ok":true,"httpStatus":200,"finalUrl":"https://example.com/"},"dateWithinWindow":{"ok":false,"publishedAt":"2020-01-01","ageDays":2472.35,"error":"lebih lama dari 7 hari"}},"redirects":0,"suspectedInjection":false}

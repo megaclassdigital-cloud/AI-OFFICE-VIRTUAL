@@ -1,12 +1,12 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T08:25:23.777Z
+> Terakhir diperbarui: 2026-10-08T08:31:49.794Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** F1.3 — Verifier: tool deterministik URL/tanggal di plugin + test server lokal
-**Ringkasan:** 24 DONE · 0 IN_PROGRESS · 24 TODO · 1 BLOCKED · 0 OWNER · 0 SKIPPED
-**Antrian owner:** 1 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 8 (loop/DECISIONS.md)
+**Task berikutnya:** F1.4 — Pemilihan topik: rubrik tertulis + validasi field alasan
+**Ringkasan:** 25 DONE · 0 IN_PROGRESS · 23 TODO · 1 BLOCKED · 0 OWNER · 0 SKIPPED
+**Antrian owner:** 1 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 9 (loop/DECISIONS.md)
 
 ## Progres per fase
 
@@ -15,7 +15,7 @@
 | L — Bootstrap loop | 4 | 5 |
 | 0 — Spike kelayakan | 9 | 9 |
 | 1A — Fondasi kode | 7 | 7 |
-| 1B — Pipeline konten | 1 | 4 |
+| 1B — Pipeline konten | 2 | 4 |
 | 1C — Pipeline desain | 3 | 6 |
 | 1D — QA dan integrasi | 0 | 6 |
 | 2 — Approval dan KPI | 0 | 6 |

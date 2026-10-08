@@ -71,3 +71,11 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Pilihan: lanjut ke F1.0a; keempat concern dicatat untuk laporan akhir.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-009 — Situs berita memblokir GET otomatis (AP 403); tidak menyamar sebagai browser
+- Task: F1.3
+- Konteks: panggilan nyata `verify_candidate` ke artikel AP asli dari keluaran F0.2 dijawab HTTP 403 (proteksi bot). Artikel yang sama dan URL karangan sama-sama 403, jadi cek URL otomatis tidak bisa membedakan keduanya untuk host seperti ini. Semua 6 kandidat F0.2 berasal dari AP.
+- Pilihan: tool melaporkan apa adanya (`urlReachable.ok=false`, `error: "HTTP 403"`), tidak memakai User-Agent peniru browser atau cara lain menembus proteksi bot (itu penghindaran deteksi). Kandidat 403 tidak boleh `verified` otomatis; jalurnya `rejected` dengan alasan, atau diteruskan ke manusia. Prioritaskan sumber whitelist (blog resmi) yang umumnya terbuka.
+- Dampak: E1.2 mungkin menghasilkan banyak kandidat `rejected` bila Researcher memilih AP. Perlu keputusan owner/reviewer soal kebijakan 403 (mis. status `unverifiable` untuk review manual) sebelum G1.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER

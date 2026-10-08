@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T08:25:22.734Z",
+    "updated_at": "2026-10-08T08:31:49.566Z",
     "current_task": ""
   },
   "tasks": [
@@ -305,10 +305,10 @@
         "F1.0c",
         "F1.0d"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
+      "evidence": "docs/evidence/F1.3",
       "notes": ""
     },
     {
