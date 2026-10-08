@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T17:55:47.352Z",
+    "updated_at": "2026-10-08T17:57:46.750Z",
     "current_task": ""
   },
   "tasks": [
@@ -672,11 +672,11 @@
       "deps": [
         "G1"
       ],
-      "status": "TODO",
+      "status": "SKIPPED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": "ADR-0003. Putuskan bridge eksternal vs fork ringan."
+      "notes": "Diganti analisis baca-kode + D-014/D-015; Pixel Agents tidak dijalankan"
     },
     {
       "id": "U4.1",
@@ -685,11 +685,11 @@
       "deps": [
         "U4.0"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/U4.L.md",
+      "notes": "dipenuhi oleh U4.L (D-015); bukti docs/evidence/U4.L dan tests/office-view.test.mjs"
     },
     {
       "id": "U4.2",
@@ -699,11 +699,11 @@
         "U4.0",
         "F1.0e"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/U4.L.md",
+      "notes": "dipenuhi oleh U4.L (D-015); bukti docs/evidence/U4.L dan tests/office-view.test.mjs"
     },
     {
       "id": "U4.3",
@@ -713,11 +713,11 @@
         "U4.1",
         "U4.2"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/U4.L.md",
+      "notes": "dipenuhi oleh U4.L (D-015); bukti docs/evidence/U4.L dan tests/office-view.test.mjs"
     },
     {
       "id": "U4.4",
@@ -726,11 +726,11 @@
       "deps": [
         "U4.3"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/U4.L.md",
+      "notes": "dipenuhi oleh U4.L (D-015); bukti docs/evidence/U4.L dan tests/office-view.test.mjs"
     },
     {
       "id": "U4.5",
@@ -740,11 +740,11 @@
         "U4.4",
         "E1.1"
       ],
-      "status": "TODO",
+      "status": "BLOCKED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": ""
+      "notes": "ACU.1,3,4,5 terbukti (U4.L); ACU.2 menunggu rekaman event pipeline nyata (E1.2), lihat D-015"
     },
     {
       "id": "G4",

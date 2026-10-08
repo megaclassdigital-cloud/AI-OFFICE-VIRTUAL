@@ -118,3 +118,15 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Dampak: tidak ada ketergantungan pada pihak ketiga saat berjalan; lisensi aset bersih (docs/ui/asset-licenses.md). Kompatibilitas dengan pembaruan Pixel Agents tidak ada, dan memang tidak diperlukan.
 - Biaya membalik: sedang
 - Label: REVIEW-OWNER
+
+## D-015 — Rekonsiliasi task Fase 4 lama (U4.0–U4.5) dengan U4.L
+- Task: U4.0, U4.1, U4.2, U4.3, U4.4, U4.5, G4
+- Konteks: U4.L (D-013, D-014) membangun Office View end-to-end dengan jalur berbeda dari rencana awal Fase 4 (renderer Canvas sendiri, bukan Pixel Agents). Task U4.0–U4.5 di backlog masih TODO padahal sebagian besar DoD-nya sudah dipenuhi oleh U4.L, sehingga loop akan mengulang pekerjaan.
+- Pilihan, berdasarkan bukti, bukan klaim:
+  - U4.0 (spike Pixel Agents standalone) → SKIPPED: diganti analisis baca-kode dan keputusan D-014; Pixel Agents TIDAK dijalankan.
+  - U4.1 (layout.json 8 ruang), U4.2 (office-bridge read-only + replay), U4.3 (perilaku dinamis), U4.4 (name tag, badge) → DONE dengan bukti di `reports/build/U4.L.md`, `docs/evidence/U4.L/`, dan `tests/office-view.test.mjs`.
+  - U4.5 → BLOCKED: ACU.1, ACU.3, ACU.4, ACU.5 terbukti oleh U4.L (6 karakter + name tag, jeda data→UI 1,3–4,5 detik, daftar request hanya 127.0.0.1 + GET saja, lisensi aset). ACU.2 ("replay event pipeline E1.1") BELUM: replay yang ada berasal dari fixture buatan tangan `demo-carousel.jsonl`, bukan rekaman pipeline nyata. Menunggu rekaman event dari run nyata (E1.2).
+  - G4 tetap TODO (bergantung U4.5).
+- Dampak: tidak ada klaim baru tanpa bukti; pekerjaan tidak diulang. Gate G4 baru dapat dijalankan setelah ACU.2 terpenuhi.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER
