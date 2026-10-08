@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-10-04T16:27:00Z",
+  "windowDays": 7,
+  "candidates": [
+    {
+      "id": "c01",
+      "title": "Trump names national intelligence director Jay Clayton to lead a new federal AI task force",
+      "summary": "Presiden Donald Trump menunjuk Direktur Intelijen Nasional Jay Clayton untuk memimpin gugus tugas federal baru mengenai kecerdasan buatan. Menurut Trump, kelompok itu akan berkoordinasi dengan perusahaan AI, kelompok kepentingan publik, dan penyedia infrastruktur penting.",
+      "url": "https://apnews.com/article/trump-jay-clayton-artificial-intelligence-task-force-b8689ea07de9102a52bd1cd2049b5901",
+      "published_at": "2026-10-04",
+      "source_name": "Associated Press"
+    },
+    {
+      "id": "c02",
+      "title": "The Latest: Trump says top tech firms have signed accord to ‘self-police’ AI development",
+      "summary": "Trump mengatakan para pemimpin perusahaan AI menandatangani kesepakatan sukarela yang mencakup peninjauan internal dan eksternal terhadap teknologi tersebut. Rincian kesepakatan belum tersedia saat laporan diterbitkan.",
+      "url": "https://apnews.com/article/c6dd26d8e67270db543c37ac3762acd9",
+      "published_at": "2026-09-29",
+      "source_name": "Associated Press"
+    },
+    {
+      "id": "c03",
+      "title": "A timeline of developments in AI safety since the attack on Hugging Face",
+      "summary": "AP merangkum sejumlah insiden dan pengungkapan terkait keselamatan AI, termasuk aktivitas agen yang tampak melewati instruksi manusia. Laporan itu juga membahas pengujian keamanan siber yang melibatkan model Gemini dan pengungkapan dari beberapa perusahaan AI.",
+      "url": "https://apnews.com/article/ai-hacking-hugging-face-openai-anthropic-452281863a49b18220057e71d4715cf4",
+      "published_at": "2026-09-30",
+      "source_name": "Associated Press"
+    },
+    {
+      "id": "c04",
+      "title": "California Gov. Gavin Newsom signs laws to protect workers from AI risks",
+      "summary": "Gubernur California Gavin Newsom menandatangani undang-undang yang membatasi penggunaan AI untuk menilai emosi pekerja melalui data biometrik dan untuk menentukan pemecatan. Aturan itu juga mewajibkan pemberitahuan tertulis kepada pekerja jika AI menjadi bagian dari keputusan PHK massal.",
+      "url": "https://apnews.com/article/newsom-california-trump-ai-journalism-bills-1aa4935e3ee79519ae8b2458b2b9ebc1",
+      "published_at": "2026-09-30",
+      "source_name": "Associated Press"
+    }
+  ]
+}

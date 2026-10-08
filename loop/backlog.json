@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T02:28:23.871Z",
+    "updated_at": "2026-10-08T02:32:10.370Z",
     "current_task": ""
   },
   "tasks": [
@@ -214,10 +214,10 @@
       "deps": [
         "F1.0b"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
+      "evidence": "reports/build/F1.0c.md",
       "notes": "Bahan: docs/spike/evidence/F0.2-research-output.json, divisions/edukasiai/brand/contoh-design.json."
     },
     {

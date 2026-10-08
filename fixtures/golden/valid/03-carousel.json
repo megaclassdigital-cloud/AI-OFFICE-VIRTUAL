@@ -1,0 +1,80 @@
+{
+  "createdAt": "2026-10-04T16:55:00Z",
+  "topic": "California batasi AI menilai pekerja lewat data biometrik",
+  "angle": "Kebijakan nyata yang menyentuh dunia kerja sehari-hari; relevan bagi profesional Indonesia yang bekerja dengan perusahaan global.",
+  "slides": [
+    {
+      "index": 1,
+      "role": "hook",
+      "heading": "California batasi AI menilai pekerja lewat biometrik.",
+      "body": "Aturan baru juga mewajibkan pemberitahuan tertulis sebelum PHK massal.",
+      "emphasis": [
+        "pekerja"
+      ],
+      "sourceRefs": [
+        "c04"
+      ]
+    },
+    {
+      "index": 2,
+      "role": "point",
+      "heading": "Apa yang dilarang",
+      "body": "Perusahaan tidak boleh memakai AI untuk menilai emosi pekerja lewat data biometrik, dan tidak boleh memakainya untuk menentukan pemecatan.",
+      "emphasis": [
+        "emosi"
+      ],
+      "sourceRefs": [
+        "c04"
+      ]
+    },
+    {
+      "index": 3,
+      "role": "stat",
+      "heading": "30 Sep",
+      "body": "Tanggal laporan Associated Press terbit. Gubernur Gavin Newsom menandatangani paket undang-undang perlindungan pekerja dari risiko AI.",
+      "sourceRefs": [
+        "c04"
+      ]
+    },
+    {
+      "index": 4,
+      "role": "comparison",
+      "heading": "Dilarang dan diwajibkan",
+      "body": "Dilarang: menilai emosi pekerja lewat data biometrik dan menentukan pemecatan dengan AI. Diwajibkan: pemberitahuan tertulis bila AI menjadi bagian keputusan PHK massal.",
+      "sourceRefs": [
+        "c04"
+      ]
+    },
+    {
+      "index": 5,
+      "role": "point",
+      "heading": "Di mana berlakunya",
+      "body": "Aturan ini adalah undang-undang negara bagian California. Pekerja di sana mendapat perlindungan baru dari penilaian otomatis.",
+      "sourceRefs": [
+        "c04"
+      ]
+    },
+    {
+      "index": 6,
+      "role": "cta",
+      "heading": "Simpan kalau berguna.",
+      "body": "Kami rangkum kebijakan AI yang berdampak ke dunia kerja setiap minggu."
+    }
+  ],
+  "caption": "California membatasi penggunaan AI untuk menilai emosi pekerja lewat data biometrik, dan mewajibkan pemberitahuan tertulis sebelum PHK massal yang melibatkan AI. Simak ringkasannya di slide. Sumber: Associated Press.",
+  "hashtags": [
+    "#AI",
+    "#KecerdasanBuatan",
+    "#DuniaKerja",
+    "#Regulasi",
+    "#EdukasiAI",
+    "#AINews"
+  ],
+  "sources": [
+    {
+      "candidateId": "c04",
+      "url": "https://apnews.com/article/newsom-california-trump-ai-journalism-bills-1aa4935e3ee79519ae8b2458b2b9ebc1",
+      "source_name": "Associated Press"
+    }
+  ]
+}

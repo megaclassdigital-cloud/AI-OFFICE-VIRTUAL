@@ -1,0 +1,35 @@
+
+> ai-agent-office@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.3 D:/AI-Memory/AI-Agent-Office
+
+ ✓ tests/golden-fixtures.test.mjs (22 tests) 184ms
+ ✓ tests/render-validation.test.mjs (10 tests) 8962ms
+   ✓ render.mjs menolak desain cacat sebelum merender (8)
+     ✓ teks melebihi batas karakter slot (tidak dipotong diam-diam) -> exit 2, 0 PNG 854ms
+     ✓ slot yang tidak dikenal template -> exit 2, 0 PNG 912ms
+     ✓ template yang tidak ada di templates.json -> exit 2, 0 PNG 896ms
+     ✓ slot wajib kosong -> exit 2, 0 PNG 861ms
+     ✓ kata tekanan tidak ada di slot mana pun -> exit 2, 0 PNG 881ms
+     ✓ varian warna yang tidak ada di brand.json -> exit 2, 0 PNG 809ms
+     ✓ ikon yang tidak ada di set lokal -> exit 2, 0 PNG 1032ms
+     ✓ melaporkan SEMUA kesalahan sekaligus, bukan hanya yang pertama 959ms
+   ✓ render.mjs argumen dan berkas (2)
+     ✓ tanpa --design: exit 1 dengan petunjuk pemakaian 795ms
+     ✓ berkas design yang tidak ada: exit 1 957ms
+ ✓ tests/install-division.test.mjs (6 tests) 1580ms
+   ✓ install-division.mjs --dry-run (6)
+     ✓ company ada, belum ada agent: merencanakan 5 agent dan TIDAK mengubah apa pun 425ms
+     ✓ agent sudah ada: merencanakan MEMPERBARUI (idempoten), bukan membuat ganda 388ms
+ ✓ tests/schemas.test.mjs (39 tests) 340ms
+
+ Test Files  4 passed (4)
+      Tests  77 passed (77)
+   Start at  09:31:56
+   Duration  13.20s (tests 93%, import 5%, transform 1%)
+
+    Isolate  4 workers spawned · ~288ms startup each (spawn + environment, per file)
+             at least ~863ms faster with isolate: false — reuses workers across files instead of one per file
+

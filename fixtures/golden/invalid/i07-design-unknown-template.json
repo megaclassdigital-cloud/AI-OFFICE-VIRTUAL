@@ -1,0 +1,76 @@
+{
+  "createdAt": "2026-10-04T17:05:00Z",
+  "brand": "edukasiai",
+  "canvas": {
+    "width": 1080,
+    "height": 1350
+  },
+  "slides": [
+    {
+      "index": 1,
+      "template": "cover",
+      "emphasis": [
+        "pekerja"
+      ],
+      "slots": {
+        "kicker": "Berita AI · Minggu ini",
+        "hook": "California batasi AI menilai pekerja lewat biometrik.",
+        "subtitle": "Aturan baru juga mewajibkan pemberitahuan tertulis sebelum PHK massal."
+      }
+    },
+    {
+      "index": 2,
+      "template": "hero",
+      "emphasis": [
+        "emosi"
+      ],
+      "slots": {
+        "number": "01",
+        "heading": "Apa yang dilarang",
+        "body": "Perusahaan tidak boleh memakai AI untuk menilai emosi pekerja lewat data biometrik, dan tidak boleh memakainya untuk menentukan pemecatan."
+      }
+    },
+    {
+      "index": 3,
+      "template": "stat",
+      "colorVariant": "tegas",
+      "slots": {
+        "source": "Associated Press",
+        "value": "30 Sep",
+        "label": "Tanggal laporan AP terbit",
+        "context": "Gubernur Gavin Newsom menandatangani paket undang-undang perlindungan pekerja dari risiko AI."
+      }
+    },
+    {
+      "index": 4,
+      "template": "comparison",
+      "colorVariant": "terang",
+      "slots": {
+        "heading": "Dilarang dan diwajibkan",
+        "leftLabel": "Dilarang",
+        "leftBody": "Menilai emosi pekerja lewat data biometrik dan menentukan pemecatan dengan AI.",
+        "rightLabel": "Diwajibkan",
+        "rightBody": "Pemberitahuan tertulis bila AI menjadi bagian keputusan PHK massal."
+      }
+    },
+    {
+      "index": 5,
+      "template": "point",
+      "slots": {
+        "number": "02",
+        "heading": "Di mana berlakunya",
+        "body": "Aturan ini adalah undang-undang negara bagian California. Pekerja di sana mendapat perlindungan baru dari penilaian otomatis."
+      }
+    },
+    {
+      "index": 6,
+      "template": "cta",
+      "slots": {
+        "heading": "Simpan kalau berguna.",
+        "body": "Kami rangkum kebijakan AI yang berdampak ke dunia kerja setiap minggu.",
+        "action": "Ikuti EdukasiAI",
+        "sources": "Sumber: Associated Press"
+      }
+    }
+  ]
+}

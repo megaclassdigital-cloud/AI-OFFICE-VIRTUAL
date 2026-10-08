@@ -1,0 +1,78 @@
+[
+  {
+    "file": "valid/01-research-output.json",
+    "schema": "research-output",
+    "expect": "valid"
+  },
+  {
+    "file": "valid/02-verification-result.json",
+    "schema": "verification-result",
+    "expect": "valid"
+  },
+  {
+    "file": "valid/03-carousel.json",
+    "schema": "carousel",
+    "expect": "valid"
+  },
+  {
+    "file": "valid/04-carousel-design.json",
+    "schema": "carousel-design",
+    "expect": "valid"
+  },
+  {
+    "file": "invalid/i01-research-4-candidates.json",
+    "schema": "research-output",
+    "expect": "invalid",
+    "keyword": "minItems",
+    "why": "hanya 4 kandidat (minimal 5); riset nyata punya 6 sehingga perlu membuang dua"
+  },
+  {
+    "file": "invalid/i02-research-http-url.json",
+    "schema": "research-output",
+    "expect": "invalid",
+    "keyword": "pattern",
+    "why": "URL sumber bukan https"
+  },
+  {
+    "file": "invalid/i03-verification-rejected-without-reason.json",
+    "schema": "verification-result",
+    "expect": "invalid",
+    "keyword": "required",
+    "why": "kandidat rejected tanpa alasan"
+  },
+  {
+    "file": "invalid/i04-carousel-5-slides.json",
+    "schema": "carousel",
+    "expect": "invalid",
+    "keyword": "minItems",
+    "why": "hanya 5 slide (minimal 6)"
+  },
+  {
+    "file": "invalid/i05-carousel-source-without-url.json",
+    "schema": "carousel",
+    "expect": "invalid",
+    "keyword": "required",
+    "why": "sumber tanpa URL"
+  },
+  {
+    "file": "invalid/i06-design-free-html.json",
+    "schema": "carousel-design",
+    "expect": "invalid",
+    "keyword": "additionalProperties",
+    "why": "Designer menyelipkan HTML bebas (dilarang, ADR-0002)"
+  },
+  {
+    "file": "invalid/i07-design-unknown-template.json",
+    "schema": "carousel-design",
+    "expect": "invalid",
+    "keyword": "enum",
+    "why": "template di luar enum"
+  },
+  {
+    "file": "invalid/i08-design-wrong-canvas.json",
+    "schema": "carousel-design",
+    "expect": "invalid",
+    "keyword": "const",
+    "why": "kanvas bukan 1080x1350"
+  }
+]
