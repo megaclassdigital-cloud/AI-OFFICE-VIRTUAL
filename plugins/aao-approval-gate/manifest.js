@@ -14,13 +14,13 @@
 export default {
   id: 'aao-approval-gate',
   apiVersion: 1,
-  version: '0.5.0',
+  version: '0.6.0',
   displayName: 'AAO Approval Gate',
   description:
     'Tool deterministik untuk AI Agent Office. F0.4: versi hello dengan satu tool uji tanpa efek samping.',
   author: 'AI Agent Office',
   categories: ['automation'],
-  capabilities: ['agent.tools.register', 'issues.read', 'issues.update', 'issue.comments.create', 'issue.documents.write', 'events.subscribe', 'agents.read', 'agents.pause', 'activity.log.write', 'http.outbound'],
+  capabilities: ['agent.tools.register', 'issues.read', 'issues.update', 'issue.comments.create', 'issue.documents.write', 'events.subscribe', 'agents.read', 'agents.pause', 'activity.log.write', 'http.outbound', 'issue.documents.read', 'plugin.state.read', 'plugin.state.write'],
   entrypoints: {
     worker: 'src/worker.js',
   },
@@ -132,6 +132,48 @@ export default {
         required: [
           'issueId',
           'designPath'
+        ]
+      }
+    },
+    {
+      name: 'qa_submit_result',
+      displayName: 'QA Submit Result',
+      description: 'Kirim hasil QA. Plugin menghitung ulang cek deterministik dari dokumen issue (carousel, verification-result, carousel-design) dan laporan render; kamu hanya mengisi penilaian bahasa. Hasil: pass, return_to_copywriter, return_to_designer, atau needs_human (maks 2 putaran per jalur). Tidak bisa meloloskan draf yang gagal cek deterministik.',
+      parametersSchema: {
+        type: 'object',
+        properties: {
+          issueId: {
+            type: 'string'
+          },
+          llm: {
+            type: 'object',
+            properties: {
+              textOk: {
+                type: 'boolean'
+              },
+              designOk: {
+                type: 'boolean'
+              },
+              notes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    slide: {
+                      type: 'integer'
+                    },
+                    note: {
+                      type: 'string'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        required: [
+          'issueId',
+          'llm'
         ]
       }
     },

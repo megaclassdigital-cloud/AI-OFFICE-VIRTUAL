@@ -79,3 +79,10 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Dampak: E1.2 mungkin menghasilkan banyak kandidat `rejected` bila Researcher memilih AP. Perlu keputusan owner/reviewer soal kebijakan 403 (mis. status `unverifiable` untuk review manual) sebelum G1.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-010 — qa_submit_result di plugin mengimpor modul dari scripts/ (logika QA dipakai bersama)
+- Task: F1.9b
+- Konteks: plugin harus MENGHITUNG ULANG hasil QA deterministik agar agent QA tidak bisa menyodorkan laporan palsu. Logikanya sudah ada di `scripts/qa-deterministic.mjs` (dan `check-*.mjs`) yang juga dipakai CLI dan test.
+- Pilihan: plugin mengimpor `../../../scripts/qa-deterministic.mjs` (satu sumber kebenaran, tanpa salinan). Konsekuensi: plugin bergantung pada tata letak repo dan `scripts/check-carousel.mjs` membaca brand kit EdukasiAI, jadi aturan "plugin generik" (CLAUDE.md aturan 10) terlanggar secara ringan. Parameterisasi division per issue dicatat sebagai tindak lanjut sebelum division kedua.
+- Biaya membalik: sedang
+- Label: REVIEW-OWNER

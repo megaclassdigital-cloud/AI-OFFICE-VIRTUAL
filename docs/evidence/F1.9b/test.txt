@@ -1,0 +1,2 @@
+ ✓ tests/qa-routing.test.mjs (15 tests) 9522ms
+      Tests  15 passed (15)

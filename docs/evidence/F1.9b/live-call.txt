@@ -1,0 +1,6 @@
+render A : {"passed":true,"pngCount":6}
+QA A     : {"ok":true,"action":"pass","reason":"semua cek lolos","rounds":{"text":0,"design":0},"routeTo":[],"passedDeterministic":true}
+QA B #1 : {"action":"return_to_copywriter","reason":"gagal teks (putaran 1 dari 2)","rounds":{"text":1,"design":0},"ok":true}
+QA B #2 : {"action":"return_to_copywriter","reason":"gagal teks (putaran 2 dari 2)","rounds":{"text":2,"design":0},"ok":true}
+QA B #3 : {"action":"needs_human","reason":"teks masih gagal setelah 2 putaran perbaikan","rounds":{"text":2,"design":0},"ok":true}
+komentar B: 3 | contoh: QA: needs_human — teks masih gagal setelah 2 putaran perbaikan / - slide 2: angka "87" tidak ditemukan di sumber yang dikutip

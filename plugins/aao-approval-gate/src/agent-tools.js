@@ -10,6 +10,7 @@
 import { allowedFrom, canTransition } from './lifecycle.js';
 import { verifyCandidate } from './url-check.js';
 import { runRender, RenderInputError } from './render-tool.js';
+import { submitQaResult, QaInputError } from './qa-tool.js';
 
 export const AGENT_ALLOWED_TRANSITIONS = Object.freeze(
   Object.fromEntries(['todo', 'in_progress', 'blocked', 'in_review'].map((s) => [s, allowedFrom('agent', s)]))
@@ -89,6 +90,24 @@ export function makeAgentTools(ctx) {
       });
       return { passed: r.passed, exitCode: r.exitCode, pngCount: r.pngCount, outDir: r.outDir, hashes: r.hashes ?? null, stderr: r.stderr };
     }),
+    // QA: plugin menghitung ulang cek deterministik dari dokumen issue; LLM hanya bisa menambah kegagalan.
+    qa_submit_result: wrap(async (p, run) => {
+      const issueId = issueIdOf(p);
+      const issue = await ownIssue(issueId, run);
+      const llm = { textOk: p?.llm?.textOk !== false, designOk: p?.llm?.designOk !== false };
+      const notes = Array.isArray(p?.llm?.notes) ? p.llm.notes.slice(0, 30).map((n) => `- slide ${Number(n?.slide) || '?'}: ${String(n?.note ?? '').slice(0, 300)}`) : [];
+      const r = await submitQaResult(ctx, { issueId, companyId: run.companyId, llm }).catch((e) => {
+        if (e instanceof QaInputError) throw new ToolError(e.message);
+        throw e;
+      });
+      const detLines = r.deterministic.slides.filter((s) => !s.passed).map((s) => `- slide ${s.index}: ${[...s.text, ...s.design, ...s.visual].join('; ')}`);
+      const body = [`QA: ${r.action} — ${r.reason}`, ...detLines, ...r.deterministic.global.text.concat(r.deterministic.global.design, r.deterministic.global.visual).map((e) => `- ${e}`), ...notes].join(String.fromCharCode(10));
+      await ctx.issues.createComment(issueId, body.slice(0, MAX_COMMENT), run.companyId, { authorAgentId: run.agentId });
+      if (r.action === 'needs_human' && canTransition('agent', issue.status, 'blocked')) {
+        await ctx.issues.update(issueId, { status: 'blocked' }, run.companyId);
+      }
+      return { action: r.action, reason: r.reason, rounds: r.rounds, routeTo: r.deterministic.routeTo, passedDeterministic: r.deterministic.passed };
+    }),
     // Akhiri tahap: komentar akhir + status in_review (menunggu owner) atau blocked (butuh owner) dalam satu panggilan.
     complete_stage: wrap(async (p, run) => {
       const issueId = issueIdOf(p);
@@ -155,6 +174,25 @@ export const TOOL_DEFS = {
       type: 'object',
       properties: { issueId: { type: 'string' }, designPath: { type: 'string' }, division: { type: 'string' } },
       required: ['issueId', 'designPath'],
+    },
+  },
+  qa_submit_result: {
+    displayName: 'QA Submit Result',
+    description: 'Kirim hasil QA. Plugin menghitung ulang cek deterministik dari dokumen issue (carousel, verification-result, carousel-design) dan laporan render; kamu hanya mengisi penilaian bahasa. Hasil: pass, return_to_copywriter, return_to_designer, atau needs_human (maks 2 putaran per jalur). Tidak bisa meloloskan draf yang gagal cek deterministik.',
+    parametersSchema: {
+      type: 'object',
+      properties: {
+        issueId: { type: 'string' },
+        llm: {
+          type: 'object',
+          properties: {
+            textOk: { type: 'boolean' },
+            designOk: { type: 'boolean' },
+            notes: { type: 'array', items: { type: 'object', properties: { slide: { type: 'integer' }, note: { type: 'string' } } } },
+          },
+        },
+      },
+      required: ['issueId', 'llm'],
     },
   },
   complete_stage: {

@@ -32,6 +32,23 @@ Jika `visual-qa.json` memuat satu saja kegagalan → gagal. Tidak ada pengecuali
 - Tidak ada kesalahan fakta terhadap sumber
 - Teks di gambar konsisten dengan draf Copywriter, tanpa fakta baru
 
+## Cara menyerahkan hasil (WAJIB lewat tool plugin)
+
+Panggil `qa_submit_result { issueId, llm: { textOk, designOk, notes: [{ slide, note }] } }` **sekali per putaran**.
+Plugin menghitung ulang semua cek deterministik dari dokumen issue (`carousel`, `verification-result`,
+`carousel-design`) dan laporan render; kamu hanya mengisi penilaian bahasa. Penilaianmu hanya bisa
+**menambah** kegagalan, tidak bisa meloloskan draf yang gagal cek kode. Hasil tool:
+
+| `action` | Artinya | Yang kamu lakukan |
+| --- | --- | --- |
+| `pass` | Lolos | Berhenti. Handoff ke approval dikerjakan tahap berikutnya, bukan kamu |
+| `return_to_copywriter` | Gagal teks | Berhenti; issue kembali ke Copywriter |
+| `return_to_designer` | Gagal desain/visual | Berhenti; issue kembali ke Designer |
+| `needs_human` | Sudah 2 putaran gagal | Berhenti; plugin menandai issue `blocked` |
+
+Penghitung putaran disimpan plugin. Dilarang membuat panggilan HTTP sendiri (curl, Invoke-RestMethod,
+Invoke-WebRequest) dan dilarang mengakali penghitung.
+
 ## Output
 
 Pass atau fail, dengan catatan **per slide** yang spesifik dan bisa ditindaklanjuti.
