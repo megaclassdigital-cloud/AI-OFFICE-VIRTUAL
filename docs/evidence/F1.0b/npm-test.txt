@@ -1,0 +1,35 @@
+
+> ai-agent-office@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.3 D:/AI-Memory/AI-Agent-Office
+
+ ✓ tests/render-validation.test.mjs (10 tests) 13585ms
+   ✓ render.mjs menolak desain cacat sebelum merender (8)
+     ✓ teks melebihi batas karakter slot (tidak dipotong diam-diam) -> exit 2, 0 PNG 4925ms
+     ✓ slot yang tidak dikenal template -> exit 2, 0 PNG 884ms
+     ✓ template yang tidak ada di templates.json -> exit 2, 0 PNG 838ms
+     ✓ slot wajib kosong -> exit 2, 0 PNG 1412ms
+     ✓ kata tekanan tidak ada di slot mana pun -> exit 2, 0 PNG 1202ms
+     ✓ varian warna yang tidak ada di brand.json -> exit 2, 0 PNG 845ms
+     ✓ ikon yang tidak ada di set lokal -> exit 2, 0 PNG 808ms
+     ✓ melaporkan SEMUA kesalahan sekaligus, bukan hanya yang pertama 868ms
+   ✓ render.mjs argumen dan berkas (2)
+     ✓ tanpa --design: exit 1 dengan petunjuk pemakaian 861ms
+     ✓ berkas design yang tidak ada: exit 1 934ms
+ ✓ tests/install-division.test.mjs (6 tests) 4349ms
+   ✓ install-division.mjs --dry-run (6)
+     ✓ company ada, belum ada agent: merencanakan 5 agent dan TIDAK mengubah apa pun 1130ms
+     ✓ company belum ada: merencanakan membuat company, tetap tanpa mengubah apa pun 610ms
+     ✓ agent sudah ada: merencanakan MEMPERBARUI (idempoten), bukan membuat ganda 717ms
+     ✓ server belum siap (status bukan ok): gagal jelas dengan exit 1 372ms
+     ✓ server mati: gagal jelas dengan petunjuk start-paperclip, tidak menggantung 601ms
+     ✓ manifest division yang tidak ada: gagal dengan pesan jelas 915ms
+ ✓ tests/schemas.test.mjs (39 tests) 389ms
+
+ Test Files  3 passed (3)
+      Tests  55 passed (55)
+   Start at  09:27:05
+   Duration  21.06s (tests 96%, import 2%, transform 1%)
+
