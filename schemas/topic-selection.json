@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-agent-office.local/schemas/topic-selection.json",
+  "title": "Pemilihan topik carousel EdukasiAI",
+  "description": "Penilaian kandidat terverifikasi memakai rubrik divisions/edukasiai/sop/topic-rubric.md. Total skor dihitung KODE (scripts/check-topic-selection.mjs), bukan diisi LLM.",
+  "type": "object",
+  "required": ["selectedAt", "ranking", "selected"],
+  "additionalProperties": false,
+  "properties": {
+    "selectedAt": { "type": "string", "format": "date-time" },
+    "ranking": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": { "$ref": "#/$defs/rated" }
+    },
+    "selected": {
+      "type": "object",
+      "required": ["candidateId", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "candidateId": { "type": "string", "pattern": "^c[0-9]{2}$" },
+        "reason": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 600,
+          "pattern": "\\S{3}",
+          "description": "Alasan memilih, merujuk skor dan konteks Indonesia. Wajib, tidak boleh kosong atau sekadar spasi."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "score": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "rated": {
+      "type": "object",
+      "required": ["candidateId", "scores"],
+      "additionalProperties": false,
+      "properties": {
+        "candidateId": { "type": "string", "pattern": "^c[0-9]{2}$" },
+        "scores": {
+          "type": "object",
+          "required": ["relevance", "novelty", "impact"],
+          "additionalProperties": false,
+          "properties": {
+            "relevance": { "$ref": "#/$defs/score" },
+            "novelty": { "$ref": "#/$defs/score" },
+            "impact": { "$ref": "#/$defs/score" }
+          }
+        },
+        "note": { "type": "string", "maxLength": 300 }
+      }
+    }
+  }
+}

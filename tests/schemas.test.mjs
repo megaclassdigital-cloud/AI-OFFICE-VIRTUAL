@@ -73,6 +73,14 @@ const valid = {
       },
     ],
   },
+  'topic-selection': {
+    selectedAt: '2026-10-08T01:30:00Z',
+    ranking: [
+      { candidateId: 'c01', scores: { relevance: 4, novelty: 5, impact: 4 } },
+      { candidateId: 'c02', scores: { relevance: 3, novelty: 3, impact: 3 }, note: 'Kurang konkret' },
+    ],
+    selected: { candidateId: 'c01', reason: 'Skor tertinggi (13) dan langsung relevan untuk pekerja Indonesia di perusahaan global.' },
+  },
   'approval-record': {
     schema_version: 1,
     record_id: '0b0e7c38-6a35-4a9e-9d6e-3f5b2b1f4c11',
@@ -121,6 +129,14 @@ const invalid = {
     ['cek contrast hilang', (d) => delete d.slides[0].checks.contrast, /contrast/],
     ['passed bukan boolean', (d) => (d.passed = 'ya'), /must be boolean/],
     ['properti tidak dikenal di cek', (d) => (d.slides[0].checks.noOverflow.rahasia = 1), /tidak dikenal "rahasia"/],
+  ],
+  'topic-selection': [
+    ['alasan kosong', (d) => (d.selected.reason = ''), /fewer than 20|minLength/],
+    ['alasan hanya spasi', (d) => (d.selected.reason = ' '.repeat(30)), /pattern/],
+    ['skor di luar 1-5', (d) => (d.ranking[0].scores.impact = 6), /must be <= 5|maximum/],
+    ['skor pecahan', (d) => (d.ranking[0].scores.novelty = 3.5), /must be integer/],
+    ['kriteria skor hilang', (d) => delete d.ranking[1].scores.relevance, /relevance/],
+    ['properti total diisi LLM ditolak', (d) => (d.ranking[0].total = 15), /tidak dikenal "total"/],
   ],
   'approval-record': [
     ['diputuskan oleh agent (bukan owner)', (d) => (d.decided_by = 'agent'), /must be equal to constant|const/],
