@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T15:56:03.269Z",
+    "updated_at": "2026-10-08T15:58:13.210Z",
     "current_task": ""
   },
   "tasks": [
@@ -547,11 +547,11 @@
       "deps": [
         "F2.1"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/F2.3.md",
+      "notes": "6 tes; klien HTTP belum dicoba ke Paperclip nyata"
     },
     {
       "id": "F2.4",
