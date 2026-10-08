@@ -10,7 +10,10 @@
 import { allowedFrom, canTransition } from './lifecycle.js';
 import { verifyCandidate } from './url-check.js';
 import { runRender, RenderInputError } from './render-tool.js';
-import { submitQaResult, QaInputError } from './qa-tool.js';
+import { submitQaResult, computeDeterministic, verdictScope, QaInputError } from './qa-tool.js';
+import { sha256 } from './content-hash.js';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 export const AGENT_ALLOWED_TRANSITIONS = Object.freeze(
   Object.fromEntries(['todo', 'in_progress', 'blocked', 'in_review'].map((s) => [s, allowedFrom('agent', s)]))
@@ -108,6 +111,37 @@ export function makeAgentTools(ctx) {
       }
       return { action: r.action, reason: r.reason, rounds: r.rounds, routeTo: r.deterministic.routeTo, passedDeterministic: r.deterministic.passed };
     }),
+    // Handoff ke owner (F1.10): hanya bila QA lolos DAN isi paket tidak berubah sejak itu. Agent tidak dapat menyetel approved.
+    handoff_to_owner: wrap(async (p, run) => {
+      const issueId = issueIdOf(p);
+      const issue = await ownIssue(issueId, run);
+      if (!canTransition('agent', issue.status, 'in_review')) {
+        throw new ToolError(`transisi ${issue.status} -> in_review tidak diizinkan untuk agent`);
+      }
+      const verdict = await ctx.state.get(verdictScope(issueId));
+      if (verdict?.action !== 'pass') throw new ToolError('QA belum meloloskan paket ini (jalankan qa_submit_result sampai pass)');
+      const cur = await computeDeterministic(ctx, { issueId, companyId: run.companyId }).catch((e) => {
+        if (e instanceof QaInputError) throw new ToolError(e.message);
+        throw e;
+      });
+      if (!cur.report.passed) throw new ToolError('cek deterministik gagal pada kondisi paket saat ini');
+      if (cur.contentHash.combined !== verdict.contentHash) throw new ToolError('isi paket berubah sejak QA lolos; ulangi QA');
+      const sheet = await readFile(path.join(cur.renderDir, 'contact-sheet.png')).catch(() => null);
+      if (!sheet) throw new ToolError('contact-sheet.png tidak ditemukan; render ulang');
+      const sheetHash = sha256(sheet);
+      const lines = [
+        '# Paket siap ditinjau owner', '',
+        `- Topik: ${cur.carousel.topic}`, `- Jumlah slide: ${cur.carousel.slides.length}`,
+        `- Hash isi paket (sha256): ${cur.contentHash.combined}`, `- Hash teks: ${cur.contentHash.text}`, '',
+        '## Berkas', `- Folder: ${cur.renderDir}`, `- contact-sheet.png (sha256 ${sheetHash})`,
+        ...cur.contentHash.files.map((f) => `- ${f.path} (sha256 ${f.sha256})`), '',
+        '## Status', 'QA otomatis lolos. Keputusan approve/reject hanya milik owner.',
+      ];
+      await ctx.issues.documents.upsert({ issueId, key: 'handoff', body: lines.join(String.fromCharCode(10)), companyId: run.companyId, title: 'Handoff ke owner', format: 'markdown' });
+      await ctx.issues.createComment(issueId, `Paket lolos QA dan menunggu keputusan owner. Hash isi: ${cur.contentHash.combined}. Rincian ada di dokumen "handoff".`, run.companyId, { authorAgentId: run.agentId });
+      await ctx.issues.update(issueId, { status: 'in_review' }, run.companyId);
+      return { status: 'in_review', contentHash: cur.contentHash.combined, contactSheetSha256: sheetHash, files: cur.contentHash.files.length };
+    }),
     // Akhiri tahap: komentar akhir + status in_review (menunggu owner) atau blocked (butuh owner) dalam satu panggilan.
     complete_stage: wrap(async (p, run) => {
       const issueId = issueIdOf(p);
@@ -194,6 +228,11 @@ export const TOOL_DEFS = {
       },
       required: ['issueId', 'llm'],
     },
+  },
+  handoff_to_owner: {
+    displayName: 'Handoff To Owner',
+    description: 'Serahkan paket ke owner: hanya jika QA sudah pass dan isi paket tidak berubah sejak itu. Menulis dokumen "handoff" (hash, daftar berkas, contact sheet) dan menyetel issue ke in_review (menunggu keputusan owner). Tidak bisa menyetujui paket.',
+    parametersSchema: { type: 'object', properties: { issueId: { type: 'string' } }, required: ['issueId'] },
   },
   complete_stage: {
     displayName: 'Complete Stage',

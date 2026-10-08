@@ -1,0 +1,23 @@
+agent QA     : paused
+PATCH issue  : in_progress
+QA           : {"action":"pass"}
+handoff      : {"ok":true,"status":"in_review","contentHash":"fa33caadfe7de03984c97c57edbf6287dffd4006b1e4406b154ff1bc1a9ef458","contactSheetSha256":"3790025d65ddcc725734b840ca47ed25cf6935171dfe60e435119bbf570dfeea","files":6}
+agent approve: {"ok":false,"error":"transisi in_review -> approved tidak diizinkan untuk agent (boleh: in_progress)"}
+agent done   : {"ok":false,"error":"transisi in_review -> done tidak diizinkan untuk agent (boleh: in_progress)"}
+status issue : in_review
+--- dokumen handoff ---
+# Paket siap ditinjau owner
+
+- Topik: California batasi AI menilai pekerja lewat data biometrik
+- Jumlah slide: 6
+- Hash isi paket (sha256): fa33caadfe7de03984c97c57edbf6287dffd4006b1e4406b154ff1bc1a9ef458
+- Hash teks: 592959333c1a256f70097242102994e10f7713ff988eda1ef1c0eb0e7db66853
+
+## Berkas
+- Folder: D:\AI-Memory\AI-Agent-Office\workspace\issues\a894a7c1-af00-4354-905e-7867c1b360f8\render
+- contact-sheet.png (sha256 3790025d65ddcc725734b840ca47ed25cf6935171dfe60e435119bbf570dfeea)
+- slide-01.png (sha256 27ebcec2a3cb90e6b42e3add6a35a07c645ae70bb6a9457f0de78465bf1b6dae)
+- slide-02.png (sha256 b756923628e035b62e11c9c126652d1405bb01f64e77935fd410fb82756380a0)
+- slide-03.png (sha256 e18320e0700f724304e3c66ff22ce8dba98fd83ad3c46c1b9ee6a3e48d45845c)
+- slide-04.png (sha256 23f6292422c4416616abd
+run baru     : 0

@@ -14,7 +14,7 @@
 export default {
   id: 'aao-approval-gate',
   apiVersion: 1,
-  version: '0.6.0',
+  version: '0.7.0',
   displayName: 'AAO Approval Gate',
   description:
     'Tool deterministik untuk AI Agent Office. F0.4: versi hello dengan satu tool uji tanpa efek samping.',
@@ -174,6 +174,22 @@ export default {
         required: [
           'issueId',
           'llm'
+        ]
+      }
+    },
+    {
+      name: 'handoff_to_owner',
+      displayName: 'Handoff To Owner',
+      description: 'Serahkan paket ke owner: hanya jika QA sudah pass dan isi paket tidak berubah sejak itu. Menulis dokumen \'handoff\' (hash, daftar berkas, contact sheet) dan menyetel issue ke in_review (menunggu keputusan owner). Tidak bisa menyetujui paket.',
+      parametersSchema: {
+        type: 'object',
+        properties: {
+          issueId: {
+            type: 'string'
+          }
+        },
+        required: [
+          'issueId'
         ]
       }
     },

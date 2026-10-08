@@ -1,0 +1,8 @@
+render      : {"passed":true,"pngCount":6}
+handoff dulu: {"ok":false,"error":"transisi todo -> in_review tidak diizinkan untuk agent"}
+QA          : {"action":"pass","reason":"semua cek lolos"}
+handoff     : {"ok":false,"error":"transisi todo -> in_review tidak diizinkan untuk agent"}
+agent approve: {"ok":false,"error":"transisi todo -> approved tidak diizinkan untuk agent (boleh: in_progress)"}
+dokumen     : ["carousel","carousel-design","research-output","verification-result"]
+--- handoff ---
+{"error":"Document not found"}

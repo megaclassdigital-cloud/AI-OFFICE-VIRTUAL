@@ -86,3 +86,11 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Pilihan: plugin mengimpor `../../../scripts/qa-deterministic.mjs` (satu sumber kebenaran, tanpa salinan). Konsekuensi: plugin bergantung pada tata letak repo dan `scripts/check-carousel.mjs` membaca brand kit EdukasiAI, jadi aturan "plugin generik" (CLAUDE.md aturan 10) terlanggar secara ringan. Parameterisasi division per issue dicatat sebagai tindak lanjut sebelum division kedua.
 - Biaya membalik: sedang
 - Label: REVIEW-OWNER
+
+## D-011 — Contact sheet tidak bisa dilampirkan sebagai berkas biner oleh plugin
+- Task: F1.10
+- Konteks: SDK plugin 2026.1001.0 hanya punya `issue.attachments.read` (baca); tidak ada fungsi membuat lampiran. Dokumen issue bertipe teks/markdown.
+- Pilihan: tool `handoff_to_owner` menulis dokumen `handoff` (markdown) berisi path folder render, sha256 contact-sheet dan tiap PNG, serta hash isi paket; berkas PNG tetap di `workspace/issues/<issueId>/render/`. Owner membuka berkas itu di folder lokal. Alternatif (disematkan sebagai data URI di markdown) belum diuji di UI Paperclip.
+- Dampak: tinjauan owner di UI Paperclip belum menampilkan gambar. Perlu keputusan sebelum F2.1 (halaman approval).
+- Biaya membalik: sedang
+- Label: REVIEW-OWNER
