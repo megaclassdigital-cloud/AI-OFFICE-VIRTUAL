@@ -1,0 +1,60 @@
+{
+  "$meta": {
+    "version": 1,
+    "updatedAt": "2026-10-04T11:06:33.092Z",
+    "source": "onboard"
+  },
+  "database": {
+    "mode": "embedded-postgres",
+    "embeddedPostgresDataDir": "C:\\Users\\Farrel\\.paperclip\\instances\\default\\db",
+    "embeddedPostgresPort": 54329,
+    "backup": {
+      "enabled": true,
+      "intervalMinutes": 60,
+      "retentionDays": 30,
+      "dir": "C:\\Users\\Farrel\\.paperclip\\instances\\default\\data\\backups"
+    }
+  },
+  "logging": {
+    "mode": "file",
+    "logDir": "C:\\Users\\Farrel\\.paperclip\\instances\\default\\logs"
+  },
+  "server": {
+    "deploymentMode": "local_trusted",
+    "exposure": "private",
+    "bind": "loopback",
+    "host": "127.0.0.1",
+    "port": 3100,
+    "allowedHostnames": [],
+    "serveUi": true
+  },
+  "telemetry": {
+    "enabled": true
+  },
+  "updates": {
+    "checkEnabled": true
+  },
+  "auth": {
+    "baseUrlMode": "auto",
+    "disableSignUp": false
+  },
+  "storage": {
+    "provider": "local_disk",
+    "localDisk": {
+      "baseDir": "C:\\Users\\Farrel\\.paperclip\\instances\\default\\data\\storage"
+    },
+    "s3": {
+      "bucket": "paperclip",
+      "region": "us-east-1",
+      "prefix": "",
+      "forcePathStyle": false
+    }
+  },
+  "secrets": {
+    "provider": "local_encrypted",
+    "strictMode": false,
+    "localEncrypted": {
+      "keyFilePath": "C:\\Users\\Farrel\\.paperclip\\instances\\default\\secrets\\master.key"
+    }
+  }
+}

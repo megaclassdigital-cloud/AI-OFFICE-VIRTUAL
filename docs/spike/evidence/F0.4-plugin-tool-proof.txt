@@ -1,0 +1,22 @@
+﻿=== AC0.4 bukti plugin menambah tool tanpa mengubah core — 2026-10-05T09:18:04.2011394+07:00 ===
+
+--- plugin terpasang ---
+
+key=aao-approval-gate  status=ready  version=0.1.0  id=e1de4ba0-14d1-4931-9f22-b3724f09ffe2
+
+
+
+--- tool terdaftar + dieksekusi ---
+HTTP 200
+{"pluginId":"aao-approval-gate","toolName":"aao_hello","result":{"content":"aao_hello menerima: Halo dari F0.4 — uji tool deterministik ≥ 1 kali","data":{"ok":true,"echo":"Halo dari F0.4 — uji tool deterministik ≥ 1 kali","length":48,"receivedAt":"2026-10-05T02:18:13.732Z","plugin":"aao-approval-gate"}}}
+
+--- panggilan kedua, HTTP 200 ---
+echo sama   : true "Halo dari F0.4 — uji tool deterministik ≥ 1 kali"
+panjang sama: true
+
+--- integritas core Paperclip ---
+SHA256 manifest core BEFORE install plugin: 1E9817A781783519485385528A6CC93F6FA1C97C03607EEC7019B74282D1E929
+SHA256 manifest core AFTER  install plugin: 1E9817A781783519485385528A6CC93F6FA1C97C03607EEC7019B74282D1E929
+IDENTIK. Tidak ada file core yang berubah.
+Catatan: instalasi Paperclip lewat cache npx, bukan git checkout, jadi 'git status bersih'
+di PRD diganti dengan perbandingan hash manifest file (nama+ukuran+mtime) seluruh paket.

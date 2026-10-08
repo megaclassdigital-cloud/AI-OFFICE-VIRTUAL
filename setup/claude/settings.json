@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(node *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(pnpm *)",
+      "Bash(git init*)",
+      "Bash(git status*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git rev-parse *)",
+      "Bash(curl http://localhost*)",
+      "Bash(curl http://127.0.0.1*)",
+      "PowerShell(node *)",
+      "PowerShell(npm *)",
+      "PowerShell(npx *)",
+      "PowerShell(pnpm *)",
+      "PowerShell(git init*)",
+      "PowerShell(git status*)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)",
+      "PowerShell(git log *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git show *)",
+      "PowerShell(git rev-parse *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Get-FileHash *)",
+      "PowerShell(New-Item *)",
+      "PowerShell(Invoke-RestMethod http://localhost*)",
+      "PowerShell(Invoke-WebRequest http://localhost*)",
+      "PowerShell(Invoke-RestMethod http://127.0.0.1*)",
+      "PowerShell(Invoke-WebRequest http://127.0.0.1*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:paperclip.ing)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:playwright.dev)",
+      "WebFetch(domain:code.claude.com)",
+      "WebSearch",
+      "PowerShell(.\\scripts\\*)",
+      "PowerShell(./scripts/*)",
+      "PowerShell(curl.exe http://127.0.0.1*)",
+      "Bash(curl.exe http://127.0.0.1*)"
+    ],
+    "deny": [
+      "AskUserQuestion",
+      "Bash(git push*)",
+      "Bash(git remote *)",
+      "Bash(rm -rf *)",
+      "PowerShell(git push*)",
+      "PowerShell(git remote *)",
+      "PowerShell(Remove-Item *-Recurse*)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Edit(/loop/LOOP.md)",
+      "Edit(/loop/DEFAULTS.md)",
+      "Edit(/CLAUDE.md)",
+      "Edit(/.claude/**)",
+      "Edit(/loop/loop-lib.js)",
+      "Edit(/scripts/loop-status.js)",
+      "Edit(/scripts/loop.ps1)",
+      "Edit(/setup/**)",
+      "Edit(/scripts/install-loop-config.ps1)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.js"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/loop-guard.js"
+            ],
+            "timeout": 30,
+            "statusMessage": "Loop guard: memeriksa backlog..."
+          }
+        ]
+      }
+    ]
+  }
+}

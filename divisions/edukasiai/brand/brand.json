@@ -1,0 +1,55 @@
+{
+  "key": "edukasiai",
+  "displayName": "EdukasiAI",
+  "status": "sementara",
+  "catatan": "Brand kit SEMENTARA, dibuat Claude Code di F1.6 karena owner belum menyediakan logo, palet, dan font. Harus disetujui atau diganti owner sebelum produksi. Lihat divisions/edukasiai/brand/README.md.",
+  "canvas": {
+    "width": 1080,
+    "height": 1350,
+    "safeMargin": 72
+  },
+  "typography": {
+    "fontFamilyStack": "'Inter', 'Segoe UI', system-ui, sans-serif",
+    "localFontDir": "fonts",
+    "minFontPx": 28,
+    "scale": {
+      "kicker": 30,
+      "body": 38,
+      "heading": 64,
+      "display": 92,
+      "hero": 108,
+      "stat": 180
+    }
+  },
+  "variants": {
+    "default": {
+      "background": "linear-gradient(160deg, #0F172A 0%, #1E3A8A 100%)",
+      "text": "#F8FAFC",
+      "muted": "#CBD5E1",
+      "accent": "#FDE047",
+      "kicker": "#93C5FD"
+    },
+    "terang": {
+      "background": "linear-gradient(160deg, #F8FAFC 0%, #DBEAFE 100%)",
+      "text": "#0F172A",
+      "muted": "#475569",
+      "accent": "#1D4ED8",
+      "kicker": "#1E40AF"
+    },
+    "tegas": {
+      "background": "linear-gradient(160deg, #111827 0%, #7F1D1D 100%)",
+      "text": "#F9FAFB",
+      "muted": "#E5E7EB",
+      "accent": "#FCA5A5",
+      "kicker": "#FCD34D"
+    }
+  },
+  "defaultVariant": "default",
+  "logo": {
+    "text": "EdukasiAI",
+    "file": null,
+    "catatan": "Belum ada berkas logo. Renderer memakai logo teks sampai owner menyediakan berkas."
+  },
+  "iconDir": "icons",
+  "minContrastRatio": 4.5
+}

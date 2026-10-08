@@ -1,0 +1,61 @@
+{
+  "$schema": "./division.schema.json",
+  "key": "edukasiai",
+  "companyName": "EdukasiAI",
+  "description": "Division pertama AI Agent Office. Produksi carousel berita AI: research, verifikasi, copywriting, desain, QA, approval owner.",
+  "budgetMonthlyCents": 500,
+  "defaultAdapterType": "codex_local",
+  "defaultAdapterConfig": {
+    "cwd": "D:\\AI-Memory\\AI-Agent-Office\\workspace\\agent",
+    "timeoutSec": 600,
+    "nonInteractivePermissions": "deny"
+  },
+  "sharedProtocolFile": "sop/agent-protocol.md",
+  "agents": [
+    {
+      "key": "researcher",
+      "name": "Researcher",
+      "role": "researcher",
+      "title": "Peneliti Berita AI",
+      "icon": "telescope",
+      "capabilities": "Mengumpulkan 5-10 kandidat berita AI dari 7 hari terakhir. Output wajib JSON sesuai schemas/research-output.json: judul, ringkasan, URL sumber, tanggal terbit, nama sumber.",
+      "instructionsFile": "agents/researcher.md"
+    },
+    {
+      "key": "verifier",
+      "name": "Verifier",
+      "role": "qa",
+      "title": "Verifikator Sumber",
+      "icon": "shield",
+      "capabilities": "Memeriksa setiap kandidat: URL bisa diakses, tanggal dalam rentang 7 hari, klaim utama ada di halaman. Pengecekan URL dan tanggal dilakukan tool deterministik, bukan penilaian LLM.",
+      "instructionsFile": "agents/verifier.md"
+    },
+    {
+      "key": "copywriter",
+      "name": "Copywriter",
+      "role": "general",
+      "title": "Penulis Carousel",
+      "icon": "lightbulb",
+      "capabilities": "Menghasilkan struktur carousel 6-10 slide bahasa Indonesia sesuai schemas/carousel.json: hook, isi per slide, CTA, caption, hashtag, daftar sumber.",
+      "instructionsFile": "agents/copywriter.md"
+    },
+    {
+      "key": "designer",
+      "name": "Designer",
+      "role": "designer",
+      "title": "Perancang Slide",
+      "icon": "wand",
+      "capabilities": "Mengisi schemas/carousel-design.json dari template brand kit: template per slide, isi slot, penekanan, varian warna, ikon lokal. Tidak menulis HTML/CSS bebas.",
+      "instructionsFile": "agents/designer.md"
+    },
+    {
+      "key": "qa",
+      "name": "QA",
+      "role": "qa",
+      "title": "Pemeriksa Mutu",
+      "icon": "eye",
+      "capabilities": "Memeriksa paket teks + PNG + visual-qa.json. Gagal QA teks kembali ke Copywriter, gagal QA visual kembali ke Designer, maksimal 2 putaran lalu needs_human.",
+      "instructionsFile": "agents/qa.md"
+    }
+  ]
+}

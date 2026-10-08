@@ -1,0 +1,13 @@
+{
+  "dimensiDiminta": "1080x1350",
+  "dimensiHasil": "1080x1350",
+  "dimensiCocok": true,
+  "ukuranFileBytes": 522984,
+  "waktuLaunchChromiumMs": 389,
+  "waktuRender1Ms": 599,
+  "waktuRender2Ms": 550,
+  "sha256Render1": "f024f2512cf690b4d637d90d584aafcf4c7fdc82597227291642ec9111a6bf0d",
+  "sha256Render2": "f024f2512cf690b4d637d90d584aafcf4c7fdc82597227291642ec9111a6bf0d",
+  "duaRenderIdentik": true,
+  "file": "D:\\AI-Memory\\AI-Agent-Office\\workspace\\render-spike\\slide-01.png"
+}

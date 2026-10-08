@@ -1,0 +1,16 @@
+{
+    "name":  "aao-approval-gate",
+    "version":  "0.1.0",
+    "private":  true,
+    "description":  "Tool deterministik untuk AI Agent Office: verifikasi sumber, render, approval, prepare_publication.",
+    "author":  "AI Agent Office",
+    "license":  "MIT",
+    "type":  "module",
+    "main":  "src/worker.js",
+    "dependencies":  {
+                         "@paperclipai/plugin-sdk":  "2026.1001.0"
+                     },
+    "paperclipPlugin":  {
+                            "manifest":  "manifest.js"
+                        }
+}

@@ -1,0 +1,69 @@
+{
+  "createdAt": "2026-10-05T03:00:00.000Z",
+  "brand": "edukasiai",
+  "canvas": { "width": 1080, "height": 1350 },
+  "slides": [
+    {
+      "index": 1,
+      "template": "cover",
+      "emphasis": ["pekerja"],
+      "slots": {
+        "kicker": "Berita AI · Minggu ini",
+        "hook": "California batasi AI menilai pekerja lewat biometrik.",
+        "subtitle": "Aturan baru mewajibkan pemberitahuan tertulis sebelum PHK massal."
+      }
+    },
+    {
+      "index": 2,
+      "template": "point",
+      "emphasis": ["emosi"],
+      "slots": {
+        "number": "01",
+        "heading": "Apa yang dilarang",
+        "body": "Perusahaan tidak boleh memakai AI untuk menilai emosi pekerja lewat data biometrik, termasuk ekspresi wajah dan nada suara."
+      }
+    },
+    {
+      "index": 3,
+      "template": "stat",
+      "colorVariant": "tegas",
+      "slots": {
+        "source": "Associated Press",
+        "value": "30 Sep",
+        "label": "Tanggal aturan ditandatangani",
+        "context": "Gubernur Gavin Newsom menandatangani paket undang-undang perlindungan pekerja dari risiko AI."
+      }
+    },
+    {
+      "index": 4,
+      "template": "quote",
+      "slots": {
+        "quote": "Keputusan soal manusia tidak boleh diserahkan sepenuhnya kepada mesin.",
+        "attribution": "Ringkasan redaksi",
+        "role": "Berdasarkan laporan Associated Press"
+      }
+    },
+    {
+      "index": 5,
+      "template": "comparison",
+      "colorVariant": "terang",
+      "slots": {
+        "heading": "Sebelum dan sesudah aturan",
+        "leftLabel": "Sebelum",
+        "leftBody": "Penilaian otomatis bisa dipakai tanpa kewajiban memberi tahu pekerja.",
+        "rightLabel": "Sesudah",
+        "rightBody": "Wajib ada pemberitahuan tertulis bila AI ikut menentukan PHK massal."
+      }
+    },
+    {
+      "index": 6,
+      "template": "cta",
+      "slots": {
+        "heading": "Simpan kalau berguna.",
+        "body": "Kami rangkum kebijakan AI yang berdampak ke dunia kerja setiap minggu.",
+        "action": "Ikuti EdukasiAI",
+        "sources": "Sumber: Associated Press"
+      }
+    }
+  ]
+}

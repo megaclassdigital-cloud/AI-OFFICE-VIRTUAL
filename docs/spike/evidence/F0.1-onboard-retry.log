@@ -1,0 +1,260 @@
+﻿
+██████╗  █████╗ ██████╗ ███████╗██████╗  ██████╗██╗     ██╗██████╗ 
+██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝██║     ██║██╔══██╗
+██████╔╝███████║██████╔╝█████╗  ██████╔╝██║     ██║     ██║██████╔╝
+██╔═══╝ ██╔══██║██╔═══╝ ██╔══╝  ██╔══██╗██║     ██║     ██║██╔═══╝ 
+██║     ██║  ██║██║     ███████╗██║  ██║╚██████╗███████╗██║██║     
+╚═╝     ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝╚═╝     
+  ───────────────────────────────────────────────────────
+  The app people use to manage AI agents for work
+
+T   paperclipai onboard 
+|
+|  Local home: C:\Users\Farrel\.paperclip | instance: default | config: C:\Users\Farrel\.paperclip\instances\default\config.json
+|
+|  C:\Users\Farrel\.paperclip\instances\default\config.json exists
+|
+|  Existing Paperclip install detected; keeping the current configuration unchanged.
+|
+|  Use paperclipai configure if you want to change settings.
+|
+•  Using existing PAPERCLIP_AGENT_JWT_SECRET from environment
+|
+|  Using existing local secrets key file at C:\Users\Farrel\.paperclip\instances\default\secrets\master.key
+|
+o  Configuration ready ------------------------------------------------+
+|                                                                      |
+|  Existing config preserved                                           |
+|  Database: embedded-postgres                                         |
+|  LLM: not configured                                                 |
+|  Logging: file -> C:\Users\Farrel\.paperclip\instances\default\logs  |
+|  Server: local_trusted/private @ loopback (127.0.0.1):3100           |
+|  Allowed hosts: (loopback only)                                      |
+|  Auth URL mode: auto                                                 |
+|  Storage: local_disk                                                 |
+|  Secrets: local_encrypted (strict mode off)                          |
+|  Agent auth: PAPERCLIP_AGENT_JWT_SECRET configured                   |
+|                                                                      |
++----------------------------------------------------------------------+
+|
+o  Next commands ----------------------------+
+|                                            |
+|  Run: paperclipai run                      |
+|  Reconfigure later: paperclipai configure  |
+|  Diagnose setup: paperclipai doctor        |
+|                                            |
++--------------------------------------------+
+|
+•  This npx run is temporary. Use paperclipai install for atomic updates, rollback, and service support.
+T   paperclipai run 
+|
+|  Home: C:\Users\Farrel\.paperclip
+|
+|  Instance: default
+|
+|  Config: C:\Users\Farrel\.paperclip\instances\default\config.json
+|
+o  Running doctor checks...
+
+██████╗  █████╗ ██████╗ ███████╗██████╗  ██████╗██╗     ██╗██████╗ 
+██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝██║     ██║██╔══██╗
+██████╔╝███████║██████╔╝█████╗  ██████╔╝██║     ██║     ██║██████╔╝
+██╔═══╝ ██╔══██║██╔═══╝ ██╔══╝  ██╔══██╗██║     ██║     ██║██╔═══╝ 
+██║     ██║  ██║██║     ███████╗██║  ██║╚██████╗███████╗██║██║     
+╚═╝     ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝╚═╝     
+  ───────────────────────────────────────────────────────
+  The app people use to manage AI agents for work
+
+T   paperclip doctor 
+|
+|  ✓ Config file: Valid config at C:\Users\Farrel\.paperclip\instances\default\config.json
+|
+|  ✓ Deployment/auth mode: local_trusted mode is configured for loopback-only access
+|
+|  ✓ Agent JWT secret: PAPERCLIP_AGENT_JWT_SECRET is set in environment
+|
+|  ! Secrets adapter: Local encrypted provider configured with key file C:\Users\Farrel\.paperclip\instances\default\secrets\master.key; key file permissions are 666 (run chmod 600 C:\Users\Farrel\.paperclip\instances\default\secrets\master.key)
+|
+|    Restrict the local encrypted secrets key file to owner read/write permissions
+|
+|  ✓ Storage: Local disk storage is writable: C:\Users\Farrel\.paperclip\instances\default\data\storage
+|
+|  ✓ Database: Embedded PostgreSQL configured at C:\Users\Farrel\.paperclip\instances\default\db (port 54329)
+|
+|  ✓ LLM provider: No LLM provider configured (optional)
+|
+|  ✓ Log directory: Log directory is writable: C:\Users\Farrel\.paperclip\instances\default\logs
+|
+|  ✓ Server port: Port 3100 is available
+|
+|  ✓ Node.js runtime: Node.js 24.19.0
+|
+|  ✓ Managed install: Not present (optional for npx, global npm, and source-checkout usage)
+|
+|  ✓ Background service: Service management is not supported on win32. Use paperclipai run instead.
+|
+o  Summary ---------------+
+|                         |
+|  11 passed, 1 warnings  |
+|                         |
++-------------------------+
+|
+—  All critical checks passed with some warnings.
+
+|
+o  Starting Paperclip server...
+[18:14:11] [32mINFO[39m: [36mUsing embedded PostgreSQL because no DATABASE_URL set (dataDir=C:\Users\Farrel\.paperclip\instances\default\db, port=54329)[39m
+[18:14:27] [32mINFO[39m: [36mCreated embedded PostgreSQL database: paperclip[39m
+[18:14:27] [32mINFO[39m: [36mDetected first-run embedded PostgreSQL setup; applying pending migrations automatically[39m
+[18:14:27] [32mINFO[39m: [36mApplying 282 pending migrations for Embedded PostgreSQL[39m [90m{"pendingMigrations":["0000_mature_masked_marvel.sql","0001_fast_northstar.sql","0002_big_zaladane.sql","0003_shallow_quentin_quire.sql","0004_issue_identifiers.sql","0005_chief_luke_cage.sql","0006_overjoyed_mister_sinister.sql","0007_new_quentin_quire.sql","0008_amused_zzzax.sql","0009_fast_jackal.sql","0010_stale_justin_hammer.sql","0011_windy_corsair.sql","0012_perpetual_ser_duncan.sql","0013_dashing_wasp.sql","0014_many_mikhail_rasputin.sql","0015_project_color_archived.sql","0016_agent_icon.sql","0017_tiresome_gabe_jones.sql","0018_flat_sleepwalker.sql","0019_public_victor_mancha.sql","0020_white_anita_blake.sql","0021_chief_vindicator.sql","0022_company_brand_color.sql","0023_fair_lethal_legion.sql","0024_far_beast.sql","0025_nasty_salo.sql","0026_lying_pete_wisdom.sql","0027_tranquil_tenebrous.sql","0028_harsh_goliath.sql","0029_plugin_tables.sql","0030_rich_magneto.sql","0031_zippy_magma.sql","0032_pretty_doctor_octopus.sql","0033_shiny_black_tarantula.sql","0034_fat_dormammu.sql","0035_marvelous_satana.sql","0036_cheerful_nitro.sql","0037_friendly_eddie_brock.sql","0038_careless_iron_monger.sql","0039_fat_magneto.sql","0040_eager_shotgun.sql","0041_curly_maria_hill.sql","0042_spotty_the_renegades.sql","0043_reflective_captain_universe.sql","0044_illegal_toad.sql","0045_workable_shockwave.sql","0046_smooth_sentinels.sql","0047_overjoyed_groot.sql","0048_flashy_marrow.sql","0049_flawless_abomination.sql","0050_stiff_luckman.sql","0051_young_korg.sql","0052_mushy_trauma.sql","0053_sharp_wild_child.sql","0054_draft_routines.sql","0055_kind_weapon_omega.sql","0056_spooky_ultragirl.sql","0057_tidy_join_requests.sql","0058_wealthy_starbolt.sql","0059_plugin_database_namespaces.sql","0060_orange_annihilus.sql","0061_lively_thor_girl.sql","0062_routine_run_dispatch_fingerprint.sql","0063_issue_thread_interactions.sql","0064_issue_thread_interaction_idempotency.sql","0065_environments.sql","0066_issue_tree_holds.sql","0067_agent_default_environment.sql","0068_environment_local_driver_unique.sql","0069_liveness_recovery_dedupe.sql","0070_active_run_output_watchdog.sql","0071_default_hire_approval_off.sql","0072_large_sandman.sql","0073_shiny_salo.sql","0074_striped_genesis.sql","0075_cultured_sebastian_shaw.sql","0076_useful_elektra.sql","0077_unusual_karnak.sql","0078_white_darwin.sql","0079_company_search_document_indexes.sql","0080_company_search_fuzzystrmatch.sql","0081_optimal_dormammu.sql","0082_dry_vision.sql","0083_company_secret_provider_configs.sql","0084_issue_recovery_actions.sql","0085_tranquil_the_executioner.sql","0086_routine_env_runtime_contract.sql","0087_backfill_environment_manage_human_defaults.sql","0088_backfill_principal_access_compatibility.sql","0089_cloud_upstreams.sql","0090_resource_memberships.sql","0091_old_swarm.sql","0092_mighty_puma.sql","0093_giant_green_goblin.sql","0094_backfill_archived_company_agent_pauses.sql","0095_issue_comment_tombstones.sql","0096_document_annotation_issue_comment_links.sql","0097_low_trust_source_trust.sql","0098_project_icon.sql","0099_skills_store_foundation.sql","0100_skill_install_count_backfill.sql","0101_plugin_company_id_tenant_isolation.sql","0102_managed_sandbox_dedup_index.sql","0103_agent_error_reason.sql","0104_issue_watchdogs.sql","0105_instance_scoped_environments.sql","0106_external_object_references.sql","0107_external_object_display_metadata.sql","0108_workspace_operations_issue_id.sql","0109_routine_description_annotations.sql","0110_document_company_cascade.sql","0111_backfill_skill_create_human_defaults.sql","0112_rename_skill_create_permission_key.sql","0113_pipeline_foundation.sql","0114_pipeline_case_issue_unlinked_event.sql","0115_pipeline_routine_origin.sql","0116_pipeline_upstream_drift_event.sql","0117_pipeline_transition_forced_event.sql","0118_pipeline_case_agent_fanout.sql","0119_pipeline_drift_acknowledged_event.sql","0120_pipeline_stage_working_primitives.sql","0121_pipeline_automation_retry_effects.sql","0122_pipeline_case_documents.sql","0123_document_annotation_source_trust.sql","0124_agent_api_key_scope_config.sql","0125_environment_custom_image_templates.sql","0127_environment_custom_images_instance_scoped.sql","0128_user_specific_secrets.sql","0129_agent_api_key_responsible_user.sql","0131_repair_run_responsible_user_context_refs.sql","0132_issue_comment_derived_attribution_fast.sql","0133_resource_membership_stars.sql","0134_run_responsible_user_invariant.sql","0135_repair_run_responsible_user_updated_at_sweep.sql","0136_acpx_default_engine_migration.sql","0137_skill_studio_server_foundation.sql","0138_skill_studio_run_retention.sql","0139_skill_studio_run_templates.sql","0140_built_in_managed_resources.sql","0141_heartbeat_runs_company_created_at_index.sql","0142_company_search_sort_indexes.sql","0143_cases_foundation.sql","0144_case_document_annotations.sql","0145_inbox_dismissal_snooze_kind.sql","0146_routine_activity_gate.sql","0147_cost_event_status.sql","0148_tool_access_mcp_connections.sql","0149_agent_access_phase2_contracts.sql","0150_tool_invocation_catalog_snapshots.sql","0151_tool_gateway_sessions.sql","0152_tool_connection_application_no_cascade.sql","0153_tool_stdio_command_templates.sql","0154_tool_oauth_states.sql","0155_tool_oauth_state_actor_binding.sql","0156_tool_oauth_state_session_binding.sql","0157_tool_profile_new_tools_review.sql","0158_tool_invocation_connected_mcp_metadata.sql","0159_named_mcp_gateways.sql","0160_mcp_gateway_contract_expansion.sql","0161_environment_custom_image_company_scope_repair.sql","0162_tool_runtime_metric_counters.sql","0163_secret_binding_projection_class.sql","0164_plugin_config_company_scope.sql","0165_connection_token_issuances.sql","0166_smoke_lab_results.sql","0167_environment_custom_image_instance_scope_cleanup.sql","0168_tool_connection_installs.sql","0169_tool_gateway_protocol_rate_limit_counters.sql","0170_company_skill_policies.sql","0171_issue_create_idempotency_keys.sql","0172_inbox_archive_agent_policies.sql","0173_inbox_policy_agent_cleanup.sql","0174_folders.sql","0175_nested_skill_folders.sql","0176_issue_create_idempotency_key_expiry.sql","0177_activity_log_responsible_user.sql","0178_summary_slots.sql","0179_summary_slot_failure_reason.sql","0180_decision_training_examples.sql","0181_decision_training_retention_policy.sql","0182_connections_v3_schema_core.sql","0183_connection_user_authorization_state.sql","0184_routable_blocked.sql","0185_status_cards.sql","0186_status_card_compile_provenance.sql","0187_status_card_pending_change_hash.sql","0188_status_card_generation_issue_index.sql","0189_status_card_agent.sql","0190_status_card_single_prompt.sql","0191_status_card_mentioned_issue_ids.sql","0192_task_watchdog_stop_snapshots.sql","0193_document_memberships.sql","0194_company_skill_releases.sql","0195_built_in_agent_unique_marker.sql","0196_drop_cloud_upstream_tables.sql","0197_decisions_v1.sql","0198_decision_queues_and_triage.sql","0199_decision_queue_composite_key.sql","0200_yellow_maria_hill.sql","0201_concerned_captain_midlands.sql","0202_eminent_marvel_zombies.sql","0203_interaction_resolver_governance.sql","0204_interaction_addressee.sql","0205_narrow_shiva.sql","0206_review_path_recovery_idempotency_index.sql","0207_moaning_amazoness.sql","0208_keen_sharon_carter.sql","0209_heartbeat_context_snapshot_indexes.sql","0210_heartbeat_context_taskkey_index.sql","0211_bright_morg.sql","0212_onboarding_first_task_unique.sql","0213_complete_mystique.sql","0214_lively_lord_tyger.sql","0215_flat_daimon_hellstrom.sql","0216_company_onboarding_seeds.sql","0217_yielding_starbolt.sql","0218_mushy_jack_murdock.sql","0219_runtime_service_exposure.sql","0220_execution_workspace_runtime_leases.sql","0221_swift_justin_hammer.sql","0222_orphan_cleanup_env_reference_survives_delete.sql","0223_robust_zaladane.sql","0224_unified_adapter_auth_sessions.sql","0225_drop_claude_setup_token_sessions.sql","0226_tan_colossus.sql","0227_modern_pandemic.sql","0228_nasty_grim_reaper.sql","0229_drop_company_brand_color_and_attachment_max_bytes.sql","0230_better_auth_account_issuer.sql","0231_remove_app_connection_wide_includes.sql","0232_fixed_hannibal_king.sql","0233_living_dreaming_celestial.sql","0234_provider_trace_records.sql","0235_heartbeat_run_event_sequence_uniqueness.sql","0236_remove_cheap_model_profiles.sql","0237_clammy_colonel_america.sql","0238_graceful_infant_terrible.sql","0239_sturdy_santa_claus.sql","0240_pink_fantastic_four.sql","0241_conscious_adam_destine.sql","0242_wide_lightspeed.sql","0243_sleepy_metal_master.sql","0244_organic_meltdown.sql","0245_misty_nightshade.sql","0246_nostalgic_medusa.sql","0247_even_moon_knight.sql","0248_small_manta.sql","0249_fast_silverclaw.sql","0250_exotic_dakota_north.sql","0251_narrow_mastermind.sql","0252_friendly_kate_bishop.sql","0253_real_firebrand.sql","0254_military_calypso.sql","0255_previous_captain_america.sql","0256_married_king_cobra.sql","0257_bizarre_the_hunter.sql","0258_typical_sauron.sql","0259_tan_chat.sql","0260_chat_interaction_wakeup_idempotency.sql","0261_faulty_iceman.sql","0262_lying_avengers.sql","0263_nebulous_iron_lad.sql","0264_cynical_hellcat.sql","0265_chat_interaction_wakeup_provenance.sql","0266_brave_living_mummy.sql","0267_warm_wild_child.sql","0268_lively_runaways.sql","0269_fearless_young_avengers.sql","0270_harsh_queen_noir.sql","0271_woozy_silver_surfer.sql","0272_light_kate_bishop.sql","0273_aromatic_moondragon.sql","0274_agent_chat.sql","0275_easy_dragon_man.sql","0276_hard_mandroid.sql","0277_uneven_lady_deathstrike.sql","0278_nappy_colonel_america.sql","0279_tired_deathstrike.sql","0280_unique_genesis.sql","0281_true_boom_boom.sql","0282_colossal_shocker.sql","0283_jittery_psynapse.sql"]}[39m
+[18:14:38] [32mINFO[39m: [36mEmbedded PostgreSQL ready[39m
+[18:14:38] [32mINFO[39m: [36mSetup-token login confidential transport startup assessment[39m [90m{"proxyForwardingEnabled":false,"reason":"no_proxy_allowlist_local_trusted_loopback_only","deploymentMode":"local_trusted"}[39m
+[18:14:39] [32mINFO[39m: [36mplugin job coordinator started — listening to lifecycle events[39m [90m{"service":"plugin-job-coordinator"}[39m
+[18:14:39] [32mINFO[39m: [36mplugin job scheduler started[39m [90m{"service":"plugin-job-scheduler","tickIntervalMs":30000,"maxConcurrentJobs":10}[39m
+[18:14:39] [32mINFO[39m: [36minitializing plugin tool dispatcher[39m [90m{"service":"plugin-tool-dispatcher"}[39m
+[18:14:39] [32mINFO[39m: [36mplugin-dev-watcher: initialized[39m [90m{"service":"plugin-dev-watcher","resolvesInstalledPlugins":true}[39m
+[18:14:39] [32mINFO[39m: [36mServer listener bound on 127.0.0.1:3100; startup recovery in progress[39m
+[18:14:39] [32mINFO[39m: [36mbundled plugin bundle not present; skipping auto-install[39m [90m{"pluginKey":"paperclip.kubernetes-sandbox-provider","pluginPath":"C:\app\packages\plugins\sandbox-providers\kubernetes"}[39m
+[18:14:39] [32mINFO[39m: [36mplugin-loader: loading all ready plugins[39m [90m{"service":"plugin-loader"}[39m
+[18:14:39] [32mINFO[39m: [36mloaded tools from ready plugins[39m [90m{"service":"plugin-tool-dispatcher","readyPlugins":0,"registeredTools":0}[39m
+[18:14:39] [34mDEBUG[39m: [36msubscribed to lifecycle events[39m [90m{"service":"plugin-tool-dispatcher"}[39m
+[18:14:39] [32mINFO[39m: [36mplugin tool dispatcher initialized[39m [90m{"service":"plugin-tool-dispatcher","totalTools":0}[39m
+[18:14:39] [32mINFO[39m: [36mplugin-loader: no ready plugins to load[39m [90m{"service":"plugin-loader"}[39m
+[18:14:39] [32mINFO[39m: [36mworktree run-execution cutoff state[39m [90m{"state":"disarmed","cutoff":null}[39m
+[18:14:41] [32mINFO[39m: [36mstartup reap of orphaned heartbeat runs complete[39m [90m{"reaped":0,"runIds":[]}[39m
+
+[36m██████╗  █████╗ ██████╗ ███████╗██████╗  ██████╗██╗     ██╗██████╗ [0m
+[36m██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝██║     ██║██╔══██╗[0m
+[36m██████╔╝███████║██████╔╝█████╗  ██████╔╝██║     ██║     ██║██████╔╝[0m
+[36m██╔═══╝ ██╔══██║██╔═══╝ ██╔══╝  ██╔══██╗██║     ██║     ██║██╔═══╝ [0m
+[36m██║     ██║  ██║██║     ███████╗██║  ██║╚██████╗███████╗██║██║     [0m
+[36m╚═╝     ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝╚═╝     [0m
+[34m  ───────────────────────────────────────────────────────[0m
+[2mMode            [0m [32membedded-postgres[0m  |  [35mstatic-ui[0m
+[2mDeploy          [0m local_trusted (private)
+[2mBind            [0m loopback [2m(127.0.0.1)[0m
+[2mAuth            [0m [32mready[0m
+[2mServer          [0m 3100
+[2mAPI             [0m http://127.0.0.1:3100/api [2m(health: http://127.0.0.1:3100/api/health)[0m
+[2mUI              [0m http://127.0.0.1:3100
+[2mDatabase        [0m C:\Users\Farrel\.paperclip\instances\default\db [2m(pg:54329)[0m
+[2mMigrations      [0m applied (pending migrations)
+[2mAgent JWT       [0m [32mset[0m
+[2mHeartbeat       [0m enabled [2m(30000ms)[0m
+[2mDB Backup       [0m enabled [2m(every 60m, keep 30d)[0m
+[2mBackup Dir      [0m C:\Users\Farrel\.paperclip\instances\default\data\backups
+[2mConfig          [0m C:\Users\Farrel\.paperclip\instances\default\config.json
+[34m  ───────────────────────────────────────────────────────[0m
+
+[18:14:42] [32mINFO[39m: [36mAutomatic database backups enabled[39m [90m{"intervalMinutes":60,"retentionSource":"instance-settings-db","backupDir":"C:\Users\Farrel\.paperclip\instances\default\data\backups"}[39m
+[18:14:42] [32mINFO[39m: [36mServer startup recovery complete on 127.0.0.1:3100[39m
+[18:16:43] [32mINFO[39m: [36mGET /createLucideIcon-BeRqU-eU.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /rolldown-runtime-BQ-vy_Pv.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /index-DMnW_oKd.css 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /preload-helper-BATLnrmA.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /index-DAL4r-07.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /agents-V80gCTZE.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /zap-RyxHXn8C.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /button-CpKYuv7H.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /EmptyState-CYmXJZra.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /bot-COC10wvJ.js 200[39m
+[18:16:43] [32mINFO[39m: [36mGET /router-BOdzPyui.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /dist-D13FbmAD.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /dist-DVHRvcMf.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /mention-chips-cDedVg4e.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /AgentAvatar-BQcATpuj.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /MarkdownEditor-CD9YgySM.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /alert-dialog-1Ls2_KxR.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /chevron-right-b2Qebt4W.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /check-DK7e4lDi.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /dist-Dqqmm7he.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /checkbox-CVAmstPh.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /label-C3dXM7kq.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /clipboard-aF8KQ9q6.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /loader-circle-gHxHifAN.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /octagon-alert-BKTYrKwo.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /chevron-down-BBudOVoh.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /select-BF8ejJ2O.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /StatusIcon-byMXAxms.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /minus-ChIPJ-_O.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /heartbeats-CvEO7-H9.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /rotate-ccw-qxQJzzIG.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /triangle-alert-qe2-abhl.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /badge-WXINLaUd.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /environments-CGkF40-l.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /input-B5MAXq4y.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /AgentIdentity-BXcOx6mh.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /company-members-BZZ2-bPJ.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /skeleton-doHoWUyP.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /card-HysMztk1.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /PageSkeleton-D4Rq27Ma.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /tabs-me9ALDrS.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /save-DfpNjg8P.js 200[39m
+[18:16:44] [32mINFO[39m: [36mGET /use-adapter-capabilities-puMjEC1q.js 200[39m
+[18:16:45] [32mINFO[39m: [36mGET /external-link-u6E8YvQ2.js 200[39m
+[18:16:45] [32mINFO[39m: [36mGET /MarkdownBody-BEus0G6E.js 200[39m
+[18:16:45] [32mINFO[39m: [36mGET /file-text-Da6MLJ2s.js 200[39m
+[18:16:45] [32mINFO[39m: [36mGET /RoutineRunVariablesDialog-CkU8B8MT.js 200[39m
+[18:16:45] [32mINFO[39m: [36mGET /SidebarContext-OkDZBsa5.js 200[39m
+[18:16:45] [32mINFO[39m: [36mGET /favicon-16x16.png 200[39m
+[18:16:46] [32mINFO[39m: [36mGET /get-session 200[39m
+[18:16:46] [32mINFO[39m: [36mGET /instance/settings/experimental 200[39m
+[18:16:46] [32mINFO[39m: [36mGET /adapters 200[39m
+[18:16:46] [32mINFO[39m: [36mGET /fonts/InterVariable.woff2 200[39m
+[18:16:46] [32mINFO[39m: [36mGET /runtime-BQOZ45Xl.js 200[39m
+[18:16:46] [32mINFO[39m: [36mGET /character-CguPM7IG.js 200[39m
+[18:16:46] [32mINFO[39m: [36mGET /model-C7Gtly3i.js 200[39m
+[18:16:50] [32mINFO[39m: [36mGET /agent-avatars/cap-v1/muted-dream/sleepy.png 200[39m
+[18:17:56] [32mINFO[39m: [36mPOST / 201[39m
+[18:17:56] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/routines 200[39m
+[18:17:58] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/skills 200[39m
+[18:18:55] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/adapters/claude_local/models 200[39m
+[18:18:56] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/ai-connections 200[39m
+[18:18:56] [33mWARN[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/claude-oauth-token-status 404[39m [90m{"reqParams":{"companyId":"ae234524-417c-4a11-82da-e8dc35b8a4f3"},"routePath":"/companies/:companyId/claude-oauth-token-status"}[39m
+[18:18:56] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/secrets 200[39m
+[18:18:56] [32mINFO[39m: [36mGET /instance/settings 200[39m
+[18:18:56] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/environments 200[39m
+[18:18:56] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/environments/capabilities 200[39m
+[18:18:56] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/me/user-secrets 200[39m
+[18:18:56] [32mINFO[39m: [36mPOST /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/ai-connections/local/check 200[39m
+[18:18:56] [32mINFO[39m: [36mGET /brands/claude-color.svg 200[39m
+[18:19:01] [32mINFO[39m: [36mPOST /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/ai-connections/local/check 200[39m
+[18:19:06] [32mINFO[39m: [36mPOST /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/ai-connections/local/check 200[39m
+[18:19:08] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/adapters/codex_local/models 200[39m
+[18:19:08] [32mINFO[39m: [36mPOST /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/ai-connections/local/attempts 201[39m
+[18:19:08] [32mINFO[39m: [36mPOST /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/ai-connections/local/check 200[39m
+[18:19:08] [32mINFO[39m: [36mGET /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/ai-connections 200[39m
+[18:19:13] [32mINFO[39m: [36mPOST /companies/ae234524-417c-4a11-82da-e8dc35b8a4f3/ai-connections/local/check 200[39m
+{
+  severity_local: 'WARNING',
+  severity: 'WARNING',
+  code: '57P02',
+  message: 'terminating connection because of crash of another server process',
+  detail: 'The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.',
+  hint: 'In a moment you should be able to reconnect to the database and repeat your command.',
+  file: 'postgres.c',
+  line: '2994',
+  routine: 'quickdie'
+}
+{
+  severity_local: 'WARNING',
+  severity: 'WARNING',
+  code: '57P02',
+  message: 'terminating connection because of crash of another server process',
+  detail: 'The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.',
+  hint: 'In a moment you should be able to reconnect to the database and repeat your command.',
+  file: 'postgres.c',
+  line: '2994',
+  routine: 'quickdie'
+}
+{
+  severity_local: 'WARNING',
+  severity: 'WARNING',
+  code: '57P02',
+  message: 'terminating connection because of crash of another server process',
+  detail: 'The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.',
+  hint: 'In a moment you should be able to reconnect to the database and repeat your command.',
+  file: 'postgres.c',
+  line: '2994',
+  routine: 'quickdie'
+}

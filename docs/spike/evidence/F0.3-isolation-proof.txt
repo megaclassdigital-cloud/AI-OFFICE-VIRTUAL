@@ -1,0 +1,7 @@
+﻿=== AC0.3 bukti isolasi company — 2026-10-05T08:57:07.3662386+07:00 ===
+Agent penguji: IsolationProbe (company IsolationTest)
+
+WRITE: buat issue di EdukasiAI -> HTTP 403 DITOLAK :: {"error":"Agent key cannot access another company"}
+READ: issue EdukasiAI -> HTTP 403 DITOLAK :: {"error":"Agent key cannot access another company"}
+READ: agents EdukasiAI -> HTTP 403 DITOLAK :: {"error":"Agent key cannot access another company"}
+KONTROL: issue company sendiri -> HTTP 200 :: []

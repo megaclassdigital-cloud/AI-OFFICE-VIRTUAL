@@ -1,0 +1,14 @@
+{
+  "name": "ai-agent-office",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Repo AI Agent Office: plugin, template division, skema, script. Core Paperclip dipasang terpisah.",
+  "license": "MIT",
+  "scripts": {
+    "install-division": "node scripts/install-division.mjs",
+    "render-spike": "node scripts/render-spike.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.0"
+  }
+}

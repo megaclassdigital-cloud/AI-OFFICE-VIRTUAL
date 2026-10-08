@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "catatan": "Daftar template slide beserta slot dan batas karakternya. Renderer MENOLAK slot yang tidak terdaftar di sini dan slot yang melebihi maxChars. Designer hanya boleh mengisi slot ini (ADR-0002).",
+  "templates": {
+    "cover": {
+      "file": "templates/cover.html",
+      "deskripsi": "Slide pembuka. Hook utama, dibaca paling dulu.",
+      "slots": {
+        "kicker": { "maxChars": 40, "required": true, "deskripsi": "Label kecil di atas, mis. nama rubrik" },
+        "hook": { "maxChars": 90, "required": true, "deskripsi": "Kalimat pembuka, besar" },
+        "subtitle": { "maxChars": 110, "required": false }
+      }
+    },
+    "point": {
+      "file": "templates/point.html",
+      "deskripsi": "Satu gagasan dengan judul dan penjelasan.",
+      "slots": {
+        "number": { "maxChars": 4, "required": false, "deskripsi": "Nomor poin, mis. 01" },
+        "heading": { "maxChars": 70, "required": true },
+        "body": { "maxChars": 260, "required": true }
+      }
+    },
+    "stat": {
+      "file": "templates/stat.html",
+      "deskripsi": "Satu angka besar dengan konteksnya.",
+      "slots": {
+        "value": { "maxChars": 12, "required": true, "deskripsi": "Angka utama, mis. 73%" },
+        "label": { "maxChars": 60, "required": true },
+        "context": { "maxChars": 200, "required": false },
+        "source": { "maxChars": 60, "required": false, "deskripsi": "Nama penerbit angka" }
+      }
+    },
+    "quote": {
+      "file": "templates/quote.html",
+      "deskripsi": "Kutipan langsung dengan atribusi.",
+      "slots": {
+        "quote": { "maxChars": 220, "required": true },
+        "attribution": { "maxChars": 70, "required": true },
+        "role": { "maxChars": 70, "required": false }
+      }
+    },
+    "comparison": {
+      "file": "templates/comparison.html",
+      "deskripsi": "Dua sisi berdampingan.",
+      "slots": {
+        "heading": { "maxChars": 60, "required": true },
+        "leftLabel": { "maxChars": 28, "required": true },
+        "leftBody": { "maxChars": 160, "required": true },
+        "rightLabel": { "maxChars": 28, "required": true },
+        "rightBody": { "maxChars": 160, "required": true }
+      }
+    },
+    "cta": {
+      "file": "templates/cta.html",
+      "deskripsi": "Slide penutup. Ajakan dan daftar sumber.",
+      "slots": {
+        "heading": { "maxChars": 70, "required": true },
+        "body": { "maxChars": 180, "required": false },
+        "action": { "maxChars": 50, "required": true, "deskripsi": "Ajakan singkat" },
+        "sources": { "maxChars": 300, "required": false, "deskripsi": "Nama penerbit, dipisah koma" }
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+node_modules/
+.env
+.env.*
+workspace/*
+!workspace/.gitkeep
+output/*
+!output/.gitkeep
+*.log
+.DS_Store
+Thumbs.db
+
+# Bukti Fase 0 harus ikut di-commit walau berekstensi .log.
+# Tanpa pengecualian ini, laporan build menunjuk ke file yang tidak ada di repo.
+!docs/spike/evidence/
+!docs/spike/evidence/**
+
+# Loop engineering
+loop/.guard-state.json
+loop/journal/run-*.log

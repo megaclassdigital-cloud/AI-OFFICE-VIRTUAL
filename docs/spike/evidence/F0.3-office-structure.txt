@@ -1,0 +1,30 @@
+﻿=== company list ===
+
+id=4c991285-6d83-4a7f-b783-11e105e46793 name=IsolationTest status=active budgetMonthlyCents=0 spentMonthlyCents=0 
+requireBoardApprovalForNewAgents=false
+id=ae234524-417c-4a11-82da-e8dc35b8a4f3 name=Office Mega Class status=active budgetMonthlyCents=0 spentMonthlyCents=0 
+requireBoardApprovalForNewAgents=false
+id=e9986c83-2835-4f59-bd0f-d6d1b053f08d name=EdukasiAI status=active budgetMonthlyCents=500 spentMonthlyCents=0 
+requireBoardApprovalForNewAgents=false
+
+
+
+=== agent list EdukasiAI ===
+
+id=0b64c2d4-6f32-402e-ac19-f64691eebc24 name=Designer status=idle role=designer budgetMonthlyCents=0 
+spentMonthlyCents=0
+id=10c49ae8-894d-416a-868c-963b8899b878 name=QA status=idle role=qa budgetMonthlyCents=0 spentMonthlyCents=0
+id=5fd90f21-8e78-41d0-b117-f5c05d3e4063 name=Verifier status=idle role=qa budgetMonthlyCents=0 spentMonthlyCents=0
+id=9461f2e1-1ba6-4b23-b030-82558db43013 name=Copywriter status=idle role=general budgetMonthlyCents=0 
+spentMonthlyCents=0
+id=e2b1bca8-fe6f-497c-a6b0-5882ce591877 name=Researcher status=idle role=researcher budgetMonthlyCents=0 
+spentMonthlyCents=0
+
+
+
+=== agent list IsolationTest ===
+
+(empty)
+
+
+

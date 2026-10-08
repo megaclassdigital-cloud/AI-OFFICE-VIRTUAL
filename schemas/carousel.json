@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-agent-office.local/schemas/carousel.json",
+  "title": "Draf carousel dari Copywriter",
+  "description": "Struktur carousel bahasa Indonesia (F1.5). Jumlah slide 6-10. Semua sumber wajib sudah terverifikasi.",
+  "type": "object",
+  "required": ["createdAt", "topic", "angle", "slides", "caption", "hashtags", "sources"],
+  "additionalProperties": false,
+  "properties": {
+    "createdAt": { "type": "string", "format": "date-time" },
+    "topic": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 200,
+      "description": "Topik terpilih (F1.4)."
+    },
+    "angle": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 300,
+      "description": "Sudut pandang dan alasan memilihnya untuk audiens Indonesia."
+    },
+    "slides": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 10,
+      "items": { "$ref": "#/$defs/slide" }
+    },
+    "caption": {
+      "type": "string",
+      "minLength": 50,
+      "maxLength": 2200,
+      "description": "Caption posting bahasa Indonesia."
+    },
+    "hashtags": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 15,
+      "items": { "type": "string", "pattern": "^#[A-Za-z0-9_]+$" }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Hanya URL berstatus verified dari Verifier.",
+      "items": {
+        "type": "object",
+        "required": ["candidateId", "url", "source_name"],
+        "additionalProperties": false,
+        "properties": {
+          "candidateId": { "type": "string", "pattern": "^c[0-9]{2}$" },
+          "url": { "type": "string", "format": "uri" },
+          "source_name": { "type": "string", "minLength": 2 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "slide": {
+      "type": "object",
+      "required": ["index", "role", "heading", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "index": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "role": {
+          "type": "string",
+          "enum": ["hook", "point", "stat", "quote", "comparison", "cta"],
+          "description": "Peran slide. Designer memetakan ini ke template brand kit."
+        },
+        "heading": { "type": "string", "minLength": 3, "maxLength": 120 },
+        "body": { "type": "string", "minLength": 0, "maxLength": 400 },
+        "emphasis": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "type": "string", "minLength": 2, "maxLength": 40 },
+          "description": "Kata yang ingin ditekankan. Harus benar-benar ada di heading atau body."
+        },
+        "sourceRefs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^c[0-9]{2}$" },
+          "description": "Kandidat yang mendukung klaim di slide ini. Wajib untuk slide berisi fakta atau angka."
+        }
+      }
+    }
+  }
+}

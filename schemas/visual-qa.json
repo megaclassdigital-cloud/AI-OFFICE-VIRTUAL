@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-agent-office.local/schemas/visual-qa.json",
+  "title": "Hasil cek visual otomatis renderer",
+  "description": "Dihasilkan renderer (F1.8), bukan LLM. QA membaca ini apa adanya; satu kegagalan berarti paket gagal.",
+  "type": "object",
+  "required": ["renderedAt", "renderer", "canvas", "slideCount", "pngCount", "passed", "slides"],
+  "additionalProperties": false,
+  "properties": {
+    "renderedAt": { "type": "string", "format": "date-time" },
+    "renderer": {
+      "type": "object",
+      "required": ["engine", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "engine": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "canvas": {
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer" },
+        "height": { "type": "integer" }
+      }
+    },
+    "slideCount": { "type": "integer", "minimum": 1 },
+    "pngCount": { "type": "integer", "minimum": 0 },
+    "passed": {
+      "type": "boolean",
+      "description": "true hanya jika SEMUA slide lolos SEMUA cek dan pngCount === slideCount."
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minFontPx": { "type": "number" },
+        "minContrastRatio": { "type": "number" }
+      }
+    },
+    "slides": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/slideCheck" }
+    }
+  },
+  "$defs": {
+    "slideCheck": {
+      "type": "object",
+      "required": ["index", "file", "passed", "checks"],
+      "additionalProperties": false,
+      "properties": {
+        "index": { "type": "integer", "minimum": 1 },
+        "file": { "type": "string" },
+        "template": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "checks": {
+          "type": "object",
+          "required": ["dimensions", "noOverflow", "minFontSize", "contrast", "slotLimits"],
+          "additionalProperties": false,
+          "properties": {
+            "dimensions": { "$ref": "#/$defs/check" },
+            "noOverflow": { "$ref": "#/$defs/check" },
+            "minFontSize": { "$ref": "#/$defs/check" },
+            "contrast": { "$ref": "#/$defs/check" },
+            "slotLimits": { "$ref": "#/$defs/check" }
+          }
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "required": ["ok"],
+      "additionalProperties": false,
+      "properties": {
+        "ok": { "type": "boolean" },
+        "detail": { "type": "string", "maxLength": 1000 },
+        "measured": {}
+      }
+    }
+  }
+}

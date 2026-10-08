@@ -1,0 +1,659 @@
+{
+  "version": 1,
+  "loop": {
+    "status": "RUNNING",
+    "status_reason": "",
+    "started_at": "2026-10-08T01:48:43.037Z",
+    "updated_at": "2026-10-08T01:49:34.921Z",
+    "current_task": ""
+  },
+  "tasks": [
+    {
+      "id": "L0.1",
+      "phase": "L — Bootstrap loop",
+      "title": "Inisialisasi git repo lokal dan commit awal (pastikan workspace/, node_modules/, .env tidak ikut)",
+      "deps": [],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/L0.1.md",
+      "notes": ""
+    },
+    {
+      "id": "L0.2",
+      "phase": "L — Bootstrap loop",
+      "title": "Uji mesin loop: --check, --next, --write-status, selftest hook",
+      "deps": [
+        "L0.1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "L0.3",
+      "phase": "L — Bootstrap loop",
+      "title": "Baseline tooling di docs/versions.md",
+      "deps": [],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "docs/versions.md",
+      "notes": "Sudah diisi Claude Code 2026-10-04/05."
+    },
+    {
+      "id": "L0.4",
+      "phase": "L — Bootstrap loop",
+      "title": "Terapkan default keputusan tertunda dari STATUS lama (telemetry, company asing, ledger uji, start manual)",
+      "deps": [
+        "L0.1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F0.1",
+      "phase": "0 — Spike kelayakan",
+      "title": "Paperclip berjalan di Windows",
+      "deps": [
+        "L0.3"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-04_F0.1.md",
+      "notes": "Port 3177. Diverifikasi ulang di G0.",
+      "hard_stop_on_block": true
+    },
+    {
+      "id": "F0.2",
+      "phase": "0 — Spike kelayakan",
+      "title": "Satu run agent berbiaya marginal nol",
+      "deps": [
+        "F0.1"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-04_F0.2.md",
+      "notes": "Adapter codex_local (langganan owner), bukan free tier. Lihat F1.0f.",
+      "owner_fallback": true
+    },
+    {
+      "id": "F0.2b",
+      "phase": "0 — Spike kelayakan",
+      "title": "Perbaikan loop 1412 perintah: timeoutSec + protokol anti-loop",
+      "deps": [
+        "F0.2"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F0.2-fix-loop.md",
+      "notes": "Mitigasi sementara; akar masalah ditutup F1.0d."
+    },
+    {
+      "id": "F0.3",
+      "phase": "0 — Spike kelayakan",
+      "title": "Isolasi company terbukti lewat API",
+      "deps": [
+        "F0.1"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F0.3-F0.5.md",
+      "notes": ""
+    },
+    {
+      "id": "F0.4",
+      "phase": "0 — Spike kelayakan",
+      "title": "Plugin hello, core tidak berubah",
+      "deps": [
+        "F0.1"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F0.3-F0.5.md",
+      "notes": "Pola startWorkerRpcHost wajib di Windows.",
+      "hard_stop_on_block": true
+    },
+    {
+      "id": "F0.5",
+      "phase": "0 — Spike kelayakan",
+      "title": "Budget habis membuat agent di-pause",
+      "deps": [
+        "F0.2"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F0.3-F0.5.md",
+      "notes": "Mekanisme benar tapi tidak pernah terpicu dengan adapter langganan. Lihat F1.0f."
+    },
+    {
+      "id": "F0.7",
+      "phase": "0 — Spike kelayakan",
+      "title": "Spike render HTML ke PNG 1080x1350",
+      "deps": [
+        "L0.3"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F0.7.md",
+      "notes": ""
+    },
+    {
+      "id": "F0.6",
+      "phase": "0 — Spike kelayakan",
+      "title": "Laporan spike",
+      "deps": [
+        "F0.1",
+        "F0.3",
+        "F0.4",
+        "F0.7"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "docs/spike/report.md",
+      "notes": ""
+    },
+    {
+      "id": "G0",
+      "phase": "0 — Spike kelayakan",
+      "title": "GATE Fase 0: review subagent atas klaim Fase 0 + jalankan smoke-test",
+      "deps": [
+        "F0.6",
+        "L0.2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "",
+      "gate": true
+    },
+    {
+      "id": "F1.0a",
+      "phase": "1A — Fondasi kode",
+      "title": "Tooling test: vitest, npm test dari root, test pertama untuk render.mjs dan install-division --dry-run",
+      "deps": [
+        "G0"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "package.json root sudah ada (ESM, playwright 1.56.0). Belum ada test runner."
+    },
+    {
+      "id": "F1.0b",
+      "phase": "1A — Fondasi kode",
+      "title": "Skema: lengkapi approval-record + modul validator (ajv) + test valid/invalid",
+      "deps": [
+        "F1.0a"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "5 skema sudah ada di schemas/ (research-output, verification-result, carousel, carousel-design, visual-qa)."
+    },
+    {
+      "id": "F1.0c",
+      "phase": "1A — Fondasi kode",
+      "title": "Golden fixtures: 1 kasus lengkap valid + minimal 5 kasus invalid",
+      "deps": [
+        "F1.0b"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "Bahan: docs/spike/evidence/F0.2-research-output.json, divisions/edukasiai/brand/contoh-design.json."
+    },
+    {
+      "id": "F1.0d",
+      "phase": "1A — Fondasi kode",
+      "title": "Tool agent deterministik di plugin: komentar, ubah status, lampirkan file (agent tidak lagi menyusun HTTP)",
+      "deps": [
+        "G0"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "Blocker 1 dari spike. Penyebab loop 1412."
+    },
+    {
+      "id": "F1.0e",
+      "phase": "1A — Fondasi kode",
+      "title": "Siklus hidup issue: transisi status ditegakkan tool, issue selesai ditutup, tanpa heartbeat berulang",
+      "deps": [
+        "F1.0d"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "Blocker 2 dari spike (EDU-2 'needs a disposition')."
+    },
+    {
+      "id": "F1.0f",
+      "phase": "1A — Fondasi kode",
+      "title": "Guard pemakaian deterministik: batas run dan durasi per agent per hari, pause otomatis",
+      "deps": [
+        "G0"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "Blocker 3 dari spike: billed_cents selalu 0 dengan codex_local."
+    },
+    {
+      "id": "F1.1",
+      "phase": "1A — Fondasi kode",
+      "title": "Script install-division idempoten (5 agent)",
+      "deps": [
+        "F0.3"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F0.3-F0.5.md",
+      "notes": "Terbukti 5x berturut-turut menurut STATUS 2026-10-05. Diverifikasi ulang di G1."
+    },
+    {
+      "id": "F1.2",
+      "phase": "1B — Pipeline konten",
+      "title": "Researcher: instruksi final + kontrak output research-output.json",
+      "deps": [
+        "F1.0c",
+        "F1.0d"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "agents/researcher.md sudah ada."
+    },
+    {
+      "id": "F1.3",
+      "phase": "1B — Pipeline konten",
+      "title": "Verifier: tool deterministik URL/tanggal di plugin + test server lokal",
+      "deps": [
+        "F1.0c",
+        "F1.0d"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F1.4",
+      "phase": "1B — Pipeline konten",
+      "title": "Pemilihan topik: rubrik tertulis + validasi field alasan",
+      "deps": [
+        "F1.3"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F1.5",
+      "phase": "1B — Pipeline konten",
+      "title": "Copywriter: instruksi + cek deterministik klaim-ke-sumber",
+      "deps": [
+        "F1.4"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F1.6a",
+      "phase": "1C — Pipeline desain",
+      "title": "Brand kit: paketkan font OFL lokal + lisensi, set ikon minimal, tetap berstatus sementara",
+      "deps": [
+        "G0"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "brand.json sudah ada (status sementara). fonts/ dan icons/ masih kosong; render memakai Segoe UI."
+    },
+    {
+      "id": "F1.6b",
+      "phase": "1C — Pipeline desain",
+      "title": "6 template HTML/CSS + templates.json",
+      "deps": [
+        "F1.6a"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F1.6-F1.8.md",
+      "notes": "Dibuat sebelum F1.6a; render ulang setelah font lokal di F1.8a."
+    },
+    {
+      "id": "F1.8a",
+      "phase": "1C — Pipeline desain",
+      "title": "Renderer: AC1.5 (hash identik 2x render, 6 template, font lokal) + jadikan tool plugin render_carousel",
+      "deps": [
+        "F1.6a",
+        "F1.0b",
+        "F1.0d"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "scripts/render.mjs sudah ada dan lulus jalur sukses/gagal."
+    },
+    {
+      "id": "F1.8b",
+      "phase": "1C — Pipeline desain",
+      "title": "Cek visual otomatis (dimensi, overflow, font, kontras, jumlah file)",
+      "deps": [
+        "F1.6b"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F1.6-F1.8.md",
+      "notes": "AC1.6 PASS. Batasan: kontras gradient memakai satu titik sampel."
+    },
+    {
+      "id": "F1.8c",
+      "phase": "1C — Pipeline desain",
+      "title": "Contact sheet semua slide",
+      "deps": [
+        "F1.6b"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/2026-10-05_F1.6-F1.8.md",
+      "notes": ""
+    },
+    {
+      "id": "F1.7",
+      "phase": "1C — Pipeline desain",
+      "title": "Designer: instruksi + cek deterministik fakta tidak berubah",
+      "deps": [
+        "F1.8a",
+        "F1.5"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "agents/designer.md sudah ada."
+    },
+    {
+      "id": "F1.9a",
+      "phase": "1D — QA dan integrasi",
+      "title": "Modul QA deterministik (teks + visual) + test",
+      "deps": [
+        "F1.5",
+        "F1.8a"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F1.9b",
+      "phase": "1D — QA dan integrasi",
+      "title": "Agent QA + routing revisi maks 2 putaran ditegakkan tool plugin",
+      "deps": [
+        "F1.9a",
+        "F1.0e"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F1.10",
+      "phase": "1D — QA dan integrasi",
+      "title": "Handoff awaiting_approval + contact sheet di issue",
+      "deps": [
+        "F1.9b"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "E1.1",
+      "phase": "1D — QA dan integrasi",
+      "title": "E2E dengan fixture (tanpa LLM): issue sampai awaiting_approval",
+      "deps": [
+        "F1.10",
+        "F1.7",
+        "F1.2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "E1.2",
+      "phase": "1D — QA dan integrasi",
+      "title": "E2E live: SATU issue nyata dengan codex_local sampai awaiting_approval (AC1.2, AC1.3)",
+      "deps": [
+        "E1.1",
+        "F1.0f"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "",
+      "owner_fallback": true
+    },
+    {
+      "id": "G1",
+      "phase": "1D — QA dan integrasi",
+      "title": "GATE Fase 1: review subagent",
+      "deps": [
+        "E1.1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "",
+      "gate": true
+    },
+    {
+      "id": "F2.1",
+      "phase": "2 — Approval dan KPI",
+      "title": "Approval record khusus owner (hash isi) + test",
+      "deps": [
+        "G1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F2.2",
+      "phase": "2 — Approval dan KPI",
+      "title": "prepare_publication: cek approval+hash, idempoten, paket output",
+      "deps": [
+        "F2.1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F2.3",
+      "phase": "2 — Approval dan KPI",
+      "title": "Reject loop dengan catatan kembali ke Copywriter",
+      "deps": [
+        "F2.1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F2.4",
+      "phase": "2 — Approval dan KPI",
+      "title": "Routine harian 07.00 WIB + anti duplikat (dibuat nonaktif secara default)",
+      "deps": [
+        "G1",
+        "F1.0f"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "F2.5",
+      "phase": "2 — Approval dan KPI",
+      "title": "Script laporan KPI mingguan (abaikan ledger uji 250 sen)",
+      "deps": [
+        "F2.2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "G2",
+      "phase": "2 — Approval dan KPI",
+      "title": "GATE Fase 2: review subagent",
+      "deps": [
+        "F2.2",
+        "F2.3",
+        "F2.4",
+        "F2.5"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "",
+      "gate": true
+    },
+    {
+      "id": "H3.1",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "Suite skenario: semua 14 skenario PRD bagian 6 otomatis",
+      "deps": [
+        "G2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "H3.2",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "Keamanan: secret scan, izin workspace agent, ACL master.key, uji prompt injection",
+      "deps": [
+        "G2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "H3.3",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "Regresi penuh: npm test, smoke-test, determinisme render, idempotensi install",
+      "deps": [
+        "H3.1",
+        "H3.2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "H3.4",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "RUNBOOK: start, stop, approve, recovery, upgrade Paperclip, mulai burn-in",
+      "deps": [
+        "G2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "G3",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "GATE Fase 3: review subagent akhir",
+      "deps": [
+        "H3.3",
+        "H3.4"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "",
+      "gate": true
+    },
+    {
+      "id": "X.FINAL",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "Laporan akhir loop reports/LOOP-FINAL.md lalu set loop.status DONE",
+      "deps": [],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "",
+      "final": true
+    }
+  ]
+}
