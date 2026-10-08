@@ -1,0 +1,185 @@
+{
+  "catatan": "Diambil post-hoc pada 2026-10-08T02:12:58.949Z dari http://127.0.0.1:3177",
+  "klaim": "AC0.5: budget habis membuat agent berhenti (status paused)",
+  "keterbatasan": [
+    "Biaya DISUNTIKKAN lewat POST /cost-events (biller \"test-harness\"); pemakaian nyata tercatat 0 (lihat F0.2-run-succeeded.json).",
+    "Status paused sudah dipulihkan (resume) setelah uji, jadi berkas ini hanya memuat jejak, bukan tangkapan saat paused.",
+    "Transkrip asli saat uji ada di reports/build/2026-10-05_F0.3-F0.5.md (bagian F0.5)."
+  ],
+  "costEventUji": {
+    "id": "5ecdb924-f298-4757-b3bb-5bbc4a38d788"
+  },
+  "policyResearcherSaatIni": [
+    {
+      "policyId": "6a5164f0-64f8-4a83-a50b-c785a6a42710",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "scopeType": "agent",
+      "scopeId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+      "scopeName": "Researcher",
+      "metric": "billed_cents",
+      "windowKind": "calendar_month_utc",
+      "amount": 0,
+      "observedAmount": 250,
+      "remainingAmount": 0,
+      "utilizationPercent": 0,
+      "warnPercent": 80,
+      "hardStopEnabled": false,
+      "notifyEnabled": true,
+      "isActive": false,
+      "status": "ok",
+      "paused": false,
+      "pauseReason": null,
+      "windowStart": "2026-10-01T00:00:00.000Z",
+      "windowEnd": "2026-11-01T00:00:00.000Z"
+    }
+  ],
+  "logAktivitasTerkait": [
+    {
+      "id": "243f0510-00e7-4162-9a16-f30af191e95d",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "actorType": "user",
+      "actorId": "local-board",
+      "action": "agent.resumed",
+      "entityType": "agent",
+      "entityId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+      "agentId": null,
+      "runId": null,
+      "responsibleUserId": "local-board",
+      "details": null,
+      "createdAt": "2026-10-05T02:19:39.648Z"
+    },
+    {
+      "id": "e5d3db68-283e-48a6-ae04-482239d6e1f0",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "actorType": "user",
+      "actorId": "local-board",
+      "action": "budget.policy_upserted",
+      "entityType": "budget_policy",
+      "entityId": "6a5164f0-64f8-4a83-a50b-c785a6a42710",
+      "agentId": null,
+      "runId": null,
+      "responsibleUserId": "local-board",
+      "details": {
+        "amount": 0,
+        "scopeId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+        "scopeType": "agent",
+        "windowKind": "calendar_month_utc"
+      },
+      "createdAt": "2026-10-05T02:19:39.595Z"
+    },
+    {
+      "id": "d9c29913-35e0-454e-a641-9b5ae93310c8",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "actorType": "user",
+      "actorId": "local-board",
+      "action": "agent.budget_updated",
+      "entityType": "agent",
+      "entityId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+      "agentId": null,
+      "runId": null,
+      "responsibleUserId": "local-board",
+      "details": {
+        "budgetMonthlyCents": 0
+      },
+      "createdAt": "2026-10-05T02:19:39.571Z"
+    },
+    {
+      "id": "0ed0a4cb-651d-4213-9041-ed420fcb5c27",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "actorType": "user",
+      "actorId": "local-board",
+      "action": "budget.policy_upserted",
+      "entityType": "budget_policy",
+      "entityId": "6a5164f0-64f8-4a83-a50b-c785a6a42710",
+      "agentId": null,
+      "runId": null,
+      "responsibleUserId": "local-board",
+      "details": {
+        "amount": 100000,
+        "scopeId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+        "scopeType": "agent",
+        "windowKind": "calendar_month_utc"
+      },
+      "createdAt": "2026-10-05T02:19:39.527Z"
+    },
+    {
+      "id": "de4a40e9-402e-430c-b6e6-3fa1428330a6",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "actorType": "system",
+      "actorId": "budget_service",
+      "action": "budget.hard_threshold_crossed",
+      "entityType": "budget_incident",
+      "entityId": "badb109c-20ab-46a8-a4be-9bea65d27165",
+      "agentId": null,
+      "runId": null,
+      "responsibleUserId": "local-board",
+      "details": {
+        "scopeId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+        "scopeType": "agent",
+        "approvalId": "20ef72b8-9f80-4539-b796-6853808ad6e1",
+        "amountLimit": 1,
+        "amountObserved": 250
+      },
+      "createdAt": "2026-10-05T02:19:14.415Z"
+    },
+    {
+      "id": "08879cf2-06d6-4ccb-81f7-275cee16f258",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "actorType": "system",
+      "actorId": "budget_service",
+      "action": "budget.soft_threshold_crossed",
+      "entityType": "budget_incident",
+      "entityId": "c620aa0e-4470-4a40-9a10-ca788c78ed32",
+      "agentId": null,
+      "runId": null,
+      "responsibleUserId": "local-board",
+      "details": {
+        "scopeId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+        "scopeType": "agent",
+        "amountLimit": 1,
+        "amountObserved": 250
+      },
+      "createdAt": "2026-10-05T02:19:14.377Z"
+    },
+    {
+      "id": "de5343b6-0644-4c1f-86e7-d8459041b6fb",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "actorType": "user",
+      "actorId": "local-board",
+      "action": "budget.policy_upserted",
+      "entityType": "budget_policy",
+      "entityId": "6a5164f0-64f8-4a83-a50b-c785a6a42710",
+      "agentId": null,
+      "runId": null,
+      "responsibleUserId": "local-board",
+      "details": {
+        "amount": 1,
+        "scopeId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+        "scopeType": "agent",
+        "windowKind": "calendar_month_utc"
+      },
+      "createdAt": "2026-10-05T02:19:14.286Z"
+    },
+    {
+      "id": "b27c0b74-bdd2-470c-9722-5aa0bb8c9279",
+      "companyId": "e9986c83-2835-4f59-bd0f-d6d1b053f08d",
+      "actorType": "user",
+      "actorId": "local-board",
+      "action": "budget.policy_upserted",
+      "entityType": "budget_policy",
+      "entityId": "6a5164f0-64f8-4a83-a50b-c785a6a42710",
+      "agentId": null,
+      "runId": null,
+      "responsibleUserId": "local-board",
+      "details": {
+        "amount": 1,
+        "scopeId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+        "scopeType": "agent",
+        "windowKind": "calendar_month_utc"
+      },
+      "createdAt": "2026-10-05T02:19:04.459Z"
+    }
+  ],
+  "jumlahLogAktivitasDipindai": 100,
+  "financeEventsJumlah": 0
+}

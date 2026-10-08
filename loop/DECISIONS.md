@@ -60,3 +60,14 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Alternatif: mem-bundle worker dengan esbuild supaya muat lebih cepat (menambah dependency, ditunda); mengubah batas 15 dtk (itu kode core, dilarang).
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER — setiap restart server memerlukan skrip ini; restart manual lewat cara lain meninggalkan plugin `error` sampai `plugin enable`.
+
+## D-008 — Concern review G0 yang tersisa
+- Task: G0
+- Konteks: reviewer memberi PASS WITH CONCERNS. Empat rekomendasi FIX diselesaikan inline (lihat `reports/review/G0-review.md`, bagian tanggapan). Yang tersisa:
+  1. Agent belum pernah memanggil tool plugin di tengah run; baru dibuktikan di F1.0d dan E1.2.
+  2. Baseline hash core dibuat sesudah plugin dipasang, jadi hanya membuktikan "tidak berubah sejak baseline".
+  3. `CLAUDE.md` (dilindungi, tidak boleh saya ubah) masih menyebut smoke test "29 cek"; sekarang 37 (38 dengan `--with-core-hash`). Mohon owner memperbarui angka itu.
+  4. Subagent reviewer resmi belum terpasang di `.claude/` (O-001); gate memakai agent umum dengan definisi yang sama.
+- Pilihan: lanjut ke F1.0a; keempat concern dicatat untuk laporan akhir.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER

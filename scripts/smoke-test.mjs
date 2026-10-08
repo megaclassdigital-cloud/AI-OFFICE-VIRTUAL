@@ -6,6 +6,7 @@
 //
 // Pemakaian:
 //   node scripts/smoke-test.mjs
+//   node scripts/smoke-test.mjs --with-core-hash   # + hash isi core (~90 dtk)
 
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -121,13 +122,20 @@ if (isoAgents.length === 0) {
     const own = await api(`/api/companies/${ISO}/issues`, { headers: h });
     check('KONTROL: token baca company sendiri = 200', own.status === 200, `HTTP ${own.status}`);
     const cross = await api(`/api/companies/${EDU}/issues`, { headers: h });
-    check('ISOLASI: baca company lain ditolak 403', cross.status === 403, `HTTP ${cross.status}`);
+    check('ISOLASI: baca issues company lain ditolak 403', cross.status === 403, `HTTP ${cross.status}`);
+    for (const ep of ['agents', 'dashboard', 'costs/summary']) {
+      const r = await api(`/api/companies/${EDU}/${ep}`, { headers: h });
+      check(`ISOLASI: baca ${ep} company lain ditolak 403`, r.status === 403, `HTTP ${r.status}`);
+    }
     const write = await api(`/api/companies/${EDU}/issues`, {
       method: 'POST',
       headers: { ...h, 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'smoke-test penyusupan' }),
     });
     check('ISOLASI: tulis ke company lain ditolak 403', write.status === 403, `HTTP ${write.status}`);
+    // Bersihkan: cabut key uji supaya tidak menumpuk setiap smoke test dijalankan.
+    const del = await api(`/api/agents/${isoAgents[0].id}/keys/${keyRes.json.id}`, { method: 'DELETE' });
+    check('key uji isolasi dicabut setelah dipakai', del.status >= 200 && del.status < 300, `HTTP ${del.status}`);
   }
 }
 
@@ -141,6 +149,37 @@ check('plugin status ready', gate?.status === 'ready', gate?.status ?? '-');
 const tools = asList((await api(`/api/plugins/tools?companyId=${EDU}`)).json, 'tools');
 const hello = tools.find((t) => t.name === 'aao-approval-gate:aao_hello');
 check('tool aao_hello terdaftar', !!hello);
+
+// ── AC0.2 dan AC0.5: biaya nyata nol dan tidak ada agent yang tertinggal paused ──────────────
+console.log('\nAC0.2 / AC0.5 — biaya dan status pause');
+const pausedAgents = agents.filter((a) => a.status === 'paused');
+check(
+  'tidak ada agent EdukasiAI berstatus paused (sisa uji AC0.5 sudah di-resume)',
+  pausedAgents.length === 0,
+  pausedAgents.map((a) => a.name).join(', ') || 'semua idle/running'
+);
+const byAgent = asList((await api(`/api/companies/${EDU}/costs/by-agent`)).json, 'agents');
+const researcher = byAgent.find((a) => a.agentName === 'Researcher');
+// apiRunCount = 1 BUKAN run berbayar: itu cost-event sintetis uji AC0.5 bertipe metered_api (D-004).
+// Run nyata semuanya lewat langganan. Bila angkanya naik di atas 1, ada pemakaian API berbayar sungguhan.
+check(
+  'Researcher: satu-satunya "API run" adalah event uji D-004 (apiRunCount = 1)',
+  researcher?.apiRunCount === 1,
+  `apiRunCount=${researcher?.apiRunCount}`
+);
+check(
+  'Researcher: run lewat langganan tercatat (subscriptionRunCount >= 1)',
+  (researcher?.subscriptionRunCount ?? 0) >= 1,
+  `subscriptionRunCount=${researcher?.subscriptionRunCount}`
+);
+// Ledger company memuat cost-event sintetis uji AC0.5 (D-004), jadi spendCents > 0 diharapkan.
+// Yang diperiksa: HANYA event uji itu yang menyumbang biaya (250 sen), tidak ada biaya lain.
+const costSummary = (await api(`/api/companies/${EDU}/costs/summary`)).json;
+check(
+  'biaya company = tepat 250 sen dari cost-event uji D-004 (tidak ada biaya nyata)',
+  costSummary?.spendCents === 250,
+  `spendCents=${costSummary?.spendCents} (250 = event uji 5ecdb924)`
+);
 
 // ── F0.7: render ──────────────────────────────────────────────────────────────
 console.log('\nF0.7 — render');
@@ -158,6 +197,20 @@ if (!existsSync(pngPath)) {
     'hash PNG bukti cocok dengan laporan',
     createHash('sha256').update(buf).digest('hex') === rep.sha256Render1
   );
+}
+
+// ── Integritas core Paperclip (opsional: ~90 detik) ──────────────────────────────────────────
+if (process.argv.includes('--with-core-hash')) {
+  console.log('\nIntegritas core Paperclip (hash isi berkas, ~90 detik)');
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync(
+    process.execPath,
+    [path.join(repoRoot, 'scripts', 'core-hash.mjs'), '--check', path.join(repoRoot, 'docs', 'evidence', 'G0', 'core-hash-baseline.json')],
+    { encoding: 'utf8' }
+  );
+  check('hash isi core Paperclip identik dengan baseline', r.status === 0, (r.stdout || r.stderr || '').split('\n')[0]);
+} else {
+  console.log('\n(lewati hash core Paperclip; tambahkan --with-core-hash untuk menjalankannya)');
 }
 
 // ── Integritas repo ───────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 
-=== SMOKE TEST AI AGENT OFFICE — 2026-10-08T02:05:34.783Z ===
+=== SMOKE TEST AI AGENT OFFICE — 2026-10-08T02:17:27.320Z ===
 Target: http://127.0.0.1:3177
 
 F0.1 — server
@@ -20,18 +20,30 @@ F0.2-fix — guard anti-loop
 
 F0.3 — isolasi (perlu token agent IsolationTest)
   PASS  KONTROL: token baca company sendiri = 200 :: HTTP 200
-  PASS  ISOLASI: baca company lain ditolak 403 :: HTTP 403
+  PASS  ISOLASI: baca issues company lain ditolak 403 :: HTTP 403
+  PASS  ISOLASI: baca agents company lain ditolak 403 :: HTTP 403
+  PASS  ISOLASI: baca dashboard company lain ditolak 403 :: HTTP 403
+  PASS  ISOLASI: baca costs/summary company lain ditolak 403 :: HTTP 403
   PASS  ISOLASI: tulis ke company lain ditolak 403 :: HTTP 403
+  PASS  key uji isolasi dicabut setelah dipakai :: HTTP 200
 
 F0.4 — plugin dan tool
   PASS  plugin aao-approval-gate terpasang :: ready
   PASS  plugin status ready :: ready
   PASS  tool aao_hello terdaftar
 
+AC0.2 / AC0.5 — biaya dan status pause
+  PASS  tidak ada agent EdukasiAI berstatus paused (sisa uji AC0.5 sudah di-resume) :: semua idle/running
+  PASS  Researcher: satu-satunya "API run" adalah event uji D-004 (apiRunCount = 1) :: apiRunCount=1
+  PASS  Researcher: run lewat langganan tercatat (subscriptionRunCount >= 1) :: subscriptionRunCount=4
+  PASS  biaya company = tepat 250 sen dari cost-event uji D-004 (tidak ada biaya nyata) :: spendCents=250 (250 = event uji 5ecdb924)
+
 F0.7 — render
   PASS  PNG bukti berdimensi 1080x1350 :: 1080x1350
   PASS  laporan render menyatakan dua render identik
   PASS  hash PNG bukti cocok dengan laporan
+
+(lewati hash core Paperclip; tambahkan --with-core-hash untuk menjalankannya)
 
 Integritas repo
   PASS  ada: CLAUDE.md
@@ -45,5 +57,5 @@ Integritas repo
   PASS  ada: scripts/install-division.mjs
   PASS  ada: scripts/start-paperclip.ps1
 
-=== RINGKASAN: 29 PASS, 0 FAIL ===
+=== RINGKASAN: 37 PASS, 0 FAIL ===
 Semua cek lolos.

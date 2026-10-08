@@ -15,10 +15,10 @@ Tetapi lanjut **dengan tiga syarat** yang harus diselesaikan sebelum Fase 1 dian
 | AC | Kriteria | Hasil | Bukti |
 | --- | --- | --- | --- |
 | AC0.1 | Paperclip berjalan di Windows owner | **PASS** | `/api/health` HTTP 200 `status=ok`, `bootstrapStatus=ready`, 282 migrasi diterapkan, UI React tersaji, screenshot |
-| AC0.2 | 1 run agent selesai, biaya tercatat USD 0 | **PASS** | Run `succeeded` exit 0 dalam 3m18s; `costCents=0`, `apiRunCount=0`, `subscriptionRunCount=1` |
-| AC0.3 | Isolasi company terbukti | **PASS** | 5 endpoint lintas company ditolak HTTP 403; kontrol company sendiri 200; tidak ada data terbentuk |
-| AC0.4 | Plugin menambah tool tanpa mengubah core | **PASS** | Tool dieksekusi HTTP 200; hash manifest core identik sebelum/sesudah |
-| AC0.5 | Budget habis membuat agent berhenti | **PASS** | Status agent `idle` → `paused`, policy `hard_stop`, `pauseReason=budget` |
+| AC0.2 | 1 run agent selesai, biaya tercatat USD 0 | **PASS** | Run `a80074bd` `succeeded` exit 0 dalam 198 dtk, `billingType=subscription_included`, tidak ada biaya API. Bukti mentah: `docs/spike/evidence/F0.2-run-succeeded.json` (diambil ulang dari server, G0) |
+| AC0.3 | Isolasi company terbukti | **PASS** | Berkas bukti `F0.3-isolation-proof.txt`: 3 penolakan 403 (baca issues, baca agents, tulis issue) + kontrol company sendiri 200. Dashboard dan costs (total 5 endpoint) ditolak 403 di transkrip build report dan kini dicek ulang tiap `smoke-test.mjs` |
+| AC0.4 | Plugin menambah tool tanpa mengubah core | **PASS (terbatas)** | Tool **dieksekusi lewat API** HTTP 200, belum **dipanggil oleh agent** di tengah run. Core: hash manifest (nama+ukuran+mtime) identik sebelum/sesudah, ditambah baseline hash ISI berkas yang bisa diulang (`scripts/core-hash.mjs`, 9350 berkas, `docs/evidence/G0/core-hash-baseline.json`) |
+| AC0.5 | Budget habis membuat agent berhenti | **PASS (mekanisme; biaya SINTETIS)** | Status `idle` → `paused`, `pauseReason=budget`. Biaya **disuntikkan** lewat `cost-events` (biller `test-harness`); pemakaian nyata 0. Jejak mentah dari log audit server: `budget.hard_threshold_crossed` (limit 1, teramati 250) lalu `agent.resumed` — `docs/spike/evidence/F0.5-budget-pause.json` |
 | F0.7 | Render PNG 1080×1350 di Windows | **PASS** | Dimensi tepat dari header PNG; dua render byte-identik (SHA-256 sama) |
 
 Laporan rinci: `reports/build/2026-10-04_F0.1.md`, `2026-10-04_F0.2.md`, `2026-10-05_F0.2-fix-loop.md`, `2026-10-05_F0.3-F0.5.md`, `2026-10-05_F0.7.md`.
@@ -112,3 +112,14 @@ README SDK menyatakan plugin worker dan UI harus diperlakukan sebagai kode teper
 ADR-0001 (Paperclip sebagai core, tanpa fork) **terbukti layak**. Tidak satu byte pun core berubah selama seluruh Fase 0, dan semua perluasan berhasil lewat titik ekstensi resmi: plugin SDK, adapter, konfigurasi company, dan API.
 
 Risiko terbesar bukan pada Paperclip, melainkan pada **ketiadaan model gratis yang berfungsi** dan **hilangnya perlindungan biaya** sebagai akibatnya. Keduanya perlu keputusan owner sebelum Fase 1 berjalan dengan volume produksi.
+
+
+## Koreksi hasil review G0 (2026-10-08)
+
+Reviewer independen G0 (`reports/review/G0-review.md`) menemukan klaim di tabel atas yang lebih kuat daripada berkas buktinya. Koreksi:
+
+- **AC0.2:** `F0.2-heartbeat-run.log` berisi run MANUAL kedua (`d3280774`) yang masih `queued`, bukan run sukses. Bukti yang benar sekarang `F0.2-run-succeeded.json`.
+- **AC0.3:** berkas bukti memuat 3 penolakan, bukan 5. Angka 5 berasal dari transkrip build report. Sekarang `smoke-test.mjs` memeriksa kelimanya.
+- **AC0.4:** yang terbukti adalah eksekusi lewat API, bukan pemanggilan oleh agent.
+- **AC0.5:** hasilnya sah untuk mekanisme budget, tetapi biayanya sintetis. Berkas mentah baru ditambahkan.
+- **Cek otomatis:** `smoke-test.mjs` kini 33+ cek dan mencakup AC0.2/AC0.5 (agent tidak tertinggal `paused`, tidak ada biaya nyata selain event uji D-004).

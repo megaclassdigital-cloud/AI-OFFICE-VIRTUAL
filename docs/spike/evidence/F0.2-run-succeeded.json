@@ -1,0 +1,42 @@
+{
+  "catatan": "Diambil post-hoc pada 2026-10-08T02:12:58.949Z dari http://127.0.0.1:3177",
+  "klaim": "AC0.2: 1 run agent selesai dengan biaya tercatat USD 0",
+  "run": {
+    "id": "a80074bd-f018-4d2a-9dbc-e561d98e1020",
+    "status": "succeeded",
+    "exitCode": 0,
+    "startedAt": "2026-10-04T16:23:47.348Z",
+    "finishedAt": "2026-10-04T16:27:05.820Z",
+    "durasiDetik": 198,
+    "usage": {
+      "provider": "openai",
+      "biller": "chatgpt",
+      "billingType": "subscription_included",
+      "costStatus": "unpriced",
+      "inputTokens": 1489,
+      "outputTokens": 124,
+      "cachedInputTokens": 57088
+    }
+  },
+  "biayaPerAgent_Researcher": {
+    "agentId": "e2b1bca8-fe6f-497c-a6b0-5882ce591877",
+    "agentName": "Researcher",
+    "agentAppearance": {
+      "schemaVersion": 1,
+      "characterVersion": "cap-v1",
+      "paletteId": "deep-tide"
+    },
+    "agentStatus": "idle",
+    "costCents": 250,
+    "inputTokens": 5659,
+    "cachedInputTokens": 217088,
+    "outputTokens": 1580,
+    "apiRunCount": 1,
+    "subscriptionRunCount": 4,
+    "subscriptionCachedInputTokens": 217088,
+    "subscriptionInputTokens": 4659,
+    "subscriptionOutputTokens": 1480,
+    "avatarUrl": "/api/agent-avatars/cap-v1/deep-tide/rest.png?size=512&scale=1"
+  },
+  "peringatan": "costs/by-agent mencakup juga cost-event sintetis uji AC0.5 (D-004) bila ada; lihat F0.5-budget-pause.json."
+}

@@ -1,0 +1,28 @@
+{
+  "pinnedVersion": "2026.1001.0",
+  "nodeModulesDir": "C:\\Users\\Farrel\\AppData\\Local\\npm-cache\\_npx\\38072fe15ceb4e96\\node_modules",
+  "packages": [
+    "paperclipai",
+    "@paperclipai/adapter-claude-local",
+    "@paperclipai/adapter-codex-local",
+    "@paperclipai/adapter-cursor-cloud",
+    "@paperclipai/adapter-cursor-local",
+    "@paperclipai/adapter-gemini-local",
+    "@paperclipai/adapter-grok-local",
+    "@paperclipai/adapter-kimi-local",
+    "@paperclipai/adapter-openclaw-gateway",
+    "@paperclipai/adapter-opencode-local",
+    "@paperclipai/adapter-pi-local",
+    "@paperclipai/adapter-utils",
+    "@paperclipai/db",
+    "@paperclipai/hermes-paperclip-adapter",
+    "@paperclipai/plugin-sdk",
+    "@paperclipai/server",
+    "@paperclipai/shared",
+    "@paperclipai/skills-catalog"
+  ],
+  "fileCount": 9350,
+  "newestFileMtime": "2026-10-04T11:04:21.920Z",
+  "combinedSha256": "158533f7161de2099bec215019301d7e82711b1c62389f9b6f4ff0b321995a35",
+  "computedAt": "2026-10-08T02:15:16.841Z"
+}

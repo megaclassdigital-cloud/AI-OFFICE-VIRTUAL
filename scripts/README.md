@@ -7,7 +7,7 @@ Semua harus bisa dijalankan dari PowerShell di Windows.
 | `start-paperclip.ps1` | Menjalankan/menghentikan/cek server Paperclip | F0.1 |
 | `install-division.mjs` | Pasang company, agent, dan instruksi division ke Paperclip (idempoten) | F0.3 / F1.1 |
 | `render-spike.mjs` | Uji render HTML → PNG 1080×1350 + cek determinisme | F0.7 |
-| `smoke-test.mjs` | Verifikasi menyeluruh keadaan Fase 0 (29 cek, tanpa menjalankan agent) | F0.6 |
+| `smoke-test.mjs` | Verifikasi menyeluruh keadaan Fase 0 (37 cek, tanpa menjalankan agent; `--with-core-hash` menambah hash core ~90 dtk) | F0.6 |
 | `render` | Render `carousel-design.json` ke PNG secara manual untuk debug | F1.8 |
 | `kpi-report` | Buat laporan KPI mingguan | F2.5 |
 
@@ -60,7 +60,7 @@ Menjalankan ulang cek penting F0.1–F0.7 dalam satu perintah supaya regresi cep
 node scripts/smoke-test.mjs
 ```
 
-Keluar dengan kode 1 bila ada yang gagal. Terakhir: 29 PASS, 0 FAIL (2026-10-05).
+Keluar dengan kode 1 bila ada yang gagal. Terakhir: 37 PASS, 0 FAIL (2026-10-08).
 
 ## render-spike.mjs
 
