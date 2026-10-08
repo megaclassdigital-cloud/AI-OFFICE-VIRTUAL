@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T15:58:13.210Z",
+    "updated_at": "2026-10-08T16:10:02.343Z",
     "current_task": ""
   },
   "tasks": [
@@ -561,11 +561,11 @@
         "G1",
         "F1.0f"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/F2.4.md",
+      "notes": "11 tes; belum dipasang live (O-005); perilaku skip_if_active di server belum diuji"
     },
     {
       "id": "F2.5",

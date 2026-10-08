@@ -1,12 +1,12 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T16:00:21.968Z
+> Terakhir diperbarui: 2026-10-08T16:10:02.608Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** F2.4 — Routine harian 07.00 WIB + anti duplikat (dibuat nonaktif secara default)
-**Ringkasan:** 40 DONE · 0 IN_PROGRESS · 16 TODO · 1 BLOCKED · 1 OWNER · 0 SKIPPED
-**Antrian owner:** 2 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 14 (loop/DECISIONS.md)
+**Task berikutnya:** F2.5 — Script laporan KPI mingguan (abaikan ledger uji 250 sen)
+**Ringkasan:** 41 DONE · 0 IN_PROGRESS · 15 TODO · 1 BLOCKED · 1 OWNER · 0 SKIPPED
+**Antrian owner:** 3 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 14 (loop/DECISIONS.md)
 
 ## Progres per fase
 
@@ -19,7 +19,7 @@
 | 1B — Pipeline konten | 4 | 4 |
 | 1C — Pipeline desain | 6 | 6 |
 | 1D — QA dan integrasi | 5 | 6 |
-| 2 — Approval dan KPI | 4 | 7 |
+| 2 — Approval dan KPI | 5 | 7 |
 | 3 — Hardening dan serah terima | 0 | 6 |
 | 4 — Office View (UI kantor dinamis) | 0 | 7 |
 
