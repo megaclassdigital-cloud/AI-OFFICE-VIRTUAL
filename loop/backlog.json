@@ -4,8 +4,8 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T01:49:34.921Z",
-    "current_task": ""
+    "updated_at": "2026-10-08T01:50:25.033Z",
+    "current_task": "L0.4"
   },
   "tasks": [
     {
@@ -26,10 +26,10 @@
       "deps": [
         "L0.1"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
+      "evidence": "reports/build/L0.2.md",
       "notes": ""
     },
     {
@@ -50,7 +50,7 @@
       "deps": [
         "L0.1"
       ],
-      "status": "TODO",
+      "status": "IN_PROGRESS",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",

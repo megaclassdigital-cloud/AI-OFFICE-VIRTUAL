@@ -1,0 +1,25 @@
+﻿### 1. node scripts/loop-status.js --check
+backlog.json valid: 48 tasks
+
+exit=0
+### 2. node scripts/loop-status.js --next
+L0.2
+
+exit=0
+### 3. node scripts/loop-status.js --write-status
+STATUS.md written
+
+exit=0
+### 4. selftest hook Stop (salinan sementara, bukan .claude/ asli)
+stdout: {"decision":"block","reason":"Continue the loop with L0.2 — Uji mesin loop: --check, --next, --write-status, selftest hook. Follow loop/LOOP.md (cycle steps 1-8). Do not ask the owner; use loop/DEFAULTS.md, record decisions in loop/DECISIONS.md, owner-only items in loop/OWNER-QUEUE.md. Update loop/backlog.json after every step."}
+exit=0
+### 5. hook SessionStart
+=== AI AGENT OFFICE — ENGINEERING LOOP ===
+Loop status: RUNNING
+Tasks: 14 DONE, 1 IN_PROGRESS, 33 TODO, 0 BLOCKED, 0 OWNER
+Next task: L0.2 — Uji mesin loop: --check, --next, --write-status, selftest hook
+backlog.json: valid
+
+Mode: LOOP. Read loop/LOOP.md, then work task by task without asking the owner. Only the HARD STOP list in loop/LOOP.md justifies stopping.
+
+state file di repo asli (harus tidak ada): False

@@ -1,18 +1,18 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T01:49:35.108Z
+> Terakhir diperbarui: 2026-10-08T01:50:25.277Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** L0.2 — Uji mesin loop: --check, --next, --write-status, selftest hook
-**Ringkasan:** 14 DONE · 0 IN_PROGRESS · 34 TODO · 0 BLOCKED · 0 OWNER · 0 SKIPPED
-**Antrian owner:** 0 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 1 (loop/DECISIONS.md)
+**Task berikutnya:** L0.4 — Terapkan default keputusan tertunda dari STATUS lama (telemetry, company asing, ledger uji, start manual)
+**Ringkasan:** 15 DONE · 1 IN_PROGRESS · 32 TODO · 0 BLOCKED · 0 OWNER · 0 SKIPPED
+**Antrian owner:** 1 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 1 (loop/DECISIONS.md)
 
 ## Progres per fase
 
 | Fase | Selesai | Total |
 | --- | --- | --- |
-| L — Bootstrap loop | 2 | 4 |
+| L — Bootstrap loop | 3 | 4 |
 | 0 — Spike kelayakan | 8 | 9 |
 | 1A — Fondasi kode | 1 | 7 |
 | 1B — Pipeline konten | 0 | 4 |
