@@ -15,6 +15,7 @@
 // hanya berlaku untuk EdukasiAI (CLAUDE.md aturan 7).
 
 import { definePlugin } from '@paperclipai/plugin-sdk';
+import { makeAgentTools, TOOL_DEFS } from './agent-tools.js';
 
 export const plugin = definePlugin({
   async setup(ctx) {
@@ -58,6 +59,11 @@ export const plugin = definePlugin({
         };
       }
     );
+
+    const agentTools = makeAgentTools(ctx);
+    for (const [name, def] of Object.entries(TOOL_DEFS)) {
+      ctx.tools.register(name, def, agentTools[name]);
+    }
   },
 
   async onHealth() {

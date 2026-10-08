@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T02:32:10.370Z",
+    "updated_at": "2026-10-08T07:55:53.946Z",
     "current_task": ""
   },
   "tasks": [
@@ -55,6 +55,17 @@
       "max_attempts": 3,
       "evidence": "reports/build/L0.4.md",
       "notes": ""
+    },
+    {
+      "id": "L0.5",
+      "phase": "L — Bootstrap loop",
+      "title": "Bersihkan sisa mekanisme hook loop lama (setup/claude, install-loop-config.ps1, loop.ps1) dan tutup O-001",
+      "deps": [],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "Revisi 2026-10-08: loop jadi cara kerja, bukan hook. Lihat LOOP.md."
     },
     {
       "id": "F0.1",
@@ -227,10 +238,10 @@
       "deps": [
         "G0"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
+      "evidence": "docs/evidence/F1.0d",
       "notes": "Blocker 1 dari spike. Penyebab loop 1412."
     },
     {

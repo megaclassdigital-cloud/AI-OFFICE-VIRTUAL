@@ -1,0 +1,7 @@
+set_issue_status HTTP 200 33ms {"pluginId":"aao-approval-gate","toolName":"set_issue_status","result":{"error":"Paperclip menolak: in_progress issues require an assignee","data":{"ok":false,"error":"Paperclip menolak: in_progress 
+post_comment HTTP 200 56ms {"pluginId":"aao-approval-gate","toolName":"post_comment","result":{"content":"{\"commentId\":\"9c19e21b-37af-47b1-8a47-de55fc102050\",\"length\":5640}","data":{"ok":true,"commentId":"9c19e21b-37af-47b1-
+attach_file HTTP 200 73ms {"pluginId":"aao-approval-gate","toolName":"attach_file","result":{"content":"{\"key\":\"research-output\",\"documentId\":\"ff02ff4f-9d46-462e-9dde-def5b6372b09\",\"length\":5640}","data":{"ok":true,"key"
+set_issue_status HTTP 200 16ms {"pluginId":"aao-approval-gate","toolName":"set_issue_status","result":{"error":"transisi todo -> done tidak diizinkan untuk agent (boleh: in_progress)","data":{"ok":false,"error":"transisi todo -> d
+set_issue_status HTTP 200 22ms {"pluginId":"aao-approval-gate","toolName":"set_issue_status","result":{"error":"transisi todo -> in_review tidak diizinkan untuk agent (boleh: in_progress)","data":{"ok":false,"error":"transisi todo
+komentar tersimpan: [ 5640, 5640 ]
+issue EDU-3 bodyBytes 6720 chars 5640

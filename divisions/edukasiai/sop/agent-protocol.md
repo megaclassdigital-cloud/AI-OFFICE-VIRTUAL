@@ -20,7 +20,21 @@ ada supaya itu tidak terulang.
 4. **Setelah pekerjaanmu selesai, berhenti.** Jangan mencari pekerjaan tambahan, jangan
    memverifikasi berulang kali, jangan "merapikan" hal yang tidak diminta.
 
-## Cara memanggil API Paperclip
+## Tool plugin (UTAMA, menggantikan HTTP buatan sendiri)
+
+Untuk komentar, status, dan lampiran, **pakai tool plugin `aao-approval-gate`**, bukan curl/PowerShell:
+
+- `post_comment { issueId, body }` — tulis komentar.
+- `set_issue_status { issueId, status }` — hanya `in_progress`, `in_review`, `blocked`. `done` dan
+  `cancelled` adalah hak owner; tool akan menolaknya.
+- `attach_file { issueId, key, body }` — lampirkan dokumen (key huruf kecil, mis. `research-output.json`).
+
+Tool ini membangun HTTP dengan benar (byte UTF-8) di dalam kode. **Dilarang membuat panggilan
+HTTP sendiri** (curl, Invoke-RestMethod, Invoke-WebRequest) untuk tiga hal di atas. Jika tool
+mengembalikan `ok: false`, baca pesan galatnya dan laporkan; jangan mengakalinya dengan HTTP.
+Bagian di bawah hanya untuk keadaan darurat bila tool plugin tidak tersedia.
+
+## Cara memanggil API Paperclip (darurat saja)
 
 Variabel lingkungan yang tersedia: `PAPERCLIP_API_URL`, `PAPERCLIP_RUN_ID`, `PAPERCLIP_TASK_ID`.
 

@@ -11,16 +11,18 @@
 // Aturan silang yang relevan: mendeklarasikan `tools` mewajibkan capability
 // `agent.tools.register`.
 
+import { TOOL_DEFS } from './src/agent-tools.js';
+
 export default {
   id: 'aao-approval-gate',
   apiVersion: 1,
-  version: '0.1.0',
+  version: '0.2.1',
   displayName: 'AAO Approval Gate',
   description:
     'Tool deterministik untuk AI Agent Office. F0.4: versi hello dengan satu tool uji tanpa efek samping.',
   author: 'AI Agent Office',
   categories: ['automation'],
-  capabilities: ['agent.tools.register'],
+  capabilities: ['agent.tools.register', 'issues.read', 'issues.update', 'issue.comments.create', 'issue.documents.write'],
   entrypoints: {
     worker: 'src/worker.js',
   },
@@ -41,5 +43,6 @@ export default {
         required: ['message'],
       },
     },
+    ...Object.entries(TOOL_DEFS).map(([name, d]) => ({ name, ...d })),
   ],
 };

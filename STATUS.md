@@ -1,20 +1,20 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T02:32:10.639Z
+> Terakhir diperbarui: 2026-10-08T07:55:54.205Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** F1.0d — Tool agent deterministik di plugin: komentar, ubah status, lampirkan file (agent tidak lagi menyusun HTTP)
-**Ringkasan:** 20 DONE · 0 IN_PROGRESS · 28 TODO · 0 BLOCKED · 0 OWNER · 0 SKIPPED
+**Task berikutnya:** L0.5 — Bersihkan sisa mekanisme hook loop lama (setup/claude, install-loop-config.ps1, loop.ps1) dan tutup O-001
+**Ringkasan:** 21 DONE · 0 IN_PROGRESS · 28 TODO · 0 BLOCKED · 0 OWNER · 0 SKIPPED
 **Antrian owner:** 1 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 8 (loop/DECISIONS.md)
 
 ## Progres per fase
 
 | Fase | Selesai | Total |
 | --- | --- | --- |
-| L — Bootstrap loop | 4 | 4 |
+| L — Bootstrap loop | 4 | 5 |
 | 0 — Spike kelayakan | 9 | 9 |
-| 1A — Fondasi kode | 4 | 7 |
+| 1A — Fondasi kode | 5 | 7 |
 | 1B — Pipeline konten | 0 | 4 |
 | 1C — Pipeline desain | 3 | 6 |
 | 1D — QA dan integrasi | 0 | 6 |
