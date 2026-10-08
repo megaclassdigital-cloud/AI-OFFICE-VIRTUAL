@@ -9,6 +9,7 @@
 
 import { allowedFrom, canTransition } from './lifecycle.js';
 import { verifyCandidate } from './url-check.js';
+import { runRender, RenderInputError } from './render-tool.js';
 
 export const AGENT_ALLOWED_TRANSITIONS = Object.freeze(
   Object.fromEntries(['todo', 'in_progress', 'blocked', 'in_review'].map((s) => [s, allowedFrom('agent', s)]))
@@ -80,6 +81,14 @@ export function makeAgentTools(ctx) {
       const v = await verifyCandidate({ url, publishedAt }, { windowDays });
       return { checks: v.checks, redirects: v.redirects, suspectedInjection: v.suspectedInjection };
     }),
+    // Render deterministik: hanya menerima design spec di workspace, keluaran ke folder kerja issue.
+    render_carousel: wrap(async (p) => {
+      const r = await runRender({ designPath: p?.designPath, issueId: p?.issueId, division: p?.division }).catch((e) => {
+        if (e instanceof RenderInputError) throw new ToolError(e.message);
+        throw e;
+      });
+      return { passed: r.passed, exitCode: r.exitCode, pngCount: r.pngCount, outDir: r.outDir, hashes: r.hashes ?? null, stderr: r.stderr };
+    }),
     // Akhiri tahap: komentar akhir + status in_review (menunggu owner) atau blocked (butuh owner) dalam satu panggilan.
     complete_stage: wrap(async (p, run) => {
       const issueId = issueIdOf(p);
@@ -137,6 +146,15 @@ export const TOOL_DEFS = {
       type: 'object',
       properties: { url: { type: 'string' }, published_at: { type: 'string' }, windowDays: { type: 'integer' } },
       required: ['url', 'published_at'],
+    },
+  },
+  render_carousel: {
+    displayName: 'Render Carousel',
+    description: 'Render design spec (carousel-design.json) menjadi PNG lewat renderer deterministik. designPath relatif terhadap folder workspace. Hasil: passed, jumlah PNG, hash. PNG ditulis ke workspace/issues/<issueId>/render. Jika passed=false baca stderr; jangan mengakali dengan HTML bebas.',
+    parametersSchema: {
+      type: 'object',
+      properties: { issueId: { type: 'string' }, designPath: { type: 'string' }, division: { type: 'string' } },
+      required: ['issueId', 'designPath'],
     },
   },
   complete_stage: {

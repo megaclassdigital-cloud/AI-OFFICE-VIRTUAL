@@ -1,11 +1,11 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T08:50:30.147Z
+> Terakhir diperbarui: 2026-10-08T08:56:08.158Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** F1.8a — Renderer: AC1.5 (hash identik 2x render, 6 template, font lokal) + jadikan tool plugin render_carousel
-**Ringkasan:** 28 DONE · 0 IN_PROGRESS · 20 TODO · 1 BLOCKED · 0 OWNER · 0 SKIPPED
+**Task berikutnya:** F1.7 — Designer: instruksi + cek deterministik fakta tidak berubah
+**Ringkasan:** 29 DONE · 0 IN_PROGRESS · 19 TODO · 1 BLOCKED · 0 OWNER · 0 SKIPPED
 **Antrian owner:** 1 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 9 (loop/DECISIONS.md)
 
 ## Progres per fase
@@ -16,7 +16,7 @@
 | 0 — Spike kelayakan | 9 | 9 |
 | 1A — Fondasi kode | 7 | 7 |
 | 1B — Pipeline konten | 4 | 4 |
-| 1C — Pipeline desain | 4 | 6 |
+| 1C — Pipeline desain | 5 | 6 |
 | 1D — QA dan integrasi | 0 | 6 |
 | 2 — Approval dan KPI | 0 | 6 |
 | 3 — Hardening dan serah terima | 0 | 6 |

@@ -14,7 +14,7 @@
 export default {
   id: 'aao-approval-gate',
   apiVersion: 1,
-  version: '0.4.0',
+  version: '0.5.0',
   displayName: 'AAO Approval Gate',
   description:
     'Tool deterministik untuk AI Agent Office. F0.4: versi hello dengan satu tool uji tanpa efek samping.',
@@ -109,6 +109,29 @@ export default {
         required: [
           'url',
           'published_at'
+        ]
+      }
+    },
+    {
+      name: 'render_carousel',
+      displayName: 'Render Carousel',
+      description: 'Render design spec (carousel-design.json) menjadi PNG lewat renderer deterministik. designPath relatif terhadap folder workspace. Hasil: passed, jumlah PNG, hash. PNG ditulis ke workspace/issues/<issueId>/render. Jika passed=false baca stderr; jangan mengakali dengan HTML bebas.',
+      parametersSchema: {
+        type: 'object',
+        properties: {
+          issueId: {
+            type: 'string'
+          },
+          designPath: {
+            type: 'string'
+          },
+          division: {
+            type: 'string'
+          }
+        },
+        required: [
+          'issueId',
+          'designPath'
         ]
       }
     },
