@@ -115,7 +115,8 @@ describe('tool qa_submit_result', () => {
     for (let i = 0; i < 3; i++) actions.push((await t.qa_submit_result({ issueId: ISSUE, llm: { textOk: true, designOk: true } }, run)).data.action);
     expect(actions).toEqual(['return_to_copywriter', 'return_to_copywriter', 'needs_human']);
     expect(issue.status).toBe('blocked');
-    expect([...state.values()]).toEqual([{ text: 2, design: 0 }]);
+    expect(state.get(`${ISSUE}/aao-qa/rounds`)).toEqual({ text: 2, design: 0 });
+    expect(state.get(`${ISSUE}/aao-qa/verdict`)).toMatchObject({ action: 'needs_human', contentHash: null });
     expect(calls.filter((c) => c[0] === 'comment')).toHaveLength(3);
     expect(calls.find((c) => c[0] === 'comment')[2]).toMatch(/slide 2: .*angka "87"/);
   });
