@@ -55,6 +55,14 @@ export function homeOf(world, c) {
   return slot(L.loungeSlots);
 }
 
+/** Slot Lounge/Pojok Bug berikutnya yang belum dipakai karakter lain (tidak ada dua karakter menumpuk). */
+function freeSlot(world, c) {
+  const n = world.layout.loungeSlots.length;
+  const taken = new Set([...world.chars.values()].filter((o) => o !== c && !o.isOwner).map((o) => o.slot % n));
+  for (let k = 1; k <= n; k++) { const idx = (c.slot + k) % n; if (!taken.has(idx)) return idx; }
+  return c.slot;
+}
+
 function ensureChar(world, ev) {
   let c = world.chars.get(ev.agentId);
   if (!c) {
@@ -210,7 +218,7 @@ export function stepWorld(world, dt) {
       c.wander -= dt;
       if (c.wander <= 0) {
         c.wander = 7 + ((c.slot * 3 + Math.floor(world.t)) % 6);
-        c.slot = (c.slot + 1) % world.layout.loungeSlots.length;
+        c.slot = freeSlot(world, c);
       } else c.facing = 'down';
     } else c.facing = 'down';
   }

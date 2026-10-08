@@ -8,13 +8,14 @@ const FAIL_WINDOW_MS = 15 * 60_000;
 const ACTIVE_COMMENT_WINDOW_MS = 15 * 60_000;
 const MAX_TRACKED_ISSUES = 8;
 const RING = 500;
+const DOWN_AFTER_FAILURES = 3; // satu poll lambat/gagal tidak boleh menandai Paperclip putus (mencegah resync dan teleport)
 
 export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch, now = () => Date.now(), companyPattern = /edukasi/i, log = () => {} } = {}) {
   const api = base.replace(/\/$/, '') + '/api';
   const st = {
     epoch: 1, seq: 0, events: [], connected: false, error: null, lastOkAt: null, lastPollMs: null, company: null,
     prev: null, // { agents:Map, issues:Map, comments:Set, ownerCount }
-    needsResync: false,
+    needsResync: false, failures: 0,
   };
 
   async function get(path) {
@@ -53,6 +54,9 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
         state = 'paused'; reason = a.pauseReason ?? undefined;
       } else if (blocked) {
         state = 'alert'; issue = blocked; reason = 'needs_human';
+      } else if (a.status === 'error') {
+        // Status error di Paperclip menetap sampai dibersihkan: agent tetap di Pojok Bug selama itu benar.
+        state = 'failed'; reason = latest?.errorCode ?? a.errorReason ?? 'error';
       } else if (latest && FAIL.has(latest.status) && nowMs - (Date.parse(latest.finishedAt ?? latest.startedAt ?? 0) || 0) < FAIL_WINDOW_MS) {
         state = 'failed'; reason = latest.errorCode ?? latest.error ?? latest.status;
       }
@@ -83,7 +87,7 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
       for (const [, list] of commentLists) for (const c of list) seenComments.add(c.id);
 
       const wasDown = !st.connected && st.prev !== null;
-      st.connected = true; st.error = null; st.lastOkAt = t0;
+      st.failures = 0; st.connected = true; st.error = null; st.lastOkAt = t0;
 
       if (!st.prev || wasDown) {
         // Pembacaan pertama (atau pulih dari putus): hanya snapshot, tanpa event gerak palsu.
@@ -128,8 +132,9 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
       st.prev = { ...p, agents: agentState, issues: new Map(issues.map((i) => [i.id, { assignee: i.assigneeAgentId, status: i.status }])), comments: p.comments, ownerCount: inReview.length, agentsRaw: agents, inReview };
       st.lastPollMs = now() - t0;
     } catch (e) {
-      st.connected = false; st.error = String(e?.message ?? e); st.company = null;
-      log(`bridge: ${st.error}`);
+      st.failures += 1; st.error = String(e?.message ?? e); st.company = null;
+      if (st.failures >= DOWN_AFTER_FAILURES) st.connected = false;
+      log(`bridge: ${st.error} (gagal ke-${st.failures})`);
     }
   }
 

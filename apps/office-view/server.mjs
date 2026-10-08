@@ -18,7 +18,7 @@ const arg = (n, d) => (a.includes(n) ? a[a.indexOf(n) + 1] : d);
 
 export const PORT = Number(arg('--port', process.env.AAO_OFFICE_PORT ?? 3190));
 const PAPERCLIP = arg('--paperclip', process.env.AAO_API_BASE ?? 'http://127.0.0.1:3177');
-const POLL_MS = Number(arg('--poll-ms', 2000));
+const POLL_MS = Number(arg('--poll-ms', 1500));
 const LAYOUT_FILE = path.join(repoRoot, 'divisions', 'edukasiai', 'office', 'layout.json');
 const REPLAY_FILE = path.join(repoRoot, 'fixtures', 'office-events', 'demo-carousel.jsonl');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json; charset=utf-8' };

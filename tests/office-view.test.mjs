@@ -129,6 +129,17 @@ describe('world: gerak dan pemetaan', () => {
     expect(roomAt(layout, char(w, 'a-d'))?.id).toBe('studio');
   });
 
+  it('karakter yang istirahat di Lounge tidak pernah menumpuk di titik yang sama (selama 3 menit)', () => {
+    const w = mkWorld(); seed(w);
+    for (let t = 0; t < 180; t += 0.05) {
+      stepWorld(w, 0.05);
+      const still = [...w.chars.values()].filter((c) => !c.isOwner && !c.moving && roomAt(layout, c)?.id === 'lounge');
+      for (let i = 0; i < still.length; i++) for (let j = i + 1; j < still.length; j++) {
+        expect(Math.hypot(still[i].x - still[j].x, still[i].y - still[j].y), `${still[i].name}/${still[j].name} @${t.toFixed(1)}`).toBeGreaterThan(30);
+      }
+    }
+  });
+
   it('komentar baru: bubble 💬', () => {
     const w = mkWorld(); seed(w);
     applyEvent(w, { type: 'comment', agentId: 'a-c', issue });
@@ -249,12 +260,41 @@ describe('office-bridge (Paperclip palsu)', () => {
     expect(b.snapshot().events.find((e) => e.agentId === 'a-c').state).toBe('idle');
   });
 
+  it('agent berstatus error tetap di Pojok Bug (failed) sampai error dibersihkan, lalu kembali idle', async () => {
+    const { S, fetchImpl } = fakePaperclip();
+    const old = new Date(Date.now() - 5 * 3600_000).toISOString();
+    S.runs = [{ id: 'rf', agentId: 'a-q', status: 'failed', startedAt: old, finishedAt: old, errorCode: 'setup_failed' }];
+    S.agents[2] = { ...S.agents[2], status: 'error', errorReason: 'Command failed' };
+    const b = createBridge({ fetchImpl });
+    await b.poll();
+    expect(b.snapshot().events.find((e) => e.agentId === 'a-q')).toMatchObject({ state: 'failed', reason: 'setup_failed' });
+    S.agents[2] = { ...S.agents[2], status: 'idle', errorReason: null };
+    await b.poll();
+    expect(b.eventsSince(0).events.filter((e) => e.agentId === 'a-q').map((e) => e.state)).toEqual(['idle']);
+  });
+
+  it('poll lambat yang gagal sekali lalu pulih tidak menaikkan epoch (tidak ada teleport di klien)', async () => {
+    const { S, fetchImpl } = fakePaperclip();
+    const b = createBridge({ fetchImpl });
+    await b.poll();
+    const e0 = b.status().epoch;
+    S.down = true; await b.poll(); S.down = false;
+    S.runs = [{ id: 'r9', agentId: 'a-r', status: 'running', startedAt: new Date().toISOString() }];
+    await b.poll();
+    expect(b.status()).toMatchObject({ connected: true, epoch: e0 });
+    expect(b.eventsSince(0).events.map((e) => `${e.agentId}:${e.state}`)).toEqual(['a-r:working']);
+  });
+
   it('Paperclip mati: connected=false tanpa crash; pulih: epoch naik agar klien membaca ulang keadaan', async () => {
     const { S, fetchImpl } = fakePaperclip();
     const b = createBridge({ fetchImpl });
     await b.poll();
     const e0 = b.status().epoch;
     S.down = true;
+    await b.poll();
+    await b.poll();
+    expect(b.status().connected).toBe(true); // satu-dua poll gagal belum dianggap putus
+    expect(b.status().epoch).toBe(e0);
     await b.poll();
     expect(b.status()).toMatchObject({ connected: false });
     expect(b.status().error).toMatch(/ECONNREFUSED/);

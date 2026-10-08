@@ -1,0 +1,102 @@
+{
+  "mode": "sim",
+  "screenshots": [
+    "sim-01-riset-mulai.png",
+    "sim-02-komentar.png",
+    "sim-03-handoff-ke-verifier.png",
+    "sim-04-copywriting.png",
+    "sim-05-handoff-ke-designer.png",
+    "sim-06-desain.png",
+    "sim-07-qa-memeriksa.png",
+    "sim-08-qa-gagal-revisi.png",
+    "sim-09-paket-ke-meja-owner.png",
+    "sim-10-approve-papan-tayang.png",
+    "sim-11-selesai-lounge.png"
+  ],
+  "video": "sim-demo.webm",
+  "consoleErrors": [],
+  "networkOrigins": [
+    "http://127.0.0.1:3190"
+  ],
+  "requestCount": 14,
+  "state": {
+    "mode": "sim",
+    "chars": [
+      {
+        "id": "owner",
+        "name": "Owner",
+        "state": "idle",
+        "x": 230,
+        "y": 832,
+        "room": "owner",
+        "moving": false,
+        "carry": false,
+        "issue": null,
+        "bubble": null
+      },
+      {
+        "id": "sim-researcher",
+        "name": "Researcher",
+        "state": "idle",
+        "x": 1420,
+        "y": 740,
+        "room": "lounge",
+        "moving": false,
+        "carry": false,
+        "issue": null,
+        "bubble": null
+      },
+      {
+        "id": "sim-verifier",
+        "name": "Verifier",
+        "state": "idle",
+        "x": 1120,
+        "y": 760,
+        "room": "lounge",
+        "moving": false,
+        "carry": false,
+        "issue": null,
+        "bubble": null
+      },
+      {
+        "id": "sim-copywriter",
+        "name": "Copywriter",
+        "state": "idle",
+        "x": 1250,
+        "y": 770,
+        "room": "lounge",
+        "moving": false,
+        "carry": false,
+        "issue": null,
+        "bubble": null
+      },
+      {
+        "id": "sim-designer",
+        "name": "Designer",
+        "state": "idle",
+        "x": 1200,
+        "y": 880,
+        "room": "lounge",
+        "moving": false,
+        "carry": false,
+        "issue": null,
+        "bubble": null
+      },
+      {
+        "id": "sim-qa",
+        "name": "QA",
+        "state": "idle",
+        "x": 1300,
+        "y": 746,
+        "room": "lounge",
+        "moving": true,
+        "carry": false,
+        "issue": null,
+        "bubble": null
+      }
+    ],
+    "metrics": [],
+    "ownerCount": 0,
+    "board": 1
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "issue": "EDU-8",
+  "agent": "QA",
+  "triggerAt": "2026-10-08T15:06:10.414Z",
+  "run": {
+    "id": "e73b03dd-bfb3-417c-8a81-54f8ff344916",
+    "status": "failed",
+    "startedAt": "2026-10-08T15:06:27.066Z",
+    "finishedAt": "2026-10-08T15:06:51.142Z",
+    "tokens": null
+  },
+  "runsCreated": 1,
+  "latency": {
+    "bridgeObservedMinusRunStart_ms": 1465,
+    "uiAppliedMinusRunStart_ms": 3920,
+    "uiMovingMinusRunStart_ms": 5305,
+    "targetMs": 5000
+  },
+  "timeline": [
+    {
+      "at": 1791471986794,
+      "t": "16.4",
+      "what": "run terdeteksi di Paperclip",
+      "runId": "e73b03dd-bfb3-417c-8a81-54f8ff344916",
+      "startedAt": null,
+      "note": "status queued"
+    },
+    {
+      "at": 1791471991408,
+      "t": "21.0",
+      "what": "UI: state working diterima",
+      "room": "lounge"
+    },
+    {
+      "at": 1791471992371,
+      "t": "22.0",
+      "what": "UI: karakter mulai berjalan",
+      "room": "lounge"
+    },
+    {
+      "at": 1791471993675,
+      "t": "23.3",
+      "what": "UI: karakter duduk di Meja QA, mengetik"
+    },
+    {
+      "at": 1791472011799,
+      "t": "41.4",
+      "what": "run selesai di Paperclip",
+      "finishedAt": "2026-10-08T15:06:51.142Z",
+      "note": "failed"
+    },
+    {
+      "at": 1791472024660,
+      "t": "54.2",
+      "what": "issue dibatalkan dan dilepas (tidak ada run lanjutan)"
+    },
+    {
+      "at": 1791472027240,
+      "t": "56.8",
+      "what": "UI: karakter di Pojok Bug 🐞 (run gagal)"
+    }
+  ],
+  "screenshots": [
+    "live-01-sebelum-run-semua-di-lounge.png",
+    "live-02-run-mulai-berjalan-ke-meja.png",
+    "live-03-di-meja-qa-mengetik.png",
+    "live-04-run-gagal-pojok-bug.png",
+    "live-05-akhir.png"
+  ],
+  "video": "live-demo.webm",
+  "consoleErrors": [],
+  "networkOrigins": [
+    "http://127.0.0.1:3190"
+  ]
+}

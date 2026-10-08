@@ -1,0 +1,55 @@
+{
+  "agent": "QA",
+  "startStatus": "idle",
+  "endStatus": "idle",
+  "before": {
+    "id": "10c49ae8-894d-416a-868c-963b8899b878",
+    "name": "QA",
+    "state": "idle",
+    "x": 1200,
+    "y": 880,
+    "room": "lounge",
+    "moving": false,
+    "carry": false,
+    "issue": null,
+    "bubble": null
+  },
+  "phases": [
+    {
+      "label": "pause",
+      "apiStatus": "paused",
+      "stateAppliedMs": 4770,
+      "walkingMs": 6271,
+      "arrivedMs": 7707,
+      "finalRoom": "qa",
+      "bubble": "😴",
+      "bridgeObservedMs": 4353,
+      "uiAppliedMs": 4546
+    },
+    {
+      "label": "resume",
+      "apiStatus": "idle",
+      "stateAppliedMs": 1792,
+      "walkingMs": 3180,
+      "arrivedMs": 4630,
+      "finalRoom": "lounge",
+      "bubble": null,
+      "bridgeObservedMs": 486,
+      "uiAppliedMs": 1292
+    }
+  ],
+  "newRuns": 0,
+  "targetMs": 5000,
+  "screenshots": [
+    "recover-01-awal-qa-di-lounge.png",
+    "recover-02-pause-state-diterima.png",
+    "recover-03-pause-selesai.png",
+    "recover-04-resume-state-diterima.png",
+    "recover-05-resume-selesai.png"
+  ],
+  "video": "recover-demo.webm",
+  "consoleErrors": [],
+  "networkOrigins": [
+    "http://127.0.0.1:3190"
+  ]
+}

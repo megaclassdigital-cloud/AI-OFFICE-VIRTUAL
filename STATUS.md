@@ -1,17 +1,18 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T09:30:00.865Z
+> Terakhir diperbarui: 2026-10-08T15:31:22.220Z
 
 **Status loop:** RUNNING
 **Task berikutnya:** F2.1 — Approval record khusus owner (hash isi) + test
-**Ringkasan:** 35 DONE · 0 IN_PROGRESS · 12 TODO · 1 BLOCKED · 1 OWNER · 0 SKIPPED
-**Antrian owner:** 2 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 11 (loop/DECISIONS.md)
+**Ringkasan:** 36 DONE · 0 IN_PROGRESS · 19 TODO · 1 BLOCKED · 1 OWNER · 0 SKIPPED
+**Antrian owner:** 2 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 14 (loop/DECISIONS.md)
 
 ## Progres per fase
 
 | Fase | Selesai | Total |
 | --- | --- | --- |
+| U — Office View | 1 | 1 |
 | L — Bootstrap loop | 4 | 5 |
 | 0 — Spike kelayakan | 9 | 9 |
 | 1A — Fondasi kode | 7 | 7 |
@@ -20,6 +21,7 @@
 | 1D — QA dan integrasi | 5 | 6 |
 | 2 — Approval dan KPI | 0 | 6 |
 | 3 — Hardening dan serah terima | 0 | 6 |
+| 4 — Office View (UI kantor dinamis) | 0 | 7 |
 
 ## BLOCKED / menunggu owner
 
