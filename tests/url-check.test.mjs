@@ -135,3 +135,54 @@ describe('detectInjection', () => {
     expect(detectInjection('Perusahaan mengumumkan model baru dengan instruksi lebih baik.')).toBe(false);
   });
 });
+
+// ── FIX-G1-04: SSRF — IPv6 yang menyamar, CGNAT, dan DNS rebinding ──
+import { isPrivateAddress, dnsViolation } from '../plugins/aao-approval-gate/src/url-check.js';
+
+describe('SSRF: alamat privat/terlarang (FIX-G1-04)', () => {
+  const blocked = ['127.0.0.1', '10.0.0.5', '172.16.0.1', '192.168.1.1', '169.254.169.254', '0.0.0.0', '100.64.0.1', '100.127.255.255',
+    '198.18.0.1', '224.0.0.1', '255.255.255.255', '::', '::1', '::ffff:127.0.0.1', '::ffff:7f00:1', '::ffff:10.1.2.3', '::127.0.0.1',
+    '64:ff9b::7f00:1', '2002:7f00:1::', 'fe80::1', 'febf::1', 'fc00::1', 'fd12:3456::1', 'ff02::1'];
+  const allowed = ['8.8.8.8', '93.184.216.34', '100.63.255.255', '100.128.0.1', '172.15.0.1', '172.32.0.1', '2606:4700:4700::1111', '::ffff:8.8.8.8', '64:ff9b::808:808'];
+  it.each(blocked)('menolak %s', (a) => expect(isPrivateAddress(a)).toBe(true));
+  it.each(allowed)('mengizinkan %s', (a) => expect(isPrivateAddress(a)).toBe(false));
+  it('URL dengan bentuk IP yang disamarkan ditolak oleh policyViolation', () => {
+    for (const u of ['https://[::ffff:127.0.0.1]/', 'https://[::]/', 'https://[::1]/', 'https://2130706433/', 'https://0x7f.1/', 'https://100.64.0.1/', 'https://[fe80::1]/', 'https://169.254.169.254/latest']) {
+      expect(policyViolation(u, STRICT_POLICY), u).not.toBeNull();
+    }
+    expect(policyViolation('https://example.com/a', STRICT_POLICY)).toBeNull();
+  });
+});
+
+describe('SSRF: DNS rebinding (FIX-G1-04)', () => {
+  const lookupTo = (...addrs) => async () => addrs.map((address) => ({ address, family: address.includes(':') ? 6 : 4 }));
+  it('nama publik yang menunjuk ke alamat privat/loopback ditolak', async () => {
+    expect(await dnsViolation('https://evil.example/x', STRICT_POLICY, lookupTo('127.0.0.1'))).toMatch(/alamat privat/);
+    expect(await dnsViolation('https://evil.example/x', STRICT_POLICY, lookupTo('93.184.216.34', '::ffff:7f00:1'))).toMatch(/alamat privat/);
+    expect(await dnsViolation('https://evil.example/x', STRICT_POLICY, lookupTo('100.64.0.9'))).toMatch(/alamat privat/);
+  });
+  it('nama publik ke alamat publik lolos; kegagalan DNS dan hasil kosong ditolak (gagal tertutup)', async () => {
+    expect(await dnsViolation('https://ok.example/', STRICT_POLICY, lookupTo('93.184.216.34'))).toBeNull();
+    expect(await dnsViolation('https://x.example/', STRICT_POLICY, async () => { throw Object.assign(new Error('x'), { code: 'ENOTFOUND' }); })).toMatch(/DNS gagal: ENOTFOUND/);
+    expect(await dnsViolation('https://x.example/', STRICT_POLICY, lookupTo())).toMatch(/tidak ter-resolve/);
+  });
+  it('checkUrl tidak memanggil fetch bila DNS menunjuk ke alamat privat (rebinding awal)', async () => {
+    let called = 0;
+    const r = await checkUrl('https://rebind.example/a', { lookupImpl: lookupTo('127.0.0.1'), fetchImpl: async () => { called += 1; return new Response('x'); } });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/alamat privat/);
+    expect(called).toBe(0);
+  });
+  it('rebinding lewat redirect: lompatan kedua ke nama yang menunjuk alamat privat ditolak', async () => {
+    const lookup = async (host) => [{ address: host === 'evil.example' ? '10.0.0.7' : '93.184.216.34', family: 4 }];
+    let calls = 0;
+    const fetchImpl = async () => { calls += 1; return new Response(null, { status: 302, headers: { location: 'https://evil.example/in' } }); };
+    const r = await checkUrl('https://ok.example/start', { lookupImpl: lookup, fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/alamat privat/);
+    expect(calls).toBe(1);
+  });
+  it('kebijakan allowPrivate (khusus uji lokal) melewati pemeriksaan DNS', async () => {
+    expect(await dnsViolation('http://localtest.example/', { allowHttp: true, allowPrivate: true }, lookupTo('127.0.0.1'))).toBeNull();
+  });
+});

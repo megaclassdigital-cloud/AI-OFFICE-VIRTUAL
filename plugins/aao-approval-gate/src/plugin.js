@@ -17,6 +17,8 @@
 import { definePlugin } from '@paperclipai/plugin-sdk';
 import { makeAgentTools, TOOL_DEFS } from './agent-tools.js';
 import { registerUsageGuard } from './guard-wiring.js';
+import { gateTool, loadToolRoles } from './tool-roles.js';
+import { defaultRepoRoot } from './render-tool.js';
 
 export const plugin = definePlugin({
   async setup(ctx) {
@@ -64,8 +66,13 @@ export const plugin = definePlugin({
     registerUsageGuard(ctx);
 
     const agentTools = makeAgentTools(ctx);
+    // FIX-G1-05: tool khusus peran dibatasi menurut divisions/<key>/tool-roles.json; gagal tertutup bila pemetaan tidak ada.
+    const roleGate = {
+      getRoles: () => loadToolRoles(defaultRepoRoot(), { extraFile: process.env.AAO_TOOL_ROLES_FILE }),
+      resolveName: async (run) => (await ctx.agents.get(run.agentId, run.companyId))?.name ?? null,
+    };
     for (const [name, def] of Object.entries(TOOL_DEFS)) {
-      ctx.tools.register(name, def, agentTools[name]);
+      ctx.tools.register(name, def, gateTool(name, agentTools[name], roleGate));
     }
   },
 

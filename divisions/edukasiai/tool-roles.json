@@ -1,0 +1,6 @@
+{
+  "verify_candidate": ["Verifier"],
+  "render_carousel": ["Designer"],
+  "qa_submit_result": ["QA"],
+  "handoff_to_owner": ["QA"]
+}

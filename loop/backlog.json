@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T17:38:50.854Z",
+    "updated_at": "2026-10-08T17:55:47.352Z",
     "current_task": ""
   },
   "tasks": [
@@ -870,11 +870,11 @@
       "deps": [
         "G1"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/FIX-G1-04-05.md",
+      "notes": "412 tes; pinning IP belum"
     },
     {
       "id": "FIX-G1-05",
@@ -883,11 +883,11 @@
       "deps": [
         "G1"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/FIX-G1-04-05.md",
+      "notes": "gerbang terpasang di plugin.js; plugin live belum di-reload"
     },
     {
       "id": "FIX-G1-07",

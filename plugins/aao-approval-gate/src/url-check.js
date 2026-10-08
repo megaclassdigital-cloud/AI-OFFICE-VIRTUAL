@@ -5,6 +5,7 @@
 // dikembalikan sebagai teks yang bisa dibaca agent sebagai instruksi.
 
 import { isIP } from 'node:net';
+import { lookup as dnsLookup } from 'node:dns/promises';
 
 export const STRICT_POLICY = Object.freeze({ allowHttp: false, allowPrivate: false });
 const MAX_BODY_BYTES = 64 * 1024;
@@ -23,16 +24,81 @@ export function detectInjection(text) {
   return INJECTION_PATTERNS.some((re) => re.test(text));
 }
 
+/** IPv4 "a.b.c.d" -> true bila termasuk rentang yang tidak boleh diakses dari luar (privat, loopback, link-local, CGNAT, dsb). */
+function isPrivateV4(h) {
+  const [a, b, c] = h.split('.').map(Number);
+  return (
+    a === 0 || a === 10 || a === 127 ||                       // "this network", privat, loopback
+    (a === 100 && b >= 64 && b <= 127) ||                      // CGNAT 100.64.0.0/10
+    (a === 169 && b === 254) ||                                // link-local / metadata cloud
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||          // 192.0.0.0/24, TEST-NET-1
+    (a === 198 && (b === 18 || b === 19)) ||                   // benchmark 198.18.0.0/15
+    (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113) || // TEST-NET-2/3
+    a >= 224                                                   // multicast + reserved + broadcast
+  );
+}
+
+/** Pecah IPv6 menjadi 8 hextet (angka). Mengembalikan null bila bukan IPv6 valid. */
+function v6Groups(h) {
+  if (isIP(h) !== 6) return null;
+  let s = h;
+  const v4 = /(\d+\.\d+\.\d+\.\d+)$/.exec(s);
+  if (v4) { const [w, x, y, z] = v4[1].split('.').map(Number); s = s.replace(v4[1], ((w << 8) | x).toString(16) + ':' + ((y << 8) | z).toString(16)); }
+  const [head, tail] = s.split('::');
+  const hs = head ? head.split(':') : [];
+  const ts = tail === undefined ? [] : tail ? tail.split(':') : [];
+  const fill = tail === undefined ? 0 : 8 - hs.length - ts.length;
+  return [...hs, ...Array(fill).fill('0'), ...ts].map((g) => parseInt(g || '0', 16));
+}
+
+function isPrivateV6(h) {
+  const g = v6Groups(h);
+  if (!g || g.length !== 8) return true; // tidak terurai: anggap berbahaya
+  const v4of = (hi, lo) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  if (g.every((x) => x === 0)) return true;                                   // :: (unspecified)
+  if (g.slice(0, 7).every((x) => x === 0) && g[7] === 1) return true;        // ::1
+  if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) return isPrivateV4(v4of(g[6], g[7])); // ::ffff:a.b.c.d (IPv4-mapped)
+  if (g.slice(0, 6).every((x) => x === 0)) return isPrivateV4(v4of(g[6], g[7]));                      // ::a.b.c.d (IPv4-compatible)
+  if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0)) return isPrivateV4(v4of(g[6], g[7])); // NAT64 64:ff9b::/96
+  if (g[0] === 0x2002) return isPrivateV4(v4of(g[1], g[2]));                  // 6to4 2002::/16 membawa IPv4
+  if ((g[0] & 0xfe00) === 0xfc00) return true;                                // fc00::/7 unique-local
+  if ((g[0] & 0xffc0) === 0xfe80) return true;                                // fe80::/10 link-local
+  if ((g[0] & 0xff00) === 0xff00) return true;                                // ff00::/8 multicast
+  return false;
+}
+
+export function isPrivateAddress(addr) {
+  const h = String(addr).replace(/^\[|\]$/g, '').toLowerCase();
+  const v = isIP(h);
+  if (v === 4) return isPrivateV4(h);
+  if (v === 6) return isPrivateV6(h);
+  return false;
+}
+
 function isPrivateHost(hostname) {
   const h = hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
-  const v = isIP(h);
-  if (v === 4) {
-    const [a, b] = h.split('.').map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
-  }
-  if (v === 6) return h === '::1' || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('fe80');
-  return false;
+  return isPrivateAddress(h);
+}
+
+/**
+ * Pemeriksaan DNS (anti DNS rebinding): nama host publik yang ternyata menunjuk ke alamat privat/loopback ditolak.
+ * Dilakukan di SETIAP lompatan redirect. Catatan jujur: fetch me-resolve nama lagi sendiri, jadi masih ada jendela
+ * kecil antara pemeriksaan ini dan koneksi; menutupnya penuh butuh pinning IP di dispatcher (belum dibangun).
+ */
+export async function dnsViolation(urlString, policy, lookupImpl = dnsLookup) {
+  if (policy.allowPrivate) return null;
+  let host;
+  try { host = new URL(urlString).hostname.replace(/^\[|\]$/g, ''); } catch { return 'URL tidak valid'; }
+  if (isIP(host)) return null; // sudah diperiksa langsung oleh policyViolation
+  try {
+    const addrs = await lookupImpl(host, { all: true, verbatim: true });
+    if (!addrs.length) return 'nama host tidak ter-resolve';
+    const bad = addrs.find((a) => isPrivateAddress(a.address));
+    return bad ? `host menunjuk ke alamat privat/lokal (${bad.address})` : null;
+  } catch (e) { return `DNS gagal: ${e.code ?? e.message}`; }
 }
 
 /** Kembalikan alasan penolakan (string) atau null bila URL boleh diakses menurut kebijakan. */
@@ -47,13 +113,13 @@ export function policyViolation(urlString, policy) {
 /**
  * @returns {{ok:boolean, httpStatus?:number, finalUrl?:string, redirects:number, error?:string, suspectedInjection:boolean}}
  */
-export async function checkUrl(url, { timeoutMs = 10_000, maxRedirects = 5, policy = STRICT_POLICY, fetchImpl = fetch } = {}) {
+export async function checkUrl(url, { timeoutMs = 10_000, maxRedirects = 5, policy = STRICT_POLICY, fetchImpl = fetch, lookupImpl = dnsLookup } = {}) {
   const result = { ok: false, redirects: 0, suspectedInjection: false };
   let current = url;
   const deadline = Date.now() + timeoutMs;
   try {
     for (;;) {
-      const bad = policyViolation(current, policy);
+      const bad = policyViolation(current, policy) ?? await dnsViolation(current, policy, lookupImpl);
       if (bad) return { ...result, finalUrl: current, error: bad };
       const remaining = deadline - Date.now();
       if (remaining <= 0) return { ...result, finalUrl: current, error: `timeout setelah ${timeoutMs} ms` };
