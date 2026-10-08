@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T02:19:37.486Z",
+    "updated_at": "2026-10-08T02:22:47.030Z",
     "current_task": ""
   },
   "tasks": [
@@ -188,10 +188,10 @@
       "deps": [
         "G0"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
+      "evidence": "reports/build/F1.0a.md",
       "notes": "package.json root sudah ada (ESM, playwright 1.56.0). Belum ada test runner."
     },
     {

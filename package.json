@@ -6,7 +6,10 @@
   "license": "MIT",
   "scripts": {
     "install-division": "node scripts/install-division.mjs",
-    "render-spike": "node scripts/render-spike.mjs"
+    "render-spike": "node scripts/render-spike.mjs",
+    "test": "vitest run",
+    "smoke": "node scripts/smoke-test.mjs",
+    "loop-status": "node scripts/loop-status.js"
   },
   "devDependencies": {
     "ajv": "8.20.0",
