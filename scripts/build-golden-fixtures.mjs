@@ -13,6 +13,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import { normalizeResearch } from './normalize-research.mjs';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,18 +30,7 @@ const write = (rel, data) => writeFileSync(path.join(out, rel), JSON.stringify(d
 // Berkas bukti F0.2 berawalan BOM (ditulis PowerShell 5.1); buang sebelum parse.
 const raw = JSON.parse(readFileSync(path.join(root, 'docs/spike/evidence/F0.2-research-output.json'), 'utf8').replace(/^﻿/, ''));
 const GENERATED_AT = '2026-10-04T16:27:00Z'; // waktu run F0.2 yang sebenarnya
-const research = {
-  generatedAt: GENERATED_AT,
-  windowDays: 7,
-  candidates: raw.candidates.map((c, i) => ({
-    id: `c${String(i + 1).padStart(2, '0')}`,
-    title: c.title,
-    summary: c.summary,
-    url: c.url,
-    published_at: c.published_at,
-    source_name: c.source_name,
-  })),
-};
+const research = normalizeResearch(raw, { generatedAt: GENERATED_AT });
 write('valid/01-research-output.json', research);
 
 const byId = Object.fromEntries(research.candidates.map((c) => [c.id, c]));

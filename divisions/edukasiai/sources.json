@@ -1,0 +1,9 @@
+{
+  "_catatan": "Whitelist sumber (loop/DEFAULTS.md). Domain cocok jika host sama atau subdomain. Sumber lain tetap boleh bila lolos Verifier, ditandai non_whitelist oleh KODE.",
+  "whitelistDomains": [
+    "openai.com", "anthropic.com", "deepmind.google", "deepmind.com", "blog.google", "ai.google",
+    "ai.meta.com", "microsoft.com", "huggingface.co",
+    "theverge.com", "techcrunch.com", "arstechnica.com", "venturebeat.com"
+  ],
+  "windowDays": 7
+}
