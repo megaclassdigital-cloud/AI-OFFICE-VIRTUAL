@@ -53,6 +53,30 @@ function Get-PaperclipProcess {
         Where-Object { $_.CommandLine -and $_.CommandLine -match 'paperclipai' }
 }
 
+function Repair-Plugins {
+    # Saat boot, worker plugin dimuat bersamaan dengan Postgres. Impor dingin SDK memakan
+    # ~8 detik di mesin ini, sedangkan Paperclip membatasi RPC "initialize" 15 detik, jadi
+    # plugin sering berstatus `error` setelah restart padahal tidak ada yang rusak
+    # (terbukti di L0.4/G0: `plugin enable` saat mesin tenang langsung `ready`).
+    # Perbaikan memakai CLI resmi, bukan mengubah core.
+    try {
+        $plugins = Invoke-RestMethod -Uri 'http://127.0.0.1:3177/api/plugins' -TimeoutSec 20
+    } catch {
+        Write-Warning "Tidak bisa membaca daftar plugin: $($_.Exception.Message)"
+        return
+    }
+    if ($plugins -isnot [System.Array] -and $plugins.PSObject.Properties.Name -contains 'plugins') { $plugins = $plugins.plugins }
+    foreach ($pl in $plugins) {
+        $key = if ($pl.key) { $pl.key } else { $pl.pluginKey }
+        if ($pl.status -eq 'error') {
+            Write-Host "Plugin '$key' berstatus error setelah boot. Mengaktifkan ulang (mesin sudah tenang)..."
+            Push-Location $env:TEMP
+            & npx --yes "paperclipai@$PaperclipVersion" plugin enable $key 2>&1 | ForEach-Object { Write-Host "  $_" }
+            Pop-Location
+        }
+    }
+}
+
 if ($Status) {
     $h = Test-PaperclipHealth
     if ($h) {
@@ -81,7 +105,8 @@ if ($Stop) {
 # Sudah hidup? Jangan start dua kali.
 $existing = Test-PaperclipHealth
 if ($existing) {
-    Write-Host "Paperclip sudah berjalan (status=$($existing.status)). Tidak melakukan apa-apa."
+    Write-Host "Paperclip sudah berjalan (status=$($existing.status)). Server tidak dinyalakan ulang."
+    Repair-Plugins   # menyembuhkan plugin `error` tanpa restart server
     Write-Host 'URL: http://127.0.0.1:3177'
     exit 0
 }
@@ -110,16 +135,18 @@ Start-Process -FilePath 'powershell.exe' `
 Write-Host "Log: $OutLog"
 Write-Host 'Menunggu server siap (embedded Postgres butuh waktu di mesin ini)...'
 
-$deadline = (Get-Date).AddMinutes(5)
+# Boot dingin di mesin ini (2 core) terukur 6-8 menit; 5 menit terbukti kurang (L0.4).
+$deadline = (Get-Date).AddMinutes(12)
 while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 5
     $h = Test-PaperclipHealth
     if ($h -and $h.status -eq 'ok') {
         Write-Host "SIAP. status=$($h.status) version=$($h.version)"
+        Repair-Plugins
         Write-Host 'URL: http://127.0.0.1:3177'
         exit 0
     }
 }
 
-Write-Warning "Server belum menjawab 'ok' dalam 5 menit. Periksa $OutLog dan $ErrLog."
+Write-Warning "Server belum menjawab 'ok' dalam 12 menit. Periksa $OutLog dan $ErrLog."
 exit 1

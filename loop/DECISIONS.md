@@ -52,3 +52,11 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Alternatif: memperbesar logo (ditolak, buram) atau membuat ulang logo (ditolak, itu identitas milik owner).
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER — mohon kirim logo EdukasiAI beresolusi lebih besar atau SVG.
+
+## D-007 — Plugin `error` setelah boot dipulihkan oleh skrip start, bukan oleh core
+- Task: G0 (ditemukan smoke test setelah restart L0.4)
+- Konteks: setelah restart server, plugin `aao-approval-gate` berstatus `error` (`RPC "initialize" timed out after 15000ms`). Akar masalah terukur: impor dingin `@paperclipai/plugin-sdk` memakan ~7,9 dtk saat mesin diam (1,5 dtk setelah hangat); saat boot server bersamaan dengan Postgres di CPU 2 core, melewati batas 15 dtk milik Paperclip. `plugin enable` saat mesin tenang langsung `ready` (8,6 dtk).
+- Pilihan: `scripts/start-paperclip.ps1` memanggil `Repair-Plugins` sesudah server `ok` (dan juga saat server sudah berjalan): plugin berstatus `error` diaktifkan ulang lewat CLI resmi. Batas tunggu boot dinaikkan 5 → 12 menit (terukur 6–8 menit).
+- Alternatif: mem-bundle worker dengan esbuild supaya muat lebih cepat (menambah dependency, ditunda); mengubah batas 15 dtk (itu kode core, dilarang).
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER — setiap restart server memerlukan skrip ini; restart manual lewat cara lain meninggalkan plugin `error` sampai `plugin enable`.

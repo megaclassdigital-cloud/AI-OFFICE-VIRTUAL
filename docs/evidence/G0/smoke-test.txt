@@ -1,0 +1,49 @@
+
+=== SMOKE TEST AI AGENT OFFICE — 2026-10-08T02:05:34.783Z ===
+Target: http://127.0.0.1:3177
+
+F0.1 — server
+  PASS  server menjawab /api/health
+  PASS  status ok :: ok
+  PASS  versi dipin 2026.1001.0 :: 2026.1001.0
+  PASS  bootstrap ready
+
+F0.3 — struktur office
+  PASS  company EdukasiAI ada :: EdukasiAI
+  PASS  company IsolationTest ada :: IsolationTest
+  PASS  EdukasiAI punya tepat 5 agent :: 5 agent
+  PASS  nama agent cocok dengan manifest :: Copywriter, Designer, QA, Researcher, Verifier
+
+F0.2-fix — guard anti-loop
+  PASS  semua agent punya timeoutSec 600
+  PASS  semua agent punya instruksi + protokol (>4KB)
+
+F0.3 — isolasi (perlu token agent IsolationTest)
+  PASS  KONTROL: token baca company sendiri = 200 :: HTTP 200
+  PASS  ISOLASI: baca company lain ditolak 403 :: HTTP 403
+  PASS  ISOLASI: tulis ke company lain ditolak 403 :: HTTP 403
+
+F0.4 — plugin dan tool
+  PASS  plugin aao-approval-gate terpasang :: ready
+  PASS  plugin status ready :: ready
+  PASS  tool aao_hello terdaftar
+
+F0.7 — render
+  PASS  PNG bukti berdimensi 1080x1350 :: 1080x1350
+  PASS  laporan render menyatakan dua render identik
+  PASS  hash PNG bukti cocok dengan laporan
+
+Integritas repo
+  PASS  ada: CLAUDE.md
+  PASS  ada: STATUS.md
+  PASS  ada: docs/PRD.md
+  PASS  ada: docs/versions.md
+  PASS  ada: docs/spike/report.md
+  PASS  ada: divisions/edukasiai/division.json
+  PASS  ada: divisions/edukasiai/sop/agent-protocol.md
+  PASS  ada: plugins/aao-approval-gate/manifest.js
+  PASS  ada: scripts/install-division.mjs
+  PASS  ada: scripts/start-paperclip.ps1
+
+=== RINGKASAN: 29 PASS, 0 FAIL ===
+Semua cek lolos.
