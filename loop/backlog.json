@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T09:21:06.132Z",
+    "updated_at": "2026-10-08T09:21:59.494Z",
     "current_task": ""
   },
   "tasks": [
@@ -482,11 +482,11 @@
         "E1.1",
         "F1.0f"
       ],
-      "status": "TODO",
+      "status": "OWNER",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": "",
+      "notes": "Menunggu keputusan owner O-004: izin satu run live (kuota Codex) dan desain orkestrasi antar-agent",
       "owner_fallback": true
     },
     {
