@@ -1,6 +1,6 @@
 // Test tool render_carousel (F1.8a): penjagaan path + satu render sungguhan lewat tool + hash identik antar-run.
 import { describe, it, expect, afterAll } from 'vitest';
-import { mkdirSync, copyFileSync, rmSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, copyFileSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { designHash } from '../plugins/aao-approval-gate/src/provenance.js';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -62,6 +62,18 @@ describe('render sungguhan lewat tool', () => {
     const seal = state.get('seal');
     expect(seal.designHash).toBe(designHash(JSON.parse(readFileSync(design, 'utf8').replace(/^﻿/, ''))));
     expect(Object.keys(seal.hashes)).toHaveLength(6);
+  }, 120_000);
+  it('regresi: render ulang yang GAGAL tidak mewarisi laporan render sebelumnya (tidak ada segel basi)', async () => {
+    const bad = path.join(wsDir, 'rusak.json');
+    const d = JSON.parse(readFileSync(design, 'utf8').replace(/^﻿/, ''));
+    d.slides[0].template = 'template-fiktif';
+    writeFileSync(bad, JSON.stringify(d));
+    const ok = await runRender({ designPath: 'tests-render-tool/design.json', issueId: ID });
+    expect(ok.passed).toBe(true);
+    const failed = await runRender({ designPath: 'tests-render-tool/rusak.json', issueId: ID });
+    expect(failed).toMatchObject({ passed: false, pngCount: 0 });
+    expect(failed.visualQa).toBeUndefined();
+    expect(failed.hashes).toBeUndefined();
   }, 120_000);
   it('handler tool menolak path berbahaya sebagai ok:false (bukan exception)', async () => {
     const t = makeAgentTools({});

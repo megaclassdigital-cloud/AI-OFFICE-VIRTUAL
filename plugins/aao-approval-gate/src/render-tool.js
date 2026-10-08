@@ -5,7 +5,7 @@
 // <repo>/workspace/issues/<issueId>/render, nama division hanya [a-z0-9-]. Tidak ada shell.
 
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +42,8 @@ export function resolveRenderInputs({ repoRoot = defaultRepoRoot(), designPath, 
  */
 export async function runRender(input, { timeoutMs = 120_000, spawnImpl = spawn, nodePath = process.execPath } = {}) {
   const { repoRoot, design, outDir, division } = resolveRenderInputs(input);
+  // Laporan dari render sebelumnya tidak boleh dianggap hasil render ini: render yang gagal tidak meninggalkan laporan basi.
+  await Promise.all(['visual-qa.json', 'hashes.json'].map((f) => rm(path.join(outDir, f), { force: true })));
   const script = path.join(repoRoot, 'scripts', 'render.mjs');
   const args = [script, '--design', design, '--out', outDir, '--division', division];
   const { exitCode, stderr } = await new Promise((resolve, reject) => {

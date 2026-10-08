@@ -109,7 +109,7 @@ export function makeAgentTools(ctx) {
         throw e;
       });
       let sealed = false; let sealNote;
-      if (r.visualQa && r.hashes) {
+      if (r.exitCode === 0 && r.visualQa && r.hashes) {
         const { design } = resolveRenderInputs({ designPath: p?.designPath, issueId, division: p?.division });
         const after = await readFile(design, 'utf8');
         const disk = await hashPngs(r.outDir);

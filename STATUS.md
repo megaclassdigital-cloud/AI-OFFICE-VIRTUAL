@@ -1,11 +1,11 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T16:41:03.645Z
+> Terakhir diperbarui: 2026-10-08T16:52:19.422Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** H3.1 — Suite skenario: semua 14 skenario PRD bagian 6 otomatis
-**Ringkasan:** 47 DONE · 0 IN_PROGRESS · 15 TODO · 1 BLOCKED · 1 OWNER · 0 SKIPPED
+**Task berikutnya:** H3.2 — Keamanan: secret scan, izin workspace agent, ACL master.key, uji prompt injection
+**Ringkasan:** 48 DONE · 0 IN_PROGRESS · 14 TODO · 1 BLOCKED · 1 OWNER · 0 SKIPPED
 **Antrian owner:** 4 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 14 (loop/DECISIONS.md)
 
 ## Progres per fase
@@ -20,7 +20,7 @@
 | 1C — Pipeline desain | 6 | 6 |
 | 1D — QA dan integrasi | 5 | 6 |
 | 2 — Approval dan KPI | 11 | 12 |
-| 3 — Hardening dan serah terima | 0 | 7 |
+| 3 — Hardening dan serah terima | 1 | 7 |
 | 4 — Office View (UI kantor dinamis) | 0 | 7 |
 
 ## BLOCKED / menunggu owner

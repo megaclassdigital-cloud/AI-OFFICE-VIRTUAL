@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T16:41:03.114Z",
+    "updated_at": "2026-10-08T16:52:18.572Z",
     "current_task": ""
   },
   "tasks": [
@@ -604,11 +604,11 @@
       "deps": [
         "G2"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/H3.1.md",
+      "notes": "14 skenario; 7 penuh, 7 bagian kode (lihat tabel); ditemukan dan diperbaiki bug laporan render basi"
     },
     {
       "id": "H3.2",
