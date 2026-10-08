@@ -2,7 +2,7 @@
     "name":  "aao-approval-gate",
     "version":  "0.1.0",
     "private":  true,
-    "description":  "Tool deterministik untuk AI Agent Office: verifikasi sumber, render, approval, prepare_publication.",
+    "description":  "Tool deterministik untuk AI Agent Office: verifikasi sumber, render, QA, handoff ke owner (approval dan publikasi dijalankan owner di luar plugin).",
     "author":  "AI Agent Office",
     "license":  "MIT",
     "type":  "module",

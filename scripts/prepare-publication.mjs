@@ -8,7 +8,7 @@
 // Pemakaian (dipanggil owner / Console, bukan agent):
 //   node scripts/prepare-publication.mjs --issue <uuid> --carousel f.json --design f.json --render-dir dir [--out output/edukasiai]
 
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, renameSync, existsSync, readdirSync, appendFileSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, renameSync, existsSync, readdirSync, appendFileSync, rmSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,7 @@ import { packageContentHash } from '../plugins/aao-approval-gate/src/content-has
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PNG_RE = /^slide-\d+\.png$/;
+const LOCK_STALE_MS = 5 * 60_000;
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 
 export class PublishError extends Error {}
@@ -52,7 +53,7 @@ function findExisting(outRoot, issueId, combined) {
  * @returns {{created:boolean, dir:string, hash:string}}
  * @throws {PublishError} bila tidak ada approval, ditolak, atau hash tidak cocok
  */
-export function preparePublication({ issue, carousel, design, renderDir, approvalDir, token, issueStatus, outRoot = path.join(repoRoot, 'output', 'edukasiai'), auditFile = path.join(outRoot, '..', 'audit.log'), now = new Date() }) {
+export function preparePublication({ issue, carousel, design, renderDir, approvalDir, token, issueStatus, copyFile = copyFileSync, outRoot = path.join(repoRoot, 'output', 'edukasiai'), auditFile = path.join(outRoot, '..', 'audit.log'), now = new Date() }) {
   const refuse = (event, message, extra = {}) => { audit(auditFile, { event, issue_id: issue.id, issue_identifier: issue.identifier, ...extra }); throw new PublishError(message); };
 
   // FIX-G2-03: paket hanya disiapkan bila owner sudah menutup issue (done); approval yang setengah jalan tidak cukup.
@@ -66,10 +67,25 @@ export function preparePublication({ issue, carousel, design, renderDir, approva
     refuse('publish_refused_hash_mismatch', 'isi paket berubah sejak approval (hash tidak cocok); minta approval baru', { record_id: rec.record_id, approved_hash: rec.content_hash.combined, current_hash: hash.combined });
   }
 
+  // FIX-G2-04: kunci per issue (mkdir atomik) supaya dua proses paralel tidak sama-sama lolos findExisting lalu membuat dua folder.
+  mkdirSync(outRoot, { recursive: true });
+  const lockDir = path.join(outRoot, `.lock-${issue.id}`);
+  const takeLock = () => { mkdirSync(lockDir); };
+  try { takeLock(); } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+    const age = Date.now() - statSync(lockDir).mtimeMs;
+    if (age < LOCK_STALE_MS) refuse('publish_refused_busy', 'proses lain sedang menyiapkan paket issue ini; coba lagi sebentar lagi');
+    rmSync(lockDir, { recursive: true, force: true }); // kunci basi (proses mati): ambil alih
+    takeLock();
+  }
+  try {
+    return buildPackage();
+  } finally { rmSync(lockDir, { recursive: true, force: true }); }
+
+  function buildPackage() {
   const existing = findExisting(outRoot, issue.id, hash.combined);
   if (existing) { audit(auditFile, { event: 'publish_idempotent', issue_id: issue.id, record_id: rec.record_id, dir: existing }); return { created: false, dir: existing, hash: hash.combined }; }
 
-  mkdirSync(outRoot, { recursive: true });
   const base = `${jakartaDate(now)}-${slugify(carousel.topic)}`;
   let final = path.join(outRoot, base);
   for (let i = 2; existsSync(final); i++) final = path.join(outRoot, `${base}-${i}`);
@@ -77,7 +93,13 @@ export function preparePublication({ issue, carousel, design, renderDir, approva
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
   try {
-    for (const f of files) copyFileSync(path.join(renderDir, f), path.join(tmp, f));
+    for (const f of files) copyFile(path.join(renderDir, f), path.join(tmp, f));
+    // FIX-G2-04: hash ulang SALINAN (bukan sumber) sebelum paket dianggap jadi; PNG yang ditukar di antara hash dan salin terdeteksi.
+    const copied = currentPackageHash({ carousel, design, renderDir: tmp }).hash.combined;
+    if (copied !== hash.combined) {
+      rmSync(tmp, { recursive: true, force: true });
+      refuse('publish_refused_changed_during_copy', 'PNG berubah saat disalin (hash salinan tidak cocok dengan yang disetujui); paket dibatalkan', { record_id: rec.record_id, approved_hash: hash.combined, copied_hash: copied });
+    }
     const nl = '\n';
     writeFileSync(path.join(tmp, 'slides.md'), [`# ${carousel.topic}`, '', ...carousel.slides.flatMap((s) => [`## Slide ${s.index} (${s.role})`, `**${s.heading}**`, '', s.body, ''])].join(nl), 'utf8');
     writeFileSync(path.join(tmp, 'caption.txt'), `${carousel.caption}${nl}${nl}${carousel.hashtags.join(' ')}${nl}`, 'utf8');
@@ -91,6 +113,7 @@ export function preparePublication({ issue, carousel, design, renderDir, approva
   } catch (e) { rmSync(tmp, { recursive: true, force: true }); throw e; }
   audit(auditFile, { event: 'publish_prepared', issue_id: issue.id, record_id: rec.record_id, dir: final, content_hash: hash.combined });
   return { created: true, dir: final, hash: hash.combined };
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

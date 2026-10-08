@@ -79,6 +79,27 @@ describe('computeWeek', () => {
   });
 });
 
+describe('label jujur (FIX-G2-07)', () => {
+  const gen = (cur, prev) => renderMarkdown({ weekLabel: '2026-W41', prevLabel: '2026-W40', cur, prev, generatedAt: 'x' });
+  it('semua draf fixture: status KPI berbasis draf diberi label DATA FIXTURE dan draf ditandai', () => {
+    const w = computeWeek({ start: START, issues: [draft(1, { fixture: true }), draft(2, { fixture: true })] });
+    expect(w.fixtureDrafts).toBe(2);
+    const md = gen(w, w);
+    expect(md).toMatch(/Akurasi sumber \|[^\n]*DATA FIXTURE/);
+    expect(md).toMatch(/Kualitas visual \|[^\n]*DATA FIXTURE/);
+    expect(md).toContain('EDU-1 (fixture)');
+  });
+  it('draf nyata tidak diberi label fixture', () => {
+    const w = computeWeek({ start: START, issues: [draft(1)] });
+    expect(gen(w, w)).not.toContain('DATA FIXTURE');
+  });
+  it('biaya: ada run tetapi biaya 0 -> TIDAK TERUKUR (bukan TERCAPAI); biaya diberi label kumulatif', () => {
+    const w = computeWeek({ start: START, issues: [], runs: [{ status: 'succeeded', startedAt: at(1, 8), finishedAt: at(1, 9) }], spendCents: 250 });
+    const md = gen(w, w);
+    expect(md).toMatch(/\| Biaya \|[^\n]*KUMULATIF[^\n]*\| TIDAK TERUKUR/);
+  });
+});
+
 describe('renderMarkdown', () => {
   const none = computeWeek({ start: START, issues: [] });
   it('tanpa data tertulis BELUM ADA DATA, bukan TERCAPAI', () => {

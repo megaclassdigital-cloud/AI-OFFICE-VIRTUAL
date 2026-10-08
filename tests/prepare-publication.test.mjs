@@ -1,8 +1,9 @@
 // Test F2.2: AC2.1 (tanpa approval ditolak), AC2.2 (hash berubah ditolak), AC2.3 (idempoten), + audit log.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFileSync, writeFileSync, readdirSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, mkdirSync, rmSync, existsSync, copyFileSync, appendFileSync, utimesSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { recordDecision } from '../scripts/owner-approval.mjs';
 import { preparePublication, currentPackageHash, slugify, PublishError } from '../scripts/prepare-publication.mjs';
@@ -117,6 +118,52 @@ describe('prepare_publication', () => {
     expect(second.dir).not.toBe(first.dir);
     expect(readdirSync(e.outRoot)).toHaveLength(2);
   });
+  it('FIX-G2-04: PNG ditukar saat disalin terdeteksi lewat hash salinan; tidak ada folder paket, kunci dilepas', () => {
+    const e = env();
+    approve(e);
+    const corrupt = (src, dst) => { copyFileSync(src, dst); if (dst.endsWith('slide-02.png')) appendFileSync(dst, 'x'); };
+    expect(() => preparePublication(args(e, { copyFile: corrupt }))).toThrow(/berubah saat disalin/);
+    expect(audits(e).at(-1).event).toBe('publish_refused_changed_during_copy');
+    expect(readdirSync(e.outRoot).filter((n) => !n.startsWith('.'))).toEqual([]);
+    expect(preparePublication(args(e)).created).toBe(true); // percobaan berikutnya (tanpa gangguan) berhasil
+  });
+  it('FIX-G2-04: kunci per issue: proses lain sedang menyiapkan -> ditolak; kunci basi diambil alih; kunci dilepas setelah sukses', () => {
+    const e = env();
+    approve(e);
+    mkdirSync(e.outRoot, { recursive: true });
+    const lock = path.join(e.outRoot, `.lock-${ISSUE.id}`);
+    mkdirSync(lock);
+    expect(() => preparePublication(args(e))).toThrow(/proses lain sedang menyiapkan/);
+    expect(audits(e).at(-1).event).toBe('publish_refused_busy');
+    const old = new Date(Date.now() - 10 * 60_000);
+    utimesSync(lock, old, old); // kunci basi (proses mati)
+    const r = preparePublication(args(e));
+    expect(r.created).toBe(true);
+    expect(existsSync(lock)).toBe(false);
+    expect(preparePublication(args(e)).created).toBe(false);
+  });
+  it('FIX-G2-04: dua proses Node paralel pada approval yang sama menghasilkan satu folder paket', async () => {
+    const e = env();
+    approve(e);
+    const script = `
+      import { preparePublication } from ${JSON.stringify(pathToFileURL(path.join(repoRoot, 'scripts/prepare-publication.mjs')).href)};
+      import { readFileSync } from 'node:fs';
+      const a = JSON.parse(process.argv[2]);
+      const rd = (f) => JSON.parse(readFileSync(f, 'utf8').replace(/^\uFEFF/, ''));
+      try {
+        const r = preparePublication({ ...a, carousel: rd(a.carouselFile), design: rd(a.designFile), now: new Date(a.now) });
+        console.log(JSON.stringify({ ok: true, created: r.created }));
+      } catch (err) { console.log(JSON.stringify({ ok: false, error: err.message })); }
+    `;
+    const f = path.join(e.root, 'child.mjs');
+    writeFileSync(f, script);
+    const payload = JSON.stringify({ issue: ISSUE, issueStatus: 'done', renderDir, approvalDir: e.approvalDir, token: TOKEN, outRoot: e.outRoot, auditFile: e.auditFile, now: '2026-10-08T03:00:00Z', carouselFile: path.join(repoRoot, 'fixtures/golden/valid/03-carousel.json'), designFile: path.join(repoRoot, 'fixtures/golden/valid/04-carousel-design.json') });
+    const runChild = () => new Promise((res) => { const c = spawn(process.execPath, [f, payload], { encoding: 'utf8' }); let o = ''; c.stdout.on('data', (d) => (o += d)); c.on('close', () => res(JSON.parse(o.trim().split(/\r?\n/).at(-1)))); });
+    const results = await Promise.all([runChild(), runChild(), runChild()]);
+    expect(readdirSync(e.outRoot).filter((n) => !n.startsWith('.'))).toHaveLength(1);
+    expect(results.filter((r) => r.ok && r.created)).toHaveLength(1);
+    for (const r of results.filter((x) => !x.ok)) expect(r.error).toMatch(/proses lain sedang menyiapkan/);
+  }, 60_000);
   it('slugify aman', () => {
     expect(slugify('Ünïcode & "Judul" Panjang!!')).toBe('unicode-judul-panjang');
     expect(slugify('???')).toBe('carousel');

@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T17:13:02.704Z",
+    "updated_at": "2026-10-08T17:38:50.854Z",
     "current_task": ""
   },
   "tasks": [
@@ -844,11 +844,11 @@
       "deps": [
         "G2"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/FIX-G2-04.md",
+      "notes": "G2-04,07,08 selesai; sisa kecil: biaya per event test-harness, pindai output tanpa audit"
     },
     {
       "id": "FIX-G2-01b",
@@ -856,6 +856,59 @@
       "title": "Token owner di luar jangkauan agent + uji sandbox codex_local (baca .env, tulis output/approvals, jalankan owner-decide)",
       "deps": [
         "FIX-G2-01"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G1-04",
+      "phase": "2 — Approval dan KPI",
+      "title": "SSRF url-check: ::ffff:127.0.0.1, [::], 100.64.0.0/10, DNS rebinding",
+      "deps": [
+        "G1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G1-05",
+      "phase": "2 — Approval dan KPI",
+      "title": "Batasi tool qa_submit_result/handoff_to_owner/render_carousel/complete_stage per peran agent",
+      "deps": [
+        "G1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G1-07",
+      "phase": "2 — Approval dan KPI",
+      "title": "Buktikan API Paperclip menolak done/cancelled dari kredensial agent (uji dengan agent nyata)",
+      "deps": [
+        "G1",
+        "E1.2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G1-10",
+      "phase": "2 — Approval dan KPI",
+      "title": "Kebijakan kandidat 403 (D-009): putusan owner",
+      "deps": [
+        "G1"
       ],
       "status": "TODO",
       "attempts": 0,

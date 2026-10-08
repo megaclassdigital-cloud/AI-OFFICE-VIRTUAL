@@ -85,8 +85,9 @@ export function computeWeek({ start, issues, runs = [], approvals = [], publishA
   let slides = 0; let slidesOk = 0;
   for (const i of drafts) for (const s of i.visualQa?.slides ?? []) { slides += 1; if (s.passed) slidesOk += 1; }
 
+  const fixtureDrafts = drafts.filter((i) => i.fixture).length;
   return {
-    drafts: drafts.length, draftIds: drafts.map((i) => i.identifier),
+    drafts: drafts.length, fixtureDrafts, draftIds: drafts.map((i) => i.identifier + (i.fixture ? ' (fixture)' : '')),
     sourceAccuracy: { total: srcTotal, ok: srcOk, pct: pct(srcOk, srcTotal) },
     qaFirstPass: { issues: qaIssues, pass: qaFirstPass, pct: pct(qaFirstPass, qaIssues) },
     cost: { spendCents: Math.max(0, spendCents - TEST_LEDGER_CENTS), rawSpendCents: spendCents, runs: wkRuns.length, failedRuns: wkRuns.filter((r) => r.status !== 'succeeded').length, durationMin: Math.round(durMs / 600) / 100, tokens: tok },
@@ -97,18 +98,20 @@ export function computeWeek({ start, issues, runs = [], approvals = [], publishA
 }
 
 const f = (v, unit = '') => (v === null || v === undefined ? 'belum ada data' : `${v}${unit}`);
-const verdict = (ok) => (ok === null ? 'BELUM ADA DATA' : ok ? 'TERCAPAI' : 'BELUM');
+const verdict = (ok, tag = '') => (ok === null ? 'BELUM ADA DATA' : `${ok ? 'TERCAPAI' : 'BELUM'}${tag}`);
 
 export function renderMarkdown({ weekLabel, prevLabel, cur, prev, generatedAt }) {
   const consecutive = cur.drafts >= 5 && prev.drafts >= 5;
+  const fx = cur.drafts > 0 && cur.fixtureDrafts === cur.drafts ? ' — DATA FIXTURE, bukan kinerja agent' : '';
+  const costNote = cur.cost.runs > 0 && cur.cost.spendCents === 0 ? 'TIDAK TERUKUR (langganan: billed_cents selalu 0; lihat run/durasi/token)' : verdict(cur.cost.spendCents <= 500);
   const rows = [
-    ['Konsistensi produksi', `${cur.drafts} draf (${prevLabel}: ${prev.drafts}); 5/minggu selama 2 minggu berturut-turut`, verdict(cur.drafts === 0 && prev.drafts === 0 ? null : consecutive)],
-    ['Akurasi sumber', `${f(cur.sourceAccuracy.pct, '%')} (${cur.sourceAccuracy.ok}/${cur.sourceAccuracy.total} sumber verified); target 100%`, verdict(cur.sourceAccuracy.pct === null ? null : cur.sourceAccuracy.pct === 100)],
-    ['Lolos QA pertama kali', `${f(cur.qaFirstPass.pct, '%')} (${cur.qaFirstPass.pass}/${cur.qaFirstPass.issues} issue); target ≥ 60%`, verdict(cur.qaFirstPass.pct === null ? null : cur.qaFirstPass.pct >= 60)],
-    ['Biaya', `USD ${(cur.cost.spendCents / 100).toFixed(2)} (setelah mengecualikan ledger uji ${TEST_LEDGER_CENTS} sen; mentah ${cur.cost.rawSpendCents} sen); ${cur.cost.runs} run, ${cur.cost.failedRuns} gagal, ${cur.cost.durationMin} menit, ${cur.cost.tokens} token`, verdict(cur.cost.spendCents <= 500)],
+    ['Konsistensi produksi', `${cur.drafts} draf (${prevLabel}: ${prev.drafts}); 5/minggu selama 2 minggu berturut-turut`, verdict(cur.drafts === 0 && prev.drafts === 0 ? null : consecutive, fx)],
+    ['Akurasi sumber', `${f(cur.sourceAccuracy.pct, '%')} (${cur.sourceAccuracy.ok}/${cur.sourceAccuracy.total} sumber verified); target 100%`, verdict(cur.sourceAccuracy.pct === null ? null : cur.sourceAccuracy.pct === 100, fx)],
+    ['Lolos QA pertama kali', `${f(cur.qaFirstPass.pct, '%')} (${cur.qaFirstPass.pass}/${cur.qaFirstPass.issues} issue); target ≥ 60%`, verdict(cur.qaFirstPass.pct === null ? null : cur.qaFirstPass.pct >= 60, fx)],
+    ['Biaya', `USD ${(cur.cost.spendCents / 100).toFixed(2)} (setelah mengecualikan ledger uji ${TEST_LEDGER_CENTS} sen; mentah ${cur.cost.rawSpendCents} sen, KUMULATIF sejak awal, bukan per minggu); ${cur.cost.runs} run, ${cur.cost.failedRuns} gagal, ${cur.cost.durationMin} menit, ${cur.cost.tokens} token`, costNote],
     ['Publish tanpa approval', `${cur.publishWithoutApproval.count} kejadian dari ${cur.publishWithoutApproval.prepared} paket; ${cur.publishWithoutApproval.refused} percobaan ditolak`, verdict(cur.publishWithoutApproval.count === 0)],
-    ['Waktu manusia per draf', `median ${f(cur.humanTime.medianMin, ' menit')} (${cur.humanTime.within5}/${cur.humanTime.decided} ≤ 5 menit); target ≤ 5 menit`, verdict(cur.humanTime.medianMin === null ? null : cur.humanTime.medianMin <= 5)],
-    ['Kualitas visual', `${f(cur.visual.pct, '%')} (${cur.visual.ok}/${cur.visual.slides} slide lolos cek otomatis); target 100%`, verdict(cur.visual.pct === null ? null : cur.visual.pct === 100)],
+    ['Waktu manusia per draf', `median ${f(cur.humanTime.medianMin, ' menit')} (${cur.humanTime.within5}/${cur.humanTime.decided} ≤ 5 menit); target ≤ 5 menit`, verdict(cur.humanTime.medianMin === null ? null : cur.humanTime.medianMin <= 5, fx)],
+    ['Kualitas visual', `${f(cur.visual.pct, '%')} (${cur.visual.ok}/${cur.visual.slides} slide lolos cek otomatis); target 100%`, verdict(cur.visual.pct === null ? null : cur.visual.pct === 100, fx)],
   ];
   return [
     `# Laporan KPI ${weekLabel}`, '',
@@ -117,7 +120,7 @@ export function renderMarkdown({ weekLabel, prevLabel, cur, prev, generatedAt })
     ...rows.map((r) => `| ${r[0]} | ${r[1]} | ${r[2]} |`), '',
     '## Catatan', '',
     `- Draf minggu ini: ${cur.draftIds.join(', ') || '—'}.`,
-    '- "Draf" = issue yang mendapat dokumen `handoff` (lolos QA) pada minggu itu.',
+    '- "Draf" = issue yang mendapat dokumen `handoff` (lolos QA) pada minggu itu; dokumen `handoff` hanya bisa ditulis tool plugin. Issue berjudul fixture/E2E ditandai "(fixture)".',
     '- Biaya dari Paperclip selalu 0 untuk langganan codex_local; karena itu jumlah run, durasi, dan token dilaporkan.',
     '- "BELUM ADA DATA" berarti belum ada kejadian yang bisa diukur, bukan lulus.', '',
   ].join('\n');
@@ -141,7 +144,7 @@ export async function collect(api, { start }) {
     const body = (k) => { const d = docs.find((x) => x.key === k); try { return d?.body ? JSON.parse(d.body) : undefined; } catch { return undefined; } };
     const vqFile = path.join(repoRoot, 'workspace', 'issues', i.id, 'render', 'visual-qa.json');
     issues.push({
-      id: i.id, identifier: i.identifier, docs: docs.map((d) => ({ key: d.key, createdAt: d.createdAt })),
+      id: i.id, identifier: i.identifier, fixture: /fixture|e2e|\buji\b|\btest\b/i.test(i.title ?? ''), docs: docs.map((d) => ({ key: d.key, createdAt: d.createdAt })),
       comments: (Array.isArray(comments) ? comments : comments.comments ?? []).map((c) => ({ createdAt: c.createdAt, body: String(c.body ?? '') })),
       carousel: body('carousel'), verification: body('verification-result'),
       visualQa: existsSync(vqFile) ? JSON.parse(readFileSync(vqFile, 'utf8').replace(/^﻿/, '')) : undefined,
