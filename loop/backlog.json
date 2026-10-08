@@ -1,10 +1,10 @@
 {
   "version": 1,
   "loop": {
-    "status": "RUNNING",
-    "status_reason": "",
+    "status": "DONE",
+    "status_reason": "Selesai sejauh dapat tanpa owner. MVP BELUM terbukti (AC1.2, AC1.3, AC2.4): lihat reports/LOOP-FINAL.md dan loop/OWNER-QUEUE.md",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T19:31:56.521Z",
+    "updated_at": "2026-10-08T19:37:45.649Z",
     "current_task": ""
   },
   "tasks": [
@@ -753,11 +753,11 @@
       "deps": [
         "U4.5"
       ],
-      "status": "TODO",
+      "status": "BLOCKED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": "",
+      "notes": "Menunggu U4.5 (ACU.2: rekaman event pipeline nyata dari E1.2)",
       "gate": true
     },
     {
@@ -765,11 +765,11 @@
       "phase": "3 — Hardening dan serah terima",
       "title": "Laporan akhir loop reports/LOOP-FINAL.md lalu set loop.status DONE",
       "deps": [],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": "",
+      "evidence": "reports/LOOP-FINAL.md",
+      "notes": "Laporan akhir ditulis; MVP BELUM terbukti (lihat bagian 0 dan 5)",
       "final": true
     },
     {
@@ -857,11 +857,11 @@
       "deps": [
         "FIX-G2-01"
       ],
-      "status": "TODO",
+      "status": "BLOCKED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": ""
+      "notes": "Butuh keputusan owner dan bukti dari agent nyata (O-007); tidak dapat dibuktikan tanpa menjalankan agent"
     },
     {
       "id": "FIX-G1-04",
@@ -897,11 +897,11 @@
         "G1",
         "E1.2"
       ],
-      "status": "TODO",
+      "status": "BLOCKED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": ""
+      "notes": "Butuh run agent nyata (E1.2/O-004): uji bahwa API Paperclip menolak done dari kredensial agent"
     },
     {
       "id": "FIX-G1-10",
@@ -910,11 +910,11 @@
       "deps": [
         "G1"
       ],
-      "status": "TODO",
+      "status": "BLOCKED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": ""
+      "notes": "Keputusan owner (O-008, D-009)"
     },
     {
       "id": "FIX-G3-01",
@@ -937,11 +937,11 @@
         "G3",
         "FIX-G2-01b"
       ],
-      "status": "TODO",
+      "status": "BLOCKED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": ""
+      "notes": "Digabung dengan FIX-G2-01b (O-007)"
     }
   ]
 }
