@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { recordDecision, readDecisions, latestDecision, initOwnerToken, readOwnerToken, ApprovalError } from '../scripts/owner-approval.mjs';
+import { recordDecision, readDecisions, latestDecision, initOwnerToken, readOwnerToken, signRecord, ApprovalError } from '../scripts/owner-approval.mjs';
 import { TOOL_DEFS, makeAgentTools } from '../plugins/aao-approval-gate/src/agent-tools.js';
 import { sha256 } from '../plugins/aao-approval-gate/src/content-hash.js';
 import { makeTmp, repoRoot } from './helpers.mjs';
@@ -29,7 +29,7 @@ describe('recordDecision', () => {
     const r = recordDecision({ token: TOKEN, expectedToken: TOKEN, issue, decision: 'approved', contentHash: hash, dir });
     expect(r).toMatchObject({ decided_by: 'owner', decision: 'approved', issue_id: issue.id, content_hash: hash });
     expect(readdirSync(path.join(dir, issue.id))).toHaveLength(1);
-    expect(latestDecision(issue.id, dir).record_id).toBe(r.record_id);
+    expect(latestDecision(issue.id, dir, TOKEN).record_id).toBe(r.record_id);
   });
   it('token salah, kosong, atau pendek ditolak dan tidak menulis apa pun', () => {
     const { dir, issue } = mk();
@@ -59,7 +59,7 @@ describe('recordDecision', () => {
     const a = recordDecision({ token: TOKEN, expectedToken: TOKEN, issue, decision: 'rejected', note: 'revisi', contentHash: hash, dir, now: t0 });
     const first = readFileSync(path.join(dir, issue.id, readdirSync(path.join(dir, issue.id))[0]), 'utf8');
     const b = recordDecision({ token: TOKEN, expectedToken: TOKEN, issue, decision: 'approved', contentHash: hash, dir, now: new Date(t0.getTime() + 60_000) });
-    expect(readDecisions(issue.id, dir).map((r) => r.record_id)).toEqual([a.record_id, b.record_id]);
+    expect(readDecisions(issue.id, dir, TOKEN).map((r) => r.record_id)).toEqual([a.record_id, b.record_id]);
     expect(readFileSync(path.join(dir, issue.id, readdirSync(path.join(dir, issue.id))[0]), 'utf8')).toBe(first);
   });
   it('berkas rusak atau dipalsukan (skema/issue tidak cocok) diabaikan, bukan dianggap approval', () => {
@@ -69,7 +69,32 @@ describe('recordDecision', () => {
     writeFileSync(path.join(d, '9999_palsu.json'), JSON.stringify({ ...r, decision: 'approved', decided_by: 'agent' }));
     writeFileSync(path.join(d, '9999_rusak.json'), '{ bukan json');
     writeFileSync(path.join(d, '9999_lain.json'), JSON.stringify({ ...r, issue_id: randomUUID() }));
-    expect(readDecisions(issue.id, dir)).toEqual([r]);
+    expect(readDecisions(issue.id, dir, TOKEN)).toEqual([r]);
+  });
+});
+
+describe('tanda tangan HMAC (FIX-G2-01)', () => {
+  const setup = () => { const { dir, issue } = mk(); const r = recordDecision({ token: TOKEN, expectedToken: TOKEN, issue, decision: 'approved', contentHash: hash, dir }); return { dir, issue, r, d: path.join(dir, issue.id) }; };
+  it('record bertanda tangan sah terbaca; tanpa token atau token lain: kosong (gagal tertutup)', () => {
+    const { dir, issue, r } = setup();
+    expect(r.signature).toMatch(/^[0-9a-f]{64}$/);
+    expect(readDecisions(issue.id, dir, TOKEN)).toHaveLength(1);
+    expect(readDecisions(issue.id, dir, 'z'.repeat(64))).toEqual([]);
+    expect(readDecisions(issue.id, dir, '')).toEqual([]);
+  });
+  it('record valid skema dengan decided_by owner TANPA tanda tangan (pemalsuan reviewer) ditolak', () => {
+    const { dir, issue, r, d } = setup();
+    const { signature: _s, ...forged } = r;
+    writeFileSync(path.join(d, '9999_forged.json'), JSON.stringify({ ...forged, record_id: randomUUID() }));
+    expect(readDecisions(issue.id, dir, TOKEN)).toEqual([r]);
+  });
+  it('record dengan tanda tangan palsu, isi diubah, atau kunci lain ditolak', () => {
+    const { dir, issue, r, d } = setup();
+    writeFileSync(path.join(d, '9999_a.json'), JSON.stringify({ ...r, record_id: randomUUID(), signature: 'a'.repeat(64) }));
+    writeFileSync(path.join(d, '9999_b.json'), JSON.stringify({ ...r, record_id: randomUUID(), decision: 'rejected', note: 'x' }));
+    const wrongKey = { ...r, record_id: randomUUID() }; delete wrongKey.signature;
+    writeFileSync(path.join(d, '9999_c.json'), JSON.stringify({ ...wrongKey, signature: signRecord(wrongKey, 'k'.repeat(64)) }));
+    expect(readDecisions(issue.id, dir, TOKEN)).toEqual([r]);
   });
 });
 

@@ -13,10 +13,11 @@
 // Keputusan dibuat lewat fungsi recordDecision (dipanggil console/skrip owner di F2.2+), bukan lewat agent.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, appendFileSync } from 'node:fs';
-import { randomUUID, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomUUID, randomBytes, timingSafeEqual, createHmac } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validate } from '../schemas/validate.mjs';
+import { canonicalJson } from '../plugins/aao-approval-gate/src/content-hash.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const defaultApprovalDir = () => path.join(process.env.AAO_REPO_ROOT ?? repoRoot, 'output', 'approvals');
@@ -36,6 +37,18 @@ export function initOwnerToken(envFile = path.join(repoRoot, '.env')) {
   return { created: true };
 }
 
+/** Tanda tangan record: HMAC-SHA256 atas JSON kanonik (tanpa field signature), kunci diturunkan dari token owner. */
+export function signRecord(record, token) {
+  const { signature: _omit, ...body } = record;
+  const key = createHmac('sha256', String(token)).update('aao-approval-record-v1').digest();
+  return createHmac('sha256', key).update(canonicalJson(body)).digest('hex');
+}
+export function verifyRecord(record, token) {
+  if (!token || typeof record?.signature !== 'string') return false;
+  const want = Buffer.from(signRecord(record, token), 'hex'); const got = Buffer.from(record.signature, 'hex');
+  return want.length === got.length && timingSafeEqual(want, got);
+}
+
 function sameToken(a, b) {
   const x = Buffer.from(String(a ?? '')); const y = Buffer.from(String(b ?? ''));
   return x.length === y.length && x.length >= MIN_TOKEN && timingSafeEqual(x, y);
@@ -53,6 +66,7 @@ export function recordDecision({ token, expectedToken = readOwnerToken(), issue,
     schema_version: 1, record_id: randomUUID(), issue_id: issue?.id, issue_identifier: issue?.identifier, decision,
     decided_at: now.toISOString(), decided_by: 'owner', ...(note ? { note } : {}), content_hash: contentHash,
   };
+  record.signature = signRecord(record, expectedToken);
   const v = validate('approval-record', record);
   if (!v.ok) throw new ApprovalError(`record tidak valid: ${v.errors.map((e) => `${e.path || '/'} ${e.message}`).join('; ')}`);
   const issueDir = path.join(dir, record.issue_id);
@@ -62,19 +76,23 @@ export function recordDecision({ token, expectedToken = readOwnerToken(), issue,
   return record;
 }
 
-/** Semua record issue, tertua dulu. Record yang rusak/tidak valid diabaikan (tidak pernah dianggap approval). */
-export function readDecisions(issueId, dir = defaultApprovalDir()) {
+/**
+ * Semua record issue, tertua dulu. Record rusak, tidak valid skema, ATAU tanpa tanda tangan HMAC yang sah diabaikan
+ * (tidak pernah dianggap approval). Tanpa token owner tidak ada yang bisa diverifikasi, jadi hasilnya kosong (gagal tertutup).
+ */
+export function readDecisions(issueId, dir = defaultApprovalDir(), token = readOwnerToken()) {
+  if (!token) return [];
   const d = path.join(dir, issueId);
   if (!existsSync(d)) return [];
   return readdirSync(d).filter((f) => f.endsWith('.json')).sort().flatMap((f) => {
     try {
       const r = JSON.parse(readFileSync(path.join(d, f), 'utf8').replace(/^﻿/, ''));
-      return validate('approval-record', r).ok && r.issue_id === issueId ? [r] : [];
+      return validate('approval-record', r).ok && r.issue_id === issueId && verifyRecord(r, token) ? [r] : [];
     } catch { return []; }
   });
 }
 
-export const latestDecision = (issueId, dir) => readDecisions(issueId, dir).at(-1) ?? null;
+export const latestDecision = (issueId, dir, token) => readDecisions(issueId, dir, token).at(-1) ?? null;
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, ...rest] = process.argv.slice(2);

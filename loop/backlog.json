@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T16:27:33.073Z",
+    "updated_at": "2026-10-08T16:41:03.114Z",
     "current_task": ""
   },
   "tasks": [
@@ -792,11 +792,11 @@
       "deps": [
         "G2"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/FIX-G2-01-02-03-05.md",
+      "notes": "332 tes lulus; sandbox agent nyata belum terbukti (FIX-G2-01b)"
     },
     {
       "id": "FIX-G2-02",
@@ -805,11 +805,11 @@
       "deps": [
         "G2"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/FIX-G2-01-02-03-05.md",
+      "notes": "332 tes lulus; sandbox agent nyata belum terbukti (FIX-G2-01b)"
     },
     {
       "id": "FIX-G2-03",
@@ -818,16 +818,29 @@
       "deps": [
         "G2"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/FIX-G2-01-02-03-05.md",
+      "notes": "332 tes lulus; sandbox agent nyata belum terbukti (FIX-G2-01b)"
     },
     {
       "id": "FIX-G2-05",
       "phase": "2 — Approval dan KPI",
       "title": "Segel render terikat ke hash design sebelum render",
+      "deps": [
+        "G2"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/FIX-G2-01-02-03-05.md",
+      "notes": "332 tes lulus; sandbox agent nyata belum terbukti (FIX-G2-01b)"
+    },
+    {
+      "id": "FIX-G2-04",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "TOCTOU dan lock prepare_publication; label KPI; koreksi README plugin (G2-04,07,08)",
       "deps": [
         "G2"
       ],
@@ -838,11 +851,11 @@
       "notes": ""
     },
     {
-      "id": "FIX-G2-04",
-      "phase": "3 — Hardening dan serah terima",
-      "title": "TOCTOU dan lock prepare_publication; label KPI; koreksi README plugin (G2-04,07,08)",
+      "id": "FIX-G2-01b",
+      "phase": "2 — Approval dan KPI",
+      "title": "Token owner di luar jangkauan agent + uji sandbox codex_local (baca .env, tulis output/approvals, jalankan owner-decide)",
       "deps": [
-        "G2"
+        "FIX-G2-01"
       ],
       "status": "TODO",
       "attempts": 0,

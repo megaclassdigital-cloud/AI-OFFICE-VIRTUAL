@@ -1,6 +1,7 @@
 // Test tool render_carousel (F1.8a): penjagaan path + satu render sungguhan lewat tool + hash identik antar-run.
 import { describe, it, expect, afterAll } from 'vitest';
-import { mkdirSync, copyFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { mkdirSync, copyFileSync, rmSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { designHash } from '../plugins/aao-approval-gate/src/provenance.js';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { resolveRenderInputs, runRender, isInside, RenderInputError } from '../plugins/aao-approval-gate/src/render-tool.js';
@@ -53,6 +54,15 @@ describe('render sungguhan lewat tool', () => {
     expect(b.hashes).toEqual(a.hashes);
   }, 120_000);
 
+  it('FIX-G2-05: render lewat handler membuat segel terikat ke isi design yang dibaca sebelum render', async () => {
+    const state = new Map();
+    const ctx = { state: { get: async (k) => state.get(k.stateKey) ?? null, set: async (k, v) => void state.set(k.stateKey, v) } };
+    const r = await makeAgentTools(ctx).render_carousel({ issueId: ID, designPath: 'tests-render-tool/design.json' }, { companyId: 'c', agentId: 'a' });
+    expect(r.data).toMatchObject({ ok: true, passed: true, sealed: true });
+    const seal = state.get('seal');
+    expect(seal.designHash).toBe(designHash(JSON.parse(readFileSync(design, 'utf8').replace(/^﻿/, ''))));
+    expect(Object.keys(seal.hashes)).toHaveLength(6);
+  }, 120_000);
   it('handler tool menolak path berbahaya sebagai ok:false (bukan exception)', async () => {
     const t = makeAgentTools({});
     const r = await t.render_carousel({ issueId: ID, designPath: '../package.json' }, { companyId: 'c', agentId: 'a' });

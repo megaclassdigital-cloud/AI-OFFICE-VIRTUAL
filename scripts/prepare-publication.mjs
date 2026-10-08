@@ -52,10 +52,12 @@ function findExisting(outRoot, issueId, combined) {
  * @returns {{created:boolean, dir:string, hash:string}}
  * @throws {PublishError} bila tidak ada approval, ditolak, atau hash tidak cocok
  */
-export function preparePublication({ issue, carousel, design, renderDir, approvalDir, outRoot = path.join(repoRoot, 'output', 'edukasiai'), auditFile = path.join(outRoot, '..', 'audit.log'), now = new Date() }) {
+export function preparePublication({ issue, carousel, design, renderDir, approvalDir, token, issueStatus, outRoot = path.join(repoRoot, 'output', 'edukasiai'), auditFile = path.join(outRoot, '..', 'audit.log'), now = new Date() }) {
   const refuse = (event, message, extra = {}) => { audit(auditFile, { event, issue_id: issue.id, issue_identifier: issue.identifier, ...extra }); throw new PublishError(message); };
 
-  const rec = latestDecision(issue.id, approvalDir);
+  // FIX-G2-03: paket hanya disiapkan bila owner sudah menutup issue (done); approval yang setengah jalan tidak cukup.
+  if (issueStatus !== 'done') refuse('publish_refused_issue_not_done', `issue berstatus ${issueStatus ?? 'tidak diketahui'}; paket hanya disiapkan untuk issue done`);
+  const rec = latestDecision(issue.id, approvalDir, token);
   if (!rec) refuse('publish_refused_no_approval', 'tidak ada record approval untuk issue ini');
   if (rec.decision !== 'approved') refuse('publish_refused_not_approved', `keputusan terakhir owner: ${rec.decision}; paket tidak disiapkan`, { record_id: rec.record_id });
 
@@ -100,8 +102,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exit(64);
   }
   try {
-    const { defaultApprovalDir } = await import('./owner-approval.mjs');
-    const r = preparePublication({ issue: { id: arg('--issue'), identifier: arg('--identifier') ?? '' }, carousel: rd(arg('--carousel')), design: rd(arg('--design')), renderDir: arg('--render-dir'), approvalDir: defaultApprovalDir(), ...(arg('--out') ? { outRoot: path.resolve(arg('--out')) } : {}) });
+    const { defaultApprovalDir, readOwnerToken } = await import('./owner-approval.mjs');
+    const apiBase = arg('--api', 'http://127.0.0.1:3177/api');
+    const issueRow = await (await fetch(`${apiBase}/issues/${arg('--issue')}`)).json();
+    const r = preparePublication({ issue: { id: arg('--issue'), identifier: issueRow.identifier ?? arg('--identifier') ?? '' }, issueStatus: issueRow.status, token: readOwnerToken(), carousel: rd(arg('--carousel')), design: rd(arg('--design')), renderDir: arg('--render-dir'), approvalDir: defaultApprovalDir(), ...(arg('--out') ? { outRoot: path.resolve(arg('--out')) } : {}) });
     console.log(JSON.stringify(r, null, 2));
   } catch (e) { console.error(`DITOLAK: ${e.message}`); process.exit(2); }
 }

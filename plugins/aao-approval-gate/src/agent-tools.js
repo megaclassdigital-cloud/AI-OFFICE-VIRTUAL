@@ -10,7 +10,7 @@
 import { allowedFrom, canTransition } from './lifecycle.js';
 import { verifyCandidate } from './url-check.js';
 import { runRender, RenderInputError, resolveRenderInputs } from './render-tool.js';
-import { recordVerification, sealRender } from './provenance.js';
+import { recordVerification, sealRender, hashPngs } from './provenance.js';
 import { submitQaResult, computeDeterministic, verdictScope, QaInputError } from './qa-tool.js';
 import { sha256 } from './content-hash.js';
 import { readFile } from 'node:fs/promises';
@@ -24,6 +24,9 @@ const MAX_COMMENT = 20000;
 const MAX_DOC = 200000;
 const KEY_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Dokumen yang hanya boleh ditulis kode plugin (FIX-G1-09 / G2-02): handoff memuat hash yang dipercaya owner. */
+export const PLUGIN_OWNED_KEYS = new Set(['handoff']);
 
 export class ToolError extends Error {}
 
@@ -91,17 +94,33 @@ export function makeAgentTools(ctx) {
     }),
     // Render deterministik: hanya menerima design spec di workspace, keluaran ke folder kerja issue.
     render_carousel: wrap(async (p) => {
-      const r = await runRender({ designPath: p?.designPath, issueId: p?.issueId, division: p?.division }).catch((e) => {
+      const issueId = issueIdOf(p);
+      // FIX-G2-05: design dibaca SEBELUM render; segel mengikat isi yang dibaca ini, bukan berkas yang mungkin berubah sesudahnya.
+      let before = null;
+      try {
+        const { design } = resolveRenderInputs({ designPath: p?.designPath, issueId, division: p?.division });
+        before = await readFile(design, 'utf8');
+      } catch (e) {
+        if (e instanceof RenderInputError) throw new ToolError(e.message);
+        throw e;
+      }
+      const r = await runRender({ designPath: p?.designPath, issueId, division: p?.division }).catch((e) => {
         if (e instanceof RenderInputError) throw new ToolError(e.message);
         throw e;
       });
+      let sealed = false; let sealNote;
       if (r.visualQa && r.hashes) {
-        // Segel dibuat KODE plugin dari design yang dirender; QA mempercayai segel ini, bukan berkas di disk.
-        const { design } = resolveRenderInputs({ designPath: p?.designPath, issueId: p?.issueId, division: p?.division });
-        const designDoc = JSON.parse((await readFile(design, 'utf8')).replace(/^\uFEFF/, ''));
-        await sealRender(ctx, issueIdOf(p), { design: designDoc, visualQa: r.visualQa, hashes: r.hashes });
+        const { design } = resolveRenderInputs({ designPath: p?.designPath, issueId, division: p?.division });
+        const after = await readFile(design, 'utf8');
+        const disk = await hashPngs(r.outDir);
+        if (after !== before) sealNote = 'berkas design berubah selama render; segel tidak dibuat, render ulang';
+        else if (JSON.stringify(disk) !== JSON.stringify(Object.fromEntries(Object.entries(r.hashes).sort(([a], [b]) => a.localeCompare(b))))) sealNote = 'hash PNG di disk berbeda dari laporan renderer; segel tidak dibuat, render ulang';
+        else {
+          await sealRender(ctx, issueId, { design: JSON.parse(before.replace(/^﻿/, '')), visualQa: r.visualQa, hashes: disk });
+          sealed = true;
+        }
       }
-      return { passed: r.passed, exitCode: r.exitCode, pngCount: r.pngCount, outDir: r.outDir, hashes: r.hashes ?? null, stderr: r.stderr };
+      return { passed: r.passed && sealed, exitCode: r.exitCode, pngCount: r.pngCount, outDir: r.outDir, hashes: r.hashes ?? null, sealed, stderr: [r.stderr, sealNote].filter(Boolean).join(' | ') };
     }),
     // QA: plugin menghitung ulang cek deterministik dari dokumen issue; LLM hanya bisa menambah kegagalan.
     qa_submit_result: wrap(async (p, run) => {
@@ -171,6 +190,7 @@ export function makeAgentTools(ctx) {
       const issueId = issueIdOf(p);
       const key = String(p?.key ?? '');
       if (!KEY_RE.test(key)) throw new ToolError('key dokumen: huruf kecil/angka/_- maks 64 karakter');
+      if (PLUGIN_OWNED_KEYS.has(key)) throw new ToolError(`dokumen "${key}" hanya ditulis oleh tool plugin (handoff_to_owner)`);
       const body = text(p.body, 'body', MAX_DOC);
       await ownIssue(issueId, run);
       const d = await ctx.issues.documents.upsert({

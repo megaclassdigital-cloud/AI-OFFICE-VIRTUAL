@@ -39,6 +39,11 @@
       "const": "owner",
       "description": "Selalu `owner`. Identitas berasal dari token owner lokal, bukan dari isi pesan atau capability plugin."
     },
+    "signature": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "HMAC-SHA256 atas isi record (tanpa field ini), kunci diturunkan dari token owner. Dibuat recordDecision; record tanpa tanda tangan sah ditolak saat dibaca (FIX-G2-01)."
+    },
     "note": {
       "type": "string",
       "maxLength": 2000,

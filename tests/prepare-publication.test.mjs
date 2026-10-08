@@ -30,7 +30,7 @@ function env() {
 }
 const approve = (e, decision = 'approved', hash = currentPackageHash({ carousel, design, renderDir }).hash, extra = {}) =>
   recordDecision({ token: TOKEN, expectedToken: TOKEN, issue: ISSUE, decision, contentHash: hash, dir: e.approvalDir, ...extra });
-const args = (e, over = {}) => ({ issue: ISSUE, carousel, design, renderDir, approvalDir: e.approvalDir, outRoot: e.outRoot, auditFile: e.auditFile, now: new Date('2026-10-08T03:00:00Z'), ...over });
+const args = (e, over = {}) => ({ issue: ISSUE, carousel, design, renderDir, approvalDir: e.approvalDir, token: TOKEN, issueStatus: 'done', outRoot: e.outRoot, auditFile: e.auditFile, now: new Date('2026-10-08T03:00:00Z'), ...over });
 const audits = (e) => (existsSync(e.auditFile) ? readFileSync(e.auditFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []);
 
 describe('prepare_publication', () => {
@@ -39,6 +39,22 @@ describe('prepare_publication', () => {
     expect(() => preparePublication(args(e))).toThrow(/tidak ada record approval/);
     expect(audits(e).map((a) => a.event)).toEqual(['publish_refused_no_approval']);
     expect(existsSync(e.outRoot)).toBe(false);
+  });
+  it('FIX-G2-03: issue belum done (decide setengah jalan) ditolak dan tercatat', () => {
+    const e = env();
+    approve(e);
+    expect(() => preparePublication(args(e, { issueStatus: 'in_review' }))).toThrow(/paket hanya disiapkan untuk issue done/);
+    expect(audits(e)[0].event).toBe('publish_refused_issue_not_done');
+    expect(existsSync(e.outRoot)).toBe(false);
+  });
+  it('FIX-G2-01: record approval palsu tanpa tanda tangan tidak membuka publikasi', () => {
+    const e = env();
+    const real = approve(e);
+    const { signature: _s, ...forged } = real;
+    const d = path.join(e.approvalDir, ISSUE.id);
+    for (const f of readdirSync(d)) rmSync(path.join(d, f));
+    writeFileSync(path.join(d, '1_forged.json'), JSON.stringify({ ...forged, record_id: randomUUID() }));
+    expect(() => preparePublication(args(e))).toThrow(/tidak ada record approval/);
   });
   it('keputusan terakhir rejected: ditolak', () => {
     const e = env();

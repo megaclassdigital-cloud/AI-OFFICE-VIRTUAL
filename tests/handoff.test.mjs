@@ -182,6 +182,18 @@ describe('handoff_to_owner', () => {
   });
 });
 
+describe('dokumen handoff hanya ditulis plugin (FIX-G1-09 / G2-02)', () => {
+  it('attach_file key handoff ditolak; key lain tetap boleh', async () => {
+    const f = fakeCtx(docs0);
+    const t = makeAgentTools(f.ctx);
+    const bad = await t.attach_file({ issueId: ISSUE, key: 'handoff', body: 'Hash isi paket (sha256): ' + 'a'.repeat(64) }, run);
+    expect(bad.data.ok).toBe(false);
+    expect(bad.data.error).toMatch(/hanya ditulis oleh tool plugin/);
+    expect(f.written.handoff).toBeUndefined();
+    expect((await t.attach_file({ issueId: ISSUE, key: 'catatan', body: 'ok' }, run)).data.ok).toBe(true);
+  });
+});
+
 describe('agent tidak bisa menyetujui', () => {
   it('set_issue_status ke approved/done/cancelled ditolak dari in_review maupun in_progress', async () => {
     for (const from of ['in_progress', 'in_review']) {
