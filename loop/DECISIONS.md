@@ -110,3 +110,11 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Dampak: perbaikan keamanan G1 (FIX-G1-01..03) tertunda beberapa jam; F2.1 tetap tidak dimulai sebelum FIX-G1-01..03 selesai.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-014 — Office View memakai renderer Canvas sendiri, bukan Pixel Agents
+- Task: U4.L
+- Konteks: ADR-0003 memilih Pixel Agents v1.4.1 dengan bridge eksternal dan memberi batas waktu 45 menit untuk membuktikannya. Paket npm `pixel-agents@1.4.1` diunduh ke folder scratchpad dan DIBACA (tidak dijalankan): ia bekerja dengan menyadap hook dan log terminal Claude Code (`HookProvider`), karakter terikat pada sesi terminal, dan kodenya sudah di-bundle/minify. Tidak ada API eksternal untuk memindahkan karakter antar area, membawa dokumen, atau menaruh paket di Meja Owner.
+- Pilihan: sesuai urutan preferensi ADR-0003 (butir 2 "jika tidak mungkin"), dibangun renderer Canvas ringan sendiri di `apps/office-view/`. Hanya sprite karakter CC0 (MetroCity, JIK-A-4) yang diambil dari paket; perabot digambar lewat kode (lisensi bersih). Alasan tidak memfork bundle: perilaku dinamis yang diminta (handoff membawa dokumen, Meja Owner, Pojok Bug, jalur data deterministik) harus ditulis ulang tanpa sumber yang terbaca.
+- Dampak: tidak ada ketergantungan pada pihak ketiga saat berjalan; lisensi aset bersih (docs/ui/asset-licenses.md). Kompatibilitas dengan pembaruan Pixel Agents tidak ada, dan memang tidak diperlukan.
+- Biaya membalik: sedang
+- Label: REVIEW-OWNER

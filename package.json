@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "console": "node console/server.mjs",
+    "office": "node apps/office-view/server.mjs --open",
     "install-division": "node scripts/install-division.mjs",
     "render-spike": "node scripts/render-spike.mjs",
     "test": "vitest run",

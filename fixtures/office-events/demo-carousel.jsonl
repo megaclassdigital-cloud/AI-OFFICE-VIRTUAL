@@ -1,0 +1,38 @@
+{"t":0,"type":"agent.state","agentId":"sim-researcher","name":"Researcher","role":"researcher","state":"idle","silent":true}
+{"t":0,"type":"agent.state","agentId":"sim-verifier","name":"Verifier","role":"qa","state":"idle","silent":true}
+{"t":0,"type":"agent.state","agentId":"sim-copywriter","name":"Copywriter","role":"general","state":"idle","silent":true}
+{"t":0,"type":"agent.state","agentId":"sim-designer","name":"Designer","role":"designer","state":"idle","silent":true}
+{"t":0,"type":"agent.state","agentId":"sim-qa","name":"QA","role":"qa","state":"idle","silent":true}
+{"t":0,"type":"owner.queue","count":0,"issues":[]}
+{"t":3,"type":"agent.state","agentId":"sim-researcher","name":"Researcher","role":"researcher","state":"working","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":10,"type":"comment","agentId":"sim-researcher","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":18,"type":"agent.state","agentId":"sim-researcher","name":"Researcher","role":"researcher","state":"idle","issue":null}
+{"t":18,"type":"handoff","from":"sim-researcher","to":"sim-verifier","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":24,"type":"agent.state","agentId":"sim-verifier","name":"Verifier","role":"qa","state":"working","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":32,"type":"comment","agentId":"sim-verifier","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":40,"type":"agent.state","agentId":"sim-verifier","name":"Verifier","role":"qa","state":"idle","issue":null}
+{"t":40,"type":"handoff","from":"sim-verifier","to":"sim-copywriter","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":46,"type":"agent.state","agentId":"sim-copywriter","name":"Copywriter","role":"general","state":"working","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":56,"type":"comment","agentId":"sim-copywriter","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":64,"type":"agent.state","agentId":"sim-copywriter","name":"Copywriter","role":"general","state":"idle","issue":null}
+{"t":64,"type":"handoff","from":"sim-copywriter","to":"sim-designer","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":70,"type":"agent.state","agentId":"sim-designer","name":"Designer","role":"designer","state":"working","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":82,"type":"comment","agentId":"sim-designer","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":88,"type":"agent.state","agentId":"sim-designer","name":"Designer","role":"designer","state":"idle","issue":null}
+{"t":88,"type":"handoff","from":"sim-designer","to":"sim-qa","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":94,"type":"agent.state","agentId":"sim-qa","name":"QA","role":"qa","state":"working","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":104,"type":"handoff","from":"sim-qa","to":"sim-copywriter","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"},"emoji":"❌"}
+{"t":104,"type":"agent.state","agentId":"sim-qa","name":"QA","role":"qa","state":"idle","issue":null}
+{"t":110,"type":"agent.state","agentId":"sim-copywriter","name":"Copywriter","role":"general","state":"working","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Revisi teks setelah QA"}}
+{"t":118,"type":"comment","agentId":"sim-copywriter","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":124,"type":"agent.state","agentId":"sim-copywriter","name":"Copywriter","role":"general","state":"idle","issue":null}
+{"t":124,"type":"handoff","from":"sim-copywriter","to":"sim-qa","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":130,"type":"agent.state","agentId":"sim-qa","name":"QA","role":"qa","state":"working","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"}}
+{"t":140,"type":"agent.state","agentId":"sim-qa","name":"QA","role":"qa","state":"idle","issue":null}
+{"t":140,"type":"deliver","agentId":"sim-qa","issue":{"id":"sim-EDU-12","identifier":"EDU-12","title":"Carousel berita AI minggu ini"},"count":1}
+{"t":150,"type":"owner.decide","decision":"approved"}
+{"t":150,"type":"owner.queue","count":0,"issues":[]}
+{"t":152,"type":"board.add","title":"EDU-12 · Carousel berita AI"}
+{"t":160,"type":"agent.state","agentId":"sim-verifier","name":"Verifier","role":"qa","state":"failed","issue":null,"reason":"run gagal (contoh simulasi)"}
+{"t":170,"type":"agent.state","agentId":"sim-verifier","name":"Verifier","role":"qa","state":"idle","issue":null}
+{"t":176,"type":"end"}
