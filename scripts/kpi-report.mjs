@@ -174,5 +174,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const file = path.join(outDir, `kpi-${weekLabel}.md`);
     writeFileSync(file, md, 'utf8');
     console.log(file);
-  } catch (e) { console.error(`GAGAL: ${e.message}`); process.exit(2); }
+  } catch (e) { console.error(`GAGAL: ${e.message}`); process.exitCode = 2; }
 }

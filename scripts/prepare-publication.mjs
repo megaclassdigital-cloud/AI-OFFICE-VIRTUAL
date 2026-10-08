@@ -95,17 +95,31 @@ export function preparePublication({ issue, carousel, design, renderDir, approva
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const a = process.argv.slice(2);
-  const arg = (n) => (a.includes(n) ? a[a.indexOf(n) + 1] : undefined);
+  const arg = (n, d) => (a.includes(n) ? a[a.indexOf(n) + 1] : d);
   const rd = (f) => JSON.parse(readFileSync(f, 'utf8').replace(/^﻿/, ''));
-  if (!arg('--issue') || !arg('--carousel') || !arg('--design') || !arg('--render-dir')) {
-    console.error('Pemakaian: node scripts/prepare-publication.mjs --issue <uuid> --identifier EDU-n --carousel f --design f --render-dir dir [--out dir]');
+  if (!arg('--issue')) {
+    console.error(['Pemakaian: node scripts/prepare-publication.mjs --issue <uuid> [--out dir] [--api url]',
+      '  carousel dan design diambil dari dokumen issue; PNG dari workspace/issues/<uuid>/render.',
+      '  Untuk uji: --carousel f --design f --render-dir dir menggantikan ketiganya.'].join('\n'));
     process.exit(64);
   }
   try {
     const { defaultApprovalDir, readOwnerToken } = await import('./owner-approval.mjs');
     const apiBase = arg('--api', 'http://127.0.0.1:3177/api');
-    const issueRow = await (await fetch(`${apiBase}/issues/${arg('--issue')}`)).json();
-    const r = preparePublication({ issue: { id: arg('--issue'), identifier: issueRow.identifier ?? arg('--identifier') ?? '' }, issueStatus: issueRow.status, token: readOwnerToken(), carousel: rd(arg('--carousel')), design: rd(arg('--design')), renderDir: arg('--render-dir'), approvalDir: defaultApprovalDir(), ...(arg('--out') ? { outRoot: path.resolve(arg('--out')) } : {}) });
+    const id = arg('--issue');
+    const issueRow = await (await fetch(`${apiBase}/issues/${id}`)).json();
+    const doc = async (key) => {
+      const d = await (await fetch(`${apiBase}/issues/${id}/documents/${key}`)).json();
+      if (!d?.body) throw new PublishError(`dokumen "${key}" tidak ada di issue`);
+      return JSON.parse(d.body);
+    };
+    const r = preparePublication({
+      issue: { id, identifier: issueRow.identifier ?? '' }, issueStatus: issueRow.status, token: readOwnerToken(),
+      carousel: arg('--carousel') ? rd(arg('--carousel')) : await doc('carousel'),
+      design: arg('--design') ? rd(arg('--design')) : await doc('carousel-design'),
+      renderDir: arg('--render-dir') ? path.resolve(arg('--render-dir')) : path.join(repoRoot, 'workspace', 'issues', id, 'render'),
+      approvalDir: defaultApprovalDir(), ...(arg('--out') ? { outRoot: path.resolve(arg('--out')) } : {}),
+    });
     console.log(JSON.stringify(r, null, 2));
-  } catch (e) { console.error(`DITOLAK: ${e.message}`); process.exit(2); }
+  } catch (e) { console.error(`DITOLAK: ${e.message}`); process.exitCode = 2; }
 }

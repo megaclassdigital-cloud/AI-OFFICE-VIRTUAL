@@ -111,6 +111,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.log(JSON.stringify({ decision, record_id: r.record.record_id, issueStatus: r.issueStatus, returnedTo: r.returnedTo }, null, 2));
   } catch (e) {
     console.error(`${e instanceof ApprovalError || e instanceof DecideError ? 'DITOLAK' : 'GAGAL'}: ${e.message}`);
-    process.exit(2);
+    process.exitCode = 2;
   }
 }

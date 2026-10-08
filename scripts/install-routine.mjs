@@ -101,5 +101,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const project = (await c.projects(co.id)).find((x) => /carousel berita ai/i.test(x.name));
     if (!researcher || !project) throw new Error('agent Researcher atau project "Carousel Berita AI" tidak ditemukan');
     console.log(JSON.stringify(await installRoutine(c, { companyId: co.id, assigneeAgentId: researcher.id, projectId: project.id }, { enable: a.includes('--enable'), disable: a.includes('--disable') }), null, 2));
-  } catch (e) { console.error(`GAGAL: ${e.message}`); process.exit(2); }
+  } catch (e) { console.error(`GAGAL: ${e.message}`); process.exitCode = 2; }
 }
