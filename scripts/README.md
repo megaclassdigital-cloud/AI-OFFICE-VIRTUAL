@@ -74,16 +74,13 @@ node scripts/render-spike.mjs
 Prasyarat: `npx playwright install chromium` **dan** `npx playwright install chromium-headless-shell`.
 Hanya memasang `chromium` saja tidak cukup untuk mode headless di Playwright 1.56.
 
-## loop-status.js dan loop.ps1 (loop engineering)
+## loop-status.js (loop engineering)
 
 ```powershell
 node scripts/loop-status.js                # ringkasan loop
 node scripts/loop-status.js --check        # validasi loop/backlog.json
 node scripts/loop-status.js --next         # task berikutnya
 node scripts/loop-status.js --write-status # tulis ulang STATUS.md
-node scripts/loop-status.js --pause        # owner: jeda loop
-node scripts/loop-status.js --resume       # owner: lanjutkan loop
-powershell -ExecutionPolicy Bypass -File scripts\loop.ps1 -MaxIterations 20   # mode tanpa pengawasan
 ```
 
-Aturan lengkap: `loop/LOOP.md`. File ini dan `loop.ps1` tidak boleh diubah Claude Code.
+Aturan lengkap: `loop/LOOP.md`. Loop adalah cara kerja sesi, bukan hook (revisi 2026-10-08).
