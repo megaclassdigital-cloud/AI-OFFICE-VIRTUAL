@@ -1,0 +1,2 @@
+ ✓ tests/check-design.test.mjs (15 tests) 458ms
+      Tests  15 passed (15)
