@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T16:12:56.824Z",
+    "updated_at": "2026-10-08T16:27:33.073Z",
     "current_task": ""
   },
   "tasks": [
@@ -590,11 +590,11 @@
         "F2.4",
         "F2.5"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": "",
+      "evidence": "reports/review/G2-review.md",
+      "notes": "PASS WITH CONCERNS; FIX-G2-01..08 dicatat di reports/review/G2-review.md",
       "gate": true
     },
     {
@@ -784,6 +784,71 @@
       "max_attempts": 3,
       "evidence": "reports/build/FIX-G1-01-03-06.md",
       "notes": "273 tes lulus; sisa FIX-G1-04,05,07,10 sebelum E1.2"
+    },
+    {
+      "id": "FIX-G2-01",
+      "phase": "2 — Approval dan KPI",
+      "title": "Approval record ditandatangani HMAC (kunci dari token owner); token di luar jangkauan agent; uji sandbox",
+      "deps": [
+        "G2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G2-02",
+      "phase": "2 — Approval dan KPI",
+      "title": "decide approve terikat ke handoff/QA pass; render-dir diturunkan dari issue",
+      "deps": [
+        "G2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G2-03",
+      "phase": "2 — Approval dan KPI",
+      "title": "prepare_publication cek status issue; uji kegagalan API di tengah decide",
+      "deps": [
+        "G2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G2-05",
+      "phase": "2 — Approval dan KPI",
+      "title": "Segel render terikat ke hash design sebelum render",
+      "deps": [
+        "G2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G2-04",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "TOCTOU dan lock prepare_publication; label KPI; koreksi README plugin (G2-04,07,08)",
+      "deps": [
+        "G2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
     }
   ]
 }
