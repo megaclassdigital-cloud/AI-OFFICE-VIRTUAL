@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T09:21:59.494Z",
+    "updated_at": "2026-10-08T09:29:59.050Z",
     "current_task": ""
   },
   "tasks": [
@@ -496,11 +496,11 @@
       "deps": [
         "E1.1"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": "",
+      "evidence": "reports/review/G1-review.md",
+      "notes": "PASS WITH CONCERNS; FIX-G1-01..10 dicatat di reports/review/G1-review.md",
       "gate": true
     },
     {
