@@ -7,12 +7,11 @@
 // Aturan otoritas: agent tidak boleh menyetel done/cancelled (itu keputusan owner/approval gate),
 // dan hanya boleh mengubah issue di company run-nya sendiri.
 
-export const AGENT_ALLOWED_TRANSITIONS = Object.freeze({
-  todo: ['in_progress'],
-  in_progress: ['in_review', 'blocked'],
-  blocked: ['in_progress'],
-  in_review: ['in_progress'],
-});
+import { allowedFrom, canTransition } from './lifecycle.js';
+
+export const AGENT_ALLOWED_TRANSITIONS = Object.freeze(
+  Object.fromEntries(['todo', 'in_progress', 'blocked', 'in_review'].map((s) => [s, allowedFrom('agent', s)]))
+);
 
 const MAX_COMMENT = 20000;
 const MAX_DOC = 200000;
@@ -65,12 +64,27 @@ export function makeAgentTools(ctx) {
       const issueId = issueIdOf(p);
       const to = String(p?.status ?? '');
       const issue = await ownIssue(issueId, run);
-      const allowed = AGENT_ALLOWED_TRANSITIONS[issue.status] ?? [];
-      if (!allowed.includes(to)) {
+      const allowed = allowedFrom('agent', issue.status);
+      if (!canTransition('agent', issue.status, to)) {
         throw new ToolError(`transisi ${issue.status} -> ${to} tidak diizinkan untuk agent (boleh: ${allowed.join(', ') || 'tidak ada'})`);
       }
       await ctx.issues.update(issueId, { status: to }, run.companyId);
       return { from: issue.status, to };
+    }),
+    // Akhiri tahap: komentar akhir + status in_review (menunggu owner) atau blocked (butuh owner) dalam satu panggilan.
+    complete_stage: wrap(async (p, run) => {
+      const issueId = issueIdOf(p);
+      const outcome = String(p?.outcome ?? '');
+      const to = { awaiting_approval: 'in_review', needs_human: 'blocked' }[outcome];
+      if (!to) throw new ToolError('outcome harus awaiting_approval atau needs_human');
+      const body = text(p.summary, 'summary', MAX_COMMENT);
+      const issue = await ownIssue(issueId, run);
+      if (!canTransition('agent', issue.status, to)) {
+        throw new ToolError(`transisi ${issue.status} -> ${to} tidak diizinkan untuk agent`);
+      }
+      const c = await ctx.issues.createComment(issueId, body, run.companyId, { authorAgentId: run.agentId });
+      await ctx.issues.update(issueId, { status: to }, run.companyId);
+      return { commentId: c?.id ?? null, from: issue.status, to, outcome };
     }),
     attach_file: wrap(async (p, run) => {
       const issueId = issueIdOf(p);
@@ -105,6 +119,15 @@ export const TOOL_DEFS = {
       type: 'object',
       properties: { issueId: { type: 'string' }, status: { type: 'string', enum: ['in_progress', 'in_review', 'blocked'] } },
       required: ['issueId', 'status'],
+    },
+  },
+  complete_stage: {
+    displayName: 'Complete Stage',
+    description: 'Akhiri pekerjaanmu pada issue ini: tulis ringkasan akhir dan set status menunggu owner (awaiting_approval) atau butuh manusia (needs_human). Panggil SEKALI di akhir, lalu berhenti.',
+    parametersSchema: {
+      type: 'object',
+      properties: { issueId: { type: 'string' }, outcome: { type: 'string', enum: ['awaiting_approval', 'needs_human'] }, summary: { type: 'string' } },
+      required: ['issueId', 'outcome', 'summary'],
     },
   },
   attach_file: {

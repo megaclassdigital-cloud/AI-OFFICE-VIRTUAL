@@ -1,11 +1,11 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T07:55:54.205Z
+> Terakhir diperbarui: 2026-10-08T08:16:03.614Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** L0.5 — Bersihkan sisa mekanisme hook loop lama (setup/claude, install-loop-config.ps1, loop.ps1) dan tutup O-001
-**Ringkasan:** 21 DONE · 0 IN_PROGRESS · 28 TODO · 0 BLOCKED · 0 OWNER · 0 SKIPPED
+**Task berikutnya:** F1.0f — Guard pemakaian deterministik: batas run dan durasi per agent per hari, pause otomatis
+**Ringkasan:** 22 DONE · 0 IN_PROGRESS · 26 TODO · 1 BLOCKED · 0 OWNER · 0 SKIPPED
 **Antrian owner:** 1 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 8 (loop/DECISIONS.md)
 
 ## Progres per fase
@@ -14,10 +14,16 @@
 | --- | --- | --- |
 | L — Bootstrap loop | 4 | 5 |
 | 0 — Spike kelayakan | 9 | 9 |
-| 1A — Fondasi kode | 5 | 7 |
+| 1A — Fondasi kode | 6 | 7 |
 | 1B — Pipeline konten | 0 | 4 |
 | 1C — Pipeline desain | 3 | 6 |
 | 1D — QA dan integrasi | 0 | 6 |
 | 2 — Approval dan KPI | 0 | 6 |
 | 3 — Hardening dan serah terima | 0 | 6 |
+
+## BLOCKED / menunggu owner
+
+| Task | Judul | Status | Catatan |
+| --- | --- | --- | --- |
+| L0.5 | Bersihkan sisa mekanisme hook loop lama (setup/claude, install-loop-config.ps1, loop.ps1) dan tutup O-001 | BLOCKED | Menunggu O-002: penghapusan file diblokir pemeriksa izin; sisanya sudah commit f6e59de |
 

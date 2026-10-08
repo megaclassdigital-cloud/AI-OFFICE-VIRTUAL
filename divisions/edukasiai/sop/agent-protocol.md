@@ -27,6 +27,9 @@ Untuk komentar, status, dan lampiran, **pakai tool plugin `aao-approval-gate`**,
 - `post_comment { issueId, body }` — tulis komentar.
 - `set_issue_status { issueId, status }` — hanya `in_progress`, `in_review`, `blocked`. `done` dan
   `cancelled` adalah hak owner; tool akan menolaknya.
+- `complete_stage { issueId, outcome, summary }` — **panggil sekali di akhir tugas lalu berhenti.** `outcome`:
+  `awaiting_approval` (selesai, menunggu owner) atau `needs_human` (kamu terhalang). Tool menulis
+  ringkasan dan mengubah status sekaligus; setelah itu tidak ada pekerjaan lagi untukmu.
 - `attach_file { issueId, key, body }` — lampirkan dokumen (key huruf kecil, mis. `research-output.json`).
 
 Tool ini membangun HTTP dengan benar (byte UTF-8) di dalam kode. **Dilarang membuat panggilan

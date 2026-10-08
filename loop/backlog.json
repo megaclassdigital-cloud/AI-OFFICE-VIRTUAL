@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T07:55:53.946Z",
+    "updated_at": "2026-10-08T08:16:03.361Z",
     "current_task": ""
   },
   "tasks": [
@@ -61,11 +61,11 @@
       "phase": "L — Bootstrap loop",
       "title": "Bersihkan sisa mekanisme hook loop lama (setup/claude, install-loop-config.ps1, loop.ps1) dan tutup O-001",
       "deps": [],
-      "status": "TODO",
+      "status": "BLOCKED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": "Revisi 2026-10-08: loop jadi cara kerja, bukan hook. Lihat LOOP.md."
+      "notes": "Menunggu O-002: penghapusan file diblokir pemeriksa izin; sisanya sudah commit f6e59de"
     },
     {
       "id": "F0.1",
@@ -251,10 +251,10 @@
       "deps": [
         "F1.0d"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
+      "evidence": "docs/evidence/F1.0e",
       "notes": "Blocker 2 dari spike (EDU-2 'needs a disposition')."
     },
     {

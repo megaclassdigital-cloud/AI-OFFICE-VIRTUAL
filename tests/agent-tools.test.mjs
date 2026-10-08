@@ -86,6 +86,8 @@ describe('manifest', () => {
   it('mendeklarasikan semua tool dan capability yang dipakai', () => {
     const names = manifest.tools.map((t) => t.name);
     for (const n of Object.keys(TOOL_DEFS)) expect(names).toContain(n);
+    // manifest statis harus identik dengan definisi yang didaftarkan worker
+    for (const [n, d] of Object.entries(TOOL_DEFS)) expect(manifest.tools.find((t) => t.name === n)).toEqual({ name: n, ...d });
     for (const c of ['agent.tools.register', 'issues.read', 'issues.update', 'issue.comments.create', 'issue.documents.write'])
       expect(manifest.capabilities).toContain(c);
   });
