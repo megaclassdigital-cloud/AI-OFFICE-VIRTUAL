@@ -1,0 +1,13 @@
+OK   issue dibuat dan ditugaskan (agent dipause) — EDU-7 in_progress
+OK   researcher: research-raw + research-output
+OK   verifier: verification-result
+OK   pemilihan topik: lolos check-topic-selection
+OK   copywriter: carousel lolos check-carousel
+OK   designer: carousel-design lolos check-design
+OK   render_carousel (plugin)
+OK   qa_submit_result = pass
+OK   handoff_to_owner -> in_review (awaiting_approval)
+OK   status akhir issue = in_review dan dokumen lengkap
+OK   agent tidak bisa menutup/menyetujui issue — transisi in_review -> done tidak diizinkan untuk agent (boleh: in_progress)
+
+Ringkasan: issue EDU-7, run agent baru = 0, status agent = idle

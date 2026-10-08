@@ -1,0 +1,78 @@
+{
+  "issue": "EDU-7",
+  "issueId": "f0b203f7-355c-4ffa-8bab-5316a8326017",
+  "newAgentRuns": 0,
+  "agentStatusRestored": "idle",
+  "steps": [
+    {
+      "step": "issue dibuat dan ditugaskan (agent dipause)",
+      "ok": true,
+      "issue": "EDU-7",
+      "issueId": "f0b203f7-355c-4ffa-8bab-5316a8326017",
+      "note": "EDU-7 in_progress"
+    },
+    {
+      "step": "researcher: research-raw + research-output",
+      "ok": true,
+      "candidates": 6
+    },
+    {
+      "step": "verifier: verification-result",
+      "ok": true,
+      "verified": 5
+    },
+    {
+      "step": "pemilihan topik: lolos check-topic-selection",
+      "ok": true,
+      "totals": {
+        "c04": 13,
+        "c01": 10,
+        "c02": 9
+      }
+    },
+    {
+      "step": "copywriter: carousel lolos check-carousel",
+      "ok": true,
+      "slides": 6
+    },
+    {
+      "step": "designer: carousel-design lolos check-design",
+      "ok": true
+    },
+    {
+      "step": "render_carousel (plugin)",
+      "ok": true,
+      "pngCount": 6,
+      "outDir": "D:\\AI-Memory\\AI-Agent-Office\\workspace\\issues\\f0b203f7-355c-4ffa-8bab-5316a8326017\\render"
+    },
+    {
+      "step": "qa_submit_result = pass",
+      "ok": true,
+      "action": "pass"
+    },
+    {
+      "step": "handoff_to_owner -> in_review (awaiting_approval)",
+      "ok": true,
+      "contentHash": "fa33caadfe7de03984c97c57edbf6287dffd4006b1e4406b154ff1bc1a9ef458"
+    },
+    {
+      "step": "status akhir issue = in_review dan dokumen lengkap",
+      "ok": true,
+      "status": "in_review",
+      "documents": [
+        "carousel",
+        "carousel-design",
+        "handoff",
+        "research-output",
+        "research-raw",
+        "topic-selection",
+        "verification-result"
+      ]
+    },
+    {
+      "step": "agent tidak bisa menutup/menyetujui issue",
+      "ok": true,
+      "note": "transisi in_review -> done tidak diizinkan untuk agent (boleh: in_progress)"
+    }
+  ]
+}
