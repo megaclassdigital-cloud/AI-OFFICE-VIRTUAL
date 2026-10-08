@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { decide, combineVerdict, MAX_ROUNDS } from '../plugins/aao-approval-gate/src/qa-routing.js';
 import { makeAgentTools } from '../plugins/aao-approval-gate/src/agent-tools.js';
-import { repoRoot } from './helpers.mjs';
+import { repoRoot, provenanceEntries } from './helpers.mjs';
 
 describe('decide: putaran per jalur', () => {
   const R0 = { text: 0, design: 0 };
@@ -92,6 +92,7 @@ function fakeCtx(docs, status = 'in_progress') {
       documents: { get: async (_i, key) => (docs[key] ? { body: JSON.stringify(docs[key]) } : null) },
     },
   };
+  for (const [k, v] of provenanceEntries(ISSUE, docs, renderDir)) state.set(`${k.scopeId}/${k.namespace}/${k.stateKey}`, v);
   return { ctx, calls, state, issue };
 }
 const clone = (o) => JSON.parse(JSON.stringify(o));

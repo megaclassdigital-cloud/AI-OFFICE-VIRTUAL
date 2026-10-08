@@ -36,7 +36,7 @@ Jika `visual-qa.json` memuat satu saja kegagalan → gagal. Tidak ada pengecuali
 
 Panggil `qa_submit_result { issueId, llm: { textOk, designOk, notes: [{ slide, note }] } }` **sekali per putaran**.
 Plugin menghitung ulang semua cek deterministik dari dokumen issue (`carousel`, `verification-result`,
-`carousel-design`) dan laporan render; kamu hanya mengisi penilaian bahasa. Penilaianmu hanya bisa
+`carousel-design`, `research-output` wajib) dan segel `render_carousel` di state plugin (bukan berkas di disk); kamu hanya mengisi penilaian bahasa. Penilaianmu hanya bisa
 **menambah** kegagalan, tidak bisa meloloskan draf yang gagal cek kode. Hasil tool:
 
 | `action` | Artinya | Yang kamu lakukan |

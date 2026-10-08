@@ -96,6 +96,9 @@ export default {
       parametersSchema: {
         type: "object",
         properties: {
+          issueId: {
+            type: "string"
+          },
           url: {
             type: "string"
           },
@@ -107,6 +110,7 @@ export default {
           }
         },
         required: [
+          "issueId",
           "url",
           "published_at"
         ]

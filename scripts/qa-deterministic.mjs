@@ -30,8 +30,9 @@ const stripSlidePrefix = (msg) => msg.replace(/^slide \d+(?: \([a-z]+\))?:?\s*/,
  * @param {object} input { carousel, verification, design, visualQa, research?, topicSelection? }
  * @returns {{passed:boolean, routeTo:string[], global:{text:string[],design:string[],visual:string[]}, slides:object[], summary:object}}
  */
-export function runQa({ carousel, verification, design, visualQa, research, topicSelection }) {
-  const global = { text: [], design: [], visual: [] };
+export function runQa({ carousel, verification, design, visualQa, research, topicSelection, extraErrors = {}, requireResearch = false }) {
+  const global = { text: [...(extraErrors.text ?? [])], design: [...(extraErrors.design ?? [])], visual: [...(extraErrors.visual ?? [])] };
+  if (requireResearch && !research) global.text.push('research-output tidak tersedia: cek angka tidak dapat dilakukan');
   const per = new Map(); // index -> {text:[], design:[], visual:[]}
   const bucket = (i) => {
     if (!per.has(i)) per.set(i, { text: [], design: [], visual: [] });

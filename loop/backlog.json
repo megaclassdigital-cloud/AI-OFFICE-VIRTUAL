@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T15:31:21.789Z",
+    "updated_at": "2026-10-08T15:48:55.367Z",
     "current_task": ""
   },
   "tasks": [
@@ -771,6 +771,19 @@
       "evidence": "",
       "notes": "",
       "final": true
+    },
+    {
+      "id": "FIX-G1-01",
+      "phase": "2 — Approval dan KPI",
+      "title": "Bukti verifikasi/render tak bisa ditulis agent (G1-01,02,03,06)",
+      "deps": [
+        "G1"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/FIX-G1-01-03-06.md",
+      "notes": "273 tes lulus; sisa FIX-G1-04,05,07,10 sebelum E1.2"
     }
   ]
 }

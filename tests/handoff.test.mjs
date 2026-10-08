@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { makeAgentTools } from '../plugins/aao-approval-gate/src/agent-tools.js';
 import { canonicalJson, packageContentHash, sha256 } from '../plugins/aao-approval-gate/src/content-hash.js';
 import { validate } from '../schemas/validate.mjs';
-import { repoRoot } from './helpers.mjs';
+import { repoRoot, provenanceEntries } from './helpers.mjs';
 
 const read = (rel) => JSON.parse(readFileSync(path.join(repoRoot, rel), 'utf8').replace(/^﻿/, ''));
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -41,6 +41,7 @@ function fakeCtx(docs, status = 'in_progress') {
   const calls = [];
   const issue = { id: ISSUE, status };
   const key = (k) => `${k.scopeId}/${k.namespace}/${k.stateKey}`;
+  for (const [k, v] of provenanceEntries(ISSUE, docs, renderDir)) state.set(key(k), v);
   return {
     issue, calls, written, state,
     ctx: {
@@ -120,18 +121,56 @@ describe('handoff_to_owner', () => {
     expect(f.issue.status).toBe('in_progress');
   });
 
-  it('hashes.json renderer diubah setelah QA lolos: handoff ditolak', async () => {
+  it('PNG slide diganti di disk setelah QA lolos: handoff ditolak (FIX-G1-02)', async () => {
     const f = fakeCtx(docs0);
     const t = makeAgentTools(f.ctx);
     expect((await t.qa_submit_result({ issueId: ISSUE, ...OK }, run)).data.action).toBe('pass');
-    const h = JSON.parse(hashes0);
-    h['slide-02.png'] = sha256('palsu');
-    writeFileSync(path.join(renderDir, 'hashes.json'), JSON.stringify(h), 'utf8');
+    const png = path.join(renderDir, 'slide-02.png');
+    const orig = readFileSync(png);
+    writeFileSync(png, Buffer.concat([orig, Buffer.from('x')]));
     try {
-      expect((await t.handoff_to_owner({ issueId: ISSUE }, run)).data.error).toMatch(/isi paket berubah/);
+      expect((await t.handoff_to_owner({ issueId: ISSUE }, run)).data.error).toMatch(/cek deterministik gagal|isi paket berubah/);
+    } finally { writeFileSync(png, orig); }
+  });
+
+  it('hashes.json/visual-qa.json di disk dipalsukan: tidak berpengaruh, QA memakai segel plugin (FIX-G1-03)', async () => {
+    const f = fakeCtx(docs0);
+    const t = makeAgentTools(f.ctx);
+    const vq = readFileSync(path.join(renderDir, 'visual-qa.json'), 'utf8');
+    writeFileSync(path.join(renderDir, 'visual-qa.json'), '{}', 'utf8');
+    writeFileSync(path.join(renderDir, 'hashes.json'), '{}', 'utf8');
+    try {
+      expect((await t.qa_submit_result({ issueId: ISSUE, ...OK }, run)).data.action).toBe('pass');
     } finally {
+      writeFileSync(path.join(renderDir, 'visual-qa.json'), vq, 'utf8');
       writeFileSync(path.join(renderDir, 'hashes.json'), hashes0, 'utf8');
     }
+  });
+
+  it('carousel-design diubah setelah render: QA menolak (FIX-G1-03)', async () => {
+    const f = fakeCtx(docs0);
+    const changed = clone(docs0);
+    changed['carousel-design'].slides[0].template = changed['carousel-design'].slides[0].template + '-x';
+    const t = makeAgentTools({ ...f.ctx, issues: { ...f.ctx.issues, documents: { ...f.ctx.issues.documents, get: async (_i, k) => (changed[k] ? { body: JSON.stringify(changed[k]) } : null) } } });
+    const r = await t.qa_submit_result({ issueId: ISSUE, ...OK }, run);
+    expect(r.data.action).not.toBe('pass');
+  });
+
+  it('status verified tanpa catatan verify_candidate: QA menolak (FIX-G1-01)', async () => {
+    const f = fakeCtx(docs0);
+    f.state.set(`${ISSUE}/aao-verify/log`, {});
+    const r = await makeAgentTools(f.ctx).qa_submit_result({ issueId: ISSUE, ...OK }, run);
+    expect(r.data.action).toBe('return_to_copywriter');
+    expect(f.calls.find((c) => c[0] === 'comment')[2]).toMatch(/verify_candidate/);
+  });
+
+  it('research-output tidak ada: QA menolak, cek angka tidak dilewati (FIX-G1-06)', async () => {
+    const noResearch = clone(docs0);
+    delete noResearch['research-output'];
+    const f = fakeCtx(noResearch);
+    const r = await makeAgentTools(f.ctx).qa_submit_result({ issueId: ISSUE, ...OK }, run);
+    expect(r.data.ok).toBe(false);
+    expect(r.data.error).toMatch(/research-output/);
   });
 
   it('handoff kedua (sudah in_review) ditolak', async () => {
