@@ -1,11 +1,11 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T16:56:40.473Z
+> Terakhir diperbarui: 2026-10-08T17:03:21.126Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** H3.3 — Regresi penuh: npm test, smoke-test, determinisme render, idempotensi install
-**Ringkasan:** 49 DONE · 0 IN_PROGRESS · 13 TODO · 1 BLOCKED · 1 OWNER · 0 SKIPPED
+**Task berikutnya:** H3.4 — RUNBOOK: start, stop, approve, recovery, upgrade Paperclip, mulai burn-in
+**Ringkasan:** 50 DONE · 0 IN_PROGRESS · 12 TODO · 1 BLOCKED · 1 OWNER · 0 SKIPPED
 **Antrian owner:** 4 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 14 (loop/DECISIONS.md)
 
 ## Progres per fase
@@ -20,7 +20,7 @@
 | 1C — Pipeline desain | 6 | 6 |
 | 1D — QA dan integrasi | 5 | 6 |
 | 2 — Approval dan KPI | 11 | 12 |
-| 3 — Hardening dan serah terima | 2 | 7 |
+| 3 — Hardening dan serah terima | 3 | 7 |
 | 4 — Office View (UI kantor dinamis) | 0 | 7 |
 
 ## BLOCKED / menunggu owner

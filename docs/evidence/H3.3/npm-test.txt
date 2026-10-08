@@ -1,0 +1,88 @@
+
+ RUN  v5.0.3 D:/AI-Memory/AI-Agent-Office
+
+ ✓ tests/render-tool.test.mjs (7 tests) 75919ms
+   ✓ render sungguhan lewat tool (4)
+     ✓ render contoh-design: lulus, 6 PNG, hash tersedia; render ulang menghasilkan hash identik (AC1.5) 42399ms
+     ✓ FIX-G2-05: render lewat handler membuat segel terikat ke isi design yang dibaca sebelum render 15240ms
+     ✓ regresi: render ulang yang GAGAL tidak mewarisi laporan render sebelumnya (tidak ada segel basi) 18227ms
+ ✓ tests/scenarios/scenarios.test.mjs (15 tests) 21306ms
+   ✓ 1. Sukses [PENUH untuk jalur kode; tahap LLM tidak ikut] (1)
+     ✓ render -> verifikasi tercatat -> QA pass -> handoff -> owner approve -> paket publikasi; restart di tengah tidak menggandakan apa pun (skenario 6 bagian kode) 15560ms
+   ✓ 12-13. Teks meluber dan template hilang [PENUH] (2)
+     ✓ teks 2x batas karakter ditolak (exit 2), tanpa PNG apa pun 1558ms
+     ✓ template yang tidak ada ditolak sebelum render dengan pesan jelas 1570ms
+   ✓ 14. Renderer crash [BAGIAN KODE] (1)
+     ✓ proses renderer mati di tengah: hasil passed=false tanpa laporan; handler tidak membuat segel; QA menolak 2007ms
+ ✓ tests/render-validation.test.mjs (10 tests) 16758ms
+   ✓ render.mjs menolak desain cacat sebelum merender (8)
+     ✓ teks melebihi batas karakter slot (tidak dipotong diam-diam) -> exit 2, 0 PNG 1819ms
+     ✓ slot yang tidak dikenal template -> exit 2, 0 PNG 1836ms
+     ✓ template yang tidak ada di templates.json -> exit 2, 0 PNG 1910ms
+     ✓ slot wajib kosong -> exit 2, 0 PNG 1618ms
+     ✓ kata tekanan tidak ada di slot mana pun -> exit 2, 0 PNG 1567ms
+     ✓ varian warna yang tidak ada di brand.json -> exit 2, 0 PNG 1648ms
+     ✓ ikon yang tidak ada di set lokal -> exit 2, 0 PNG 1646ms
+     ✓ melaporkan SEMUA kesalahan sekaligus, bukan hanya yang pertama 1623ms
+   ✓ render.mjs argumen dan berkas (2)
+     ✓ tanpa --design: exit 1 dengan petunjuk pemakaian 1613ms
+     ✓ berkas design yang tidak ada: exit 1 1468ms
+ ✓ tests/owner-decide.test.mjs (13 tests) 14664ms
+ ✓ tests/handoff.test.mjs (16 tests) 13781ms
+ ✓ tests/prepare-publication.test.mjs (10 tests) 15194ms
+   ✓ prepare_publication (10)
+     ✓ FIX-G2-03: issue belum done (decide setengah jalan) ditolak dan tercatat 311ms
+     ✓ reject lalu approve ulang dengan hash baru: paket baru, folder lama tidak ditimpa 305ms
+ ✓ tests/qa-routing.test.mjs (15 tests) 13095ms
+   ✓ tool qa_submit_result (6)
+     ✓ paket valid + LLM ok -> pass, tanpa putaran dan tanpa mengubah status 465ms
+ ✓ tests/qa-deterministic.test.mjs (8 tests) 14194ms
+   ✓ paket valid (1)
+     ✓ golden + render nyata: lulus seluruhnya, tanpa routing 469ms
+ ✓ tests/install-division.test.mjs (6 tests) 2590ms
+   ✓ install-division.mjs --dry-run (6)
+     ✓ company ada, belum ada agent: merencanakan 5 agent dan TIDAK mengubah apa pun 627ms
+     ✓ company belum ada: merencanakan membuat company, tetap tanpa mengubah apa pun 442ms
+     ✓ agent sudah ada: merencanakan MEMPERBARUI (idempoten), bukan membuat ganda 617ms
+     ✓ server belum siap (status bukan ok): gagal jelas dengan exit 1 413ms
+ ✓ tests/security.test.mjs (9 tests) 8246ms
+   ✓ repo bersih (2)
+     ✓ berkas terlacak dan SELURUH riwayat git tanpa temuan 8001ms
+ ✓ tests/office-view.test.mjs (31 tests) 1215ms
+   ✓ world: gerak dan pemetaan (11)
+     ✓ karakter yang istirahat di Lounge tidak pernah menumpuk di titik yang sama (selama 3 menit) 620ms
+ ✓ tests/url-check.test.mjs (18 tests) 912ms
+   ✓ checkUrl (8)
+     ✓ timeout: server tidak menjawab -> tidak ok dalam waktu terbatas 321ms
+   ✓ verifyCandidate (2)
+     ✓ bentuk checks lolos skema verification-result 302ms
+ ✓ tests/owner-approval.test.mjs (12 tests) 527ms
+ ✓ tests/schemas.test.mjs (46 tests) 415ms
+ ✓ tests/console.test.mjs (7 tests) 587ms
+ ✓ tests/golden-fixtures.test.mjs (22 tests) 424ms
+ ✓ tests/check-carousel.test.mjs (16 tests) 372ms
+   ✓ draf valid (2)
+     ✓ carousel golden lolos semua cek (dengan dan tanpa riset) 300ms
+ ✓ tests/topic-selection.test.mjs (12 tests) 325ms
+ ✓ tests/check-design.test.mjs (15 tests) 457ms
+   ✓ desain valid (2)
+     ✓ desain golden lolos (singkatan AP, nomor urut 01/02, kicker dekoratif diizinkan) 371ms
+ ✓ tests/normalize-research.test.mjs (10 tests) 357ms
+   ✓ normalizeResearch (8)
+     ✓ keluaran nyata F0.2 (tanpa id/generatedAt/windowDays) lolos skema setelah dinormalisasi 320ms
+ ✓ tests/usage-guard.test.mjs (14 tests) 37ms
+ ✓ tests/brand-kit.test.mjs (5 tests) 34ms
+ ✓ tests/kpi-report.test.mjs (11 tests) 35ms
+ ✓ tests/agent-tools.test.mjs (9 tests) 35ms
+ ✓ tests/lifecycle.test.mjs (9 tests) 34ms
+ ✓ tests/install-routine.test.mjs (11 tests) 31ms
+
+ Test Files  26 passed (26)
+      Tests  357 passed (357)
+   Start at  23:57:08
+   Duration  228.28s (tests 95%, import 4%, transform 1%)
+
+    Isolate  26 workers spawned · ~589ms startup each (spawn + environment, per file)
+             at least ~14.73s faster with isolate: false — reuses workers across files instead of one per file
+
+exit=0
