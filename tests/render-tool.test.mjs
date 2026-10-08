@@ -52,7 +52,7 @@ describe('render sungguhan lewat tool', () => {
     for (const f of Object.keys(a.hashes)) expect(existsSync(path.join(a.outDir, f))).toBe(true);
     const b = await runRender({ designPath: 'tests-render-tool/design.json', issueId: ID });
     expect(b.hashes).toEqual(a.hashes);
-  }, 120_000);
+  }, 300_000);
 
   it('FIX-G2-05: render lewat handler membuat segel terikat ke isi design yang dibaca sebelum render', async () => {
     const state = new Map();
@@ -62,7 +62,7 @@ describe('render sungguhan lewat tool', () => {
     const seal = state.get('seal');
     expect(seal.designHash).toBe(designHash(JSON.parse(readFileSync(design, 'utf8').replace(/^﻿/, ''))));
     expect(Object.keys(seal.hashes)).toHaveLength(6);
-  }, 120_000);
+  }, 300_000);
   it('regresi: render ulang yang GAGAL tidak mewarisi laporan render sebelumnya (tidak ada segel basi)', async () => {
     const bad = path.join(wsDir, 'rusak.json');
     const d = JSON.parse(readFileSync(design, 'utf8').replace(/^﻿/, ''));
@@ -74,7 +74,7 @@ describe('render sungguhan lewat tool', () => {
     expect(failed).toMatchObject({ passed: false, pngCount: 0 });
     expect(failed.visualQa).toBeUndefined();
     expect(failed.hashes).toBeUndefined();
-  }, 120_000);
+  }, 300_000);
   it('handler tool menolak path berbahaya sebagai ok:false (bukan exception)', async () => {
     const t = makeAgentTools({});
     const r = await t.render_carousel({ issueId: ID, designPath: '../package.json' }, { companyId: 'c', agentId: 'a' });

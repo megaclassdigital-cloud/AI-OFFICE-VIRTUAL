@@ -1,6 +1,6 @@
 // Test F2.1: record approval hanya dengan token owner, tervalidasi, append-only; agent tidak punya jalur menulisnya.
 import { describe, it, expect } from 'vitest';
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, copyFileSync, renameSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { recordDecision, readDecisions, latestDecision, initOwnerToken, readOwnerToken, signRecord, ApprovalError } from '../scripts/owner-approval.mjs';
@@ -95,6 +95,37 @@ describe('tanda tangan HMAC (FIX-G2-01)', () => {
     const wrongKey = { ...r, record_id: randomUUID() }; delete wrongKey.signature;
     writeFileSync(path.join(d, '9999_c.json'), JSON.stringify({ ...wrongKey, signature: signRecord(wrongKey, 'k'.repeat(64)) }));
     expect(readDecisions(issue.id, dir, TOKEN)).toEqual([r]);
+  });
+});
+
+describe('replay record lama (FIX-G3-01)', () => {
+  const mkTwo = () => {
+    const { dir, issue } = mk();
+    const a = recordDecision({ token: TOKEN, expectedToken: TOKEN, issue, decision: 'approved', contentHash: hash, dir, now: new Date('2026-01-01T00:00:00Z') });
+    const b = recordDecision({ token: TOKEN, expectedToken: TOKEN, issue, decision: 'rejected', note: 'revisi', contentHash: hash, dir, now: new Date('2026-01-02T00:00:00Z') });
+    return { dir, issue, a, b, d: path.join(dir, issue.id) };
+  };
+  it('menyalin record approved lama dengan nama berkas lebih akhir (zzz.json) tidak membalik keputusan terakhir', () => {
+    const { dir, issue, a, b, d } = mkTwo();
+    const old = readdirSync(d).find((f) => f.includes(a.record_id));
+    copyFileSync(path.join(d, old), path.join(d, 'zzz.json'));
+    expect(latestDecision(issue.id, dir, TOKEN).record_id).toBe(b.record_id);
+    expect(readDecisions(issue.id, dir, TOKEN).map((r) => r.record_id)).toEqual([a.record_id, b.record_id]);
+  });
+  it('mengganti nama record approved lama agar terurut paling akhir juga ditolak', () => {
+    const { dir, issue, a, b, d } = mkTwo();
+    const old = readdirSync(d).find((f) => f.includes(a.record_id));
+    renameSync(path.join(d, old), path.join(d, `9999-12-31T00-00-00-000Z_${a.record_id}.json`));
+    expect(readDecisions(issue.id, dir, TOKEN).map((r) => r.record_id)).toEqual([b.record_id]);
+    expect(latestDecision(issue.id, dir, TOKEN).decision).toBe('rejected');
+  });
+  it('urutan ditentukan decided_at bertanda tangan; waktu sama diurutkan deterministik lewat record_id', () => {
+    const { dir, issue } = mk();
+    const t = new Date('2026-02-02T00:00:00Z');
+    const r1 = recordDecision({ token: TOKEN, expectedToken: TOKEN, issue, decision: 'rejected', note: 'a', contentHash: hash, dir, now: t });
+    const r2 = recordDecision({ token: TOKEN, expectedToken: TOKEN, issue, decision: 'rejected', note: 'b', contentHash: hash, dir, now: t });
+    const want = [r1.record_id, r2.record_id].sort();
+    expect(readDecisions(issue.id, dir, TOKEN).map((r) => r.record_id)).toEqual(want);
   });
 });
 

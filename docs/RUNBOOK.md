@@ -128,6 +128,14 @@ Upgrade adalah **task terpisah dengan regression test** (CLAUDE.md aturan 7); ja
 - Jangan membuka, mengubah, atau menghapus company `Office Mega Class` (bukan milik loop).
 - `master.key` Paperclip hanya terbaca akun Farrel, SYSTEM, Administrators; agent berjalan sebagai akun yang sama (risiko tercatat di `reports/build/H3.2.md`).
 
+## 10b. Menjalankan tes dengan benar
+
+`npm test` memuat tes yang menjalankan Chromium sungguhan (render). Jalankan pada mesin yang tidak sibuk: proses lain yang memakan CPU membuat tes render melewati batas waktu. Pada run bersih (H3.3) satu suite penuh memerlukan sekitar 4 menit. Bila ada kegagalan "timeout" pada `render-tool`, `handoff`, atau `qa-deterministic`, cek beban CPU lebih dulu lalu jalankan ulang file itu saja:
+
+```powershell
+npx vitest run testsender-tool.test.mjs
+```
+
 ## 11. Status proyek dan loop
 
 ```powershell

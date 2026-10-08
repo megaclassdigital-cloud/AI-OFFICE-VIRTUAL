@@ -49,7 +49,7 @@ describe('repo bersih', () => {
     expect(r.files).toBeGreaterThan(100);
     expect(r.commits).toBeGreaterThan(10);
     expect(r.findings).toEqual([]);
-  }, 120_000);
+  }, 300_000);
   it('.env, workspace, dan output tidak dilacak git', () => {
     const tracked = spawnSync('git', ['ls-files'], { cwd: repoRoot, encoding: 'utf8' }).stdout.split('\n');
     expect(tracked.filter((f) => /(^|\/)\.env(\.|$)/.test(f))).toEqual([]);

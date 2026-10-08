@@ -22,7 +22,7 @@ beforeAll(() => {
   if (r.status !== 0) throw new Error(`render gagal: ${r.stderr}`);
   carousel = rd('fixtures/golden/valid/03-carousel.json');
   design = rd('fixtures/golden/valid/04-carousel-design.json');
-}, 120_000);
+}, 300_000);
 afterAll(() => { try { for (const f of readdirSync(renderDir)) rmSync(path.join(renderDir, f), { recursive: true, force: true }); } catch { /* bersih */ } });
 
 function env() {

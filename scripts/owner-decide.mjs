@@ -13,6 +13,8 @@
 // Token owner dibaca dari .env (AAO_OWNER_TOKEN); tidak diterima lewat argumen supaya tidak masuk riwayat shell.
 
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
+import { sha256 } from '../plugins/aao-approval-gate/src/content-hash.js';
 import { fileURLToPath } from 'node:url';
 import { recordDecision, latestDecision, readOwnerToken, ApprovalError } from './owner-approval.mjs';
 import { currentPackageHash } from './prepare-publication.mjs';
@@ -20,7 +22,10 @@ import { canTransition } from '../plugins/aao-approval-gate/src/lifecycle.js';
 
 export class DecideError extends Error {}
 
-const HANDOFF_HASH_RE = /Hash isi paket \(sha256\): ([0-9a-f]{64})/;
+const HANDOFF_HASH_RE = /^- Hash isi paket \(sha256\): ([0-9a-f]{64})\s*$/gm;
+const HANDOFF_SHEET_RE = /^- contact-sheet\.png \(sha256 ([0-9a-f]{64})\)\s*$/gm;
+/** Semua kecocokan harus sama persis (satu nilai); lebih dari satu nilai berbeda = dokumen mencurigakan. */
+const uniqueMatch = (re, text) => { const v = [...new Set([...String(text ?? '').matchAll(re)].map((m) => m[1]))]; return v.length === 1 ? v[0] : null; };
 export const defaultRenderDir = (issueId, root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')) => path.join(root, 'workspace', 'issues', issueId, 'render');
 
 /**
@@ -43,9 +48,14 @@ export async function decide({ client, token, expectedToken, issueId, decision, 
   // FIX-G2-02: keputusan hanya untuk paket yang benar-benar diserahkan lewat handoff_to_owner (setelah QA lolos) dan
   // belum berubah sejak itu. Dokumen handoff hanya bisa ditulis tool plugin (PLUGIN_OWNED_KEYS).
   const handoff = await client.getText(issueId, 'handoff');
-  const handedHash = handoff ? HANDOFF_HASH_RE.exec(handoff)?.[1] : null;
+  const handedHash = uniqueMatch(HANDOFF_HASH_RE, handoff);
   if (!handedHash) throw new DecideError('issue tidak punya dokumen handoff dari handoff_to_owner (QA belum meloloskan paket); keputusan ditolak');
   if (handedHash !== hash.combined) throw new DecideError('isi paket berubah sejak handoff/QA (hash tidak sama dengan dokumen handoff); minta QA dan handoff ulang');
+  // FIX-G3-03: gambar yang dilihat owner (contact-sheet.png) juga harus sama dengan yang dicatat saat handoff.
+  const handedSheet = uniqueMatch(HANDOFF_SHEET_RE, handoff);
+  let sheetNow = null;
+  try { sheetNow = sha256(readFileSync(path.join(renderDir, 'contact-sheet.png'))); } catch { /* hilang */ }
+  if (!handedSheet || handedSheet !== sheetNow) throw new DecideError('contact-sheet.png tidak sama dengan yang dicatat saat handoff (atau hilang); minta handoff ulang');
 
   let copywriter = null;
   if (decision === 'rejected') {

@@ -29,7 +29,7 @@ beforeAll(() => {
     'carousel-design': read('fixtures/golden/valid/04-carousel-design.json'),
     'research-output': read('fixtures/golden/valid/01-research-output.json'),
   };
-}, 120_000);
+}, 300_000);
 
 afterAll(() => {
   try { for (const f of readdirSync(renderDir)) rmSync(path.join(renderDir, f), { recursive: true, force: true }); } catch { /* bersih */ }

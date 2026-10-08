@@ -25,6 +25,9 @@ const MIN_TOKEN = 32;
 
 export class ApprovalError extends Error {}
 
+/** Nama berkas record yang sah: stempel waktu + record_id. */
+export const recordFileName = (r) => `${String(r?.decided_at).replace(/[:.]/g, '-')}_${r?.record_id}.json`;
+
 export function readOwnerToken(envFile = path.join(repoRoot, '.env')) {
   if (!existsSync(envFile)) return null;
   const m = /^AAO_OWNER_TOKEN=(.+)$/m.exec(readFileSync(envFile, 'utf8').replace(/\r/g, ''));
@@ -72,7 +75,7 @@ export function recordDecision({ token, expectedToken = readOwnerToken(), issue,
   const issueDir = path.join(dir, record.issue_id);
   mkdirSync(issueDir, { recursive: true });
   // Nama berisi stempel waktu agar urutan terbaca; `wx` menolak menimpa record yang sudah ada.
-  writeFileSync(path.join(issueDir, `${record.decided_at.replace(/[:.]/g, '-')}_${record.record_id}.json`), JSON.stringify(record, null, 2), { encoding: 'utf8', flag: 'wx' });
+  writeFileSync(path.join(issueDir, recordFileName(record)), JSON.stringify(record, null, 2), { encoding: 'utf8', flag: 'wx' });
   return record;
 }
 
@@ -84,12 +87,17 @@ export function readDecisions(issueId, dir = defaultApprovalDir(), token = readO
   if (!token) return [];
   const d = path.join(dir, issueId);
   if (!existsSync(d)) return [];
-  return readdirSync(d).filter((f) => f.endsWith('.json')).sort().flatMap((f) => {
+  const out = [];
+  for (const f of readdirSync(d).filter((x) => x.endsWith('.json'))) {
     try {
       const r = JSON.parse(readFileSync(path.join(d, f), 'utf8').replace(/^﻿/, ''));
-      return validate('approval-record', r).ok && r.issue_id === issueId && verifyRecord(r, token) ? [r] : [];
-    } catch { return []; }
-  });
+      // FIX-G3-01: nama berkas harus = stempel waktu + record_id dari isi bertanda tangan; berkas hasil salin/ganti nama
+      // (replay record lama dengan nama lebih akhir) ditolak. Urutan ditentukan decided_at bertanda tangan, bukan nama berkas.
+      if (f !== recordFileName(r)) continue;
+      if (validate('approval-record', r).ok && r.issue_id === issueId && verifyRecord(r, token)) out.push(r);
+    } catch { /* berkas rusak diabaikan */ }
+  }
+  return out.sort((x, y) => (Date.parse(x.decided_at) - Date.parse(y.decided_at)) || x.record_id.localeCompare(y.record_id));
 }
 
 export const latestDecision = (issueId, dir, token) => readDecisions(issueId, dir, token).at(-1) ?? null;

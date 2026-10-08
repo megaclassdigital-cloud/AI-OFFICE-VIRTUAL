@@ -186,3 +186,21 @@ describe('SSRF: DNS rebinding (FIX-G1-04)', () => {
     expect(await dnsViolation('http://localtest.example/', { allowHttp: true, allowPrivate: true }, lookupTo('127.0.0.1'))).toBeNull();
   });
 });
+
+// ── FIX-G3-04: hostname bertitik akhir dan rentang IPv6 tambahan ──
+describe('SSRF lanjutan (FIX-G3-04)', () => {
+  it('hostname dengan titik akhir diperlakukan sama dengan tanpa titik', () => {
+    for (const u of ['https://localhost./', 'https://foo.localhost./', 'https://metadata.google.internal./', 'https://printer.local./', 'https://localhost../']) {
+      expect(policyViolation(u, STRICT_POLICY), u).not.toBeNull();
+    }
+    expect(policyViolation('https://example.com./a', STRICT_POLICY)).toBeNull();
+  });
+  it('SIIT, Teredo, site-local, NAT64 lokal, discard ditolak', () => {
+    for (const a of ['::ffff:0:127.0.0.1', '::ffff:0:7f00:1', '2001::1', '2001:0:4136:e378:8000:63bf:3fff:fdd2', 'fec0::1', '64:ff9b:1::1', '100::1']) {
+      expect(isPrivateAddress(a), a).toBe(true);
+    }
+    for (const a of ['2606:4700:4700::1111', '2001:4860:4860::8888', '2a00:1450:4001::', '::ffff:8.8.8.8']) {
+      expect(isPrivateAddress(a), a).toBe(false);
+    }
+  });
+});

@@ -130,3 +130,14 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Dampak: tidak ada klaim baru tanpa bukti; pekerjaan tidak diulang. Gate G4 baru dapat dijalankan setelah ACU.2 terpenuhi.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-016 — Tindak lanjut review G3 (ADR-0003 dan cakupan U4.x)
+- Task: G3, U4.0, U4.3, FIX-G1-05
+- Konteks: reviewer G3 menemukan (a) `docs/decisions/ADR-0003-office-view-pixel-agents.md` masih berstatus "Diterima (diverifikasi di spike U4.0)" padahal U4.0 SKIPPED dan D-014 menyimpang ke renderer Canvas sendiri; (b) U4.3 DONE melebihi DoD "seluruh tabel pemetaan"; (c) judul FIX-G1-05 menyebut `complete_stage` yang sengaja tidak dibatasi.
+- Pilihan:
+  - ADR-0003 adalah berkas owner yang belum di-commit; implementer TIDAK mengubahnya. Owner diminta mengubah status menjadi "Diubah oleh D-014: renderer Canvas sendiri; Pixel Agents tidak dijalankan" (REVIEW-OWNER).
+  - U4.3 dicatat DONE-SEBAGIAN: yang live dengan data nyata = karakter+name tag, run berjalan, run gagal, pause/resume, badge antrean owner; belum live = Papan Tayang (hanya SIMULASI), Ruang Rapat/gate review, ikon tool (🎨/🔎), pemetaan Rejected, pembacaan approval oleh bridge. U4.1 tidak punya screenshot "denah kosong" persis (live-01 menampilkan semua karakter di Lounge).
+  - FIX-G1-05: pembatasan peran hanya untuk verify_candidate, render_carousel, qa_submit_result, handoff_to_owner. `complete_stage`/`set_issue_status in_review` tidak dibatasi karena dipakai semua tahap sebagai penanda akhir; risiko in_review tanpa QA ditutup oleh syarat dokumen handoff di keputusan owner (FIX-G2-02).
+- Dampak: tidak ada klaim bukti baru; hanya koreksi catatan.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER

@@ -58,6 +58,11 @@ function isPrivateV6(h) {
   if (!g || g.length !== 8) return true; // tidak terurai: anggap berbahaya
   const v4of = (hi, lo) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
   if (g.every((x) => x === 0)) return true;                                   // :: (unspecified)
+  if (g.slice(0, 4).every((x) => x === 0) && g[4] === 0xffff && g[5] === 0) return isPrivateV4(v4of(g[6], g[7])); // ::ffff:0:a.b.c.d (SIIT)
+  if (g[0] === 0x2001 && g[1] === 0) return true;                             // 2001::/32 Teredo
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 1) return true;            // 64:ff9b:1::/48 NAT64 lokal
+  if (g[0] === 0x100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true;  // 100::/64 discard
+  if ((g[0] & 0xffc0) === 0xfec0) return true;                                // fec0::/10 site-local (usang)
   if (g.slice(0, 7).every((x) => x === 0) && g[7] === 1) return true;        // ::1
   if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) return isPrivateV4(v4of(g[6], g[7])); // ::ffff:a.b.c.d (IPv4-mapped)
   if (g.slice(0, 6).every((x) => x === 0)) return isPrivateV4(v4of(g[6], g[7]));                      // ::a.b.c.d (IPv4-compatible)
@@ -78,7 +83,7 @@ export function isPrivateAddress(addr) {
 }
 
 function isPrivateHost(hostname) {
-  const h = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  const h = hostname.replace(/^\[|\]$/g, '').toLowerCase().replace(/\.+$/, ''); // FIX-G3-04: "localhost." sama dengan "localhost"
   if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
   return isPrivateAddress(h);
 }

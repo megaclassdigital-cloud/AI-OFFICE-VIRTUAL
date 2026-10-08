@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { makeAgentTools, TOOL_DEFS } from '../../plugins/aao-approval-gate/src/agent-tools.js';
 import { runRender } from '../../plugins/aao-approval-gate/src/render-tool.js';
@@ -96,7 +96,7 @@ describe('1. Sukses [PENUH untuk jalur kode; tahap LLM tidak ikut]', () => {
   }, 180_000);
 });
 
-describe('2. Provider gagal [BAGIAN KODE]', () => {
+describe('2. Provider gagal [BAGIAN KODE; catatan: sumber tak terjangkau disimulasikan dengan memutasi catatan verifikasi, bukan mematikan jaringan]', () => {
   it('sumber tak terjangkau dicatat gagal; verified palsu atas sumber itu ditolak QA; tidak ada handoff; issue tetap in_progress', async () => {
     const w = world();
     const t = makeAgentTools(w.ctx);
@@ -138,7 +138,7 @@ describe('4. Input tidak valid [PENUH untuk validasi]', () => {
   });
 });
 
-describe('5. Tool gagal: URL sumber 404 [PENUH untuk kode]', () => {
+describe('5. Tool gagal: URL sumber 404 [PENUH untuk kode; penandaan rejected oleh Verifier LLM tidak diuji]', () => {
   let server; let base;
   beforeAll(async () => {
     server = http.createServer((req, res) => {
@@ -177,7 +177,8 @@ describe('7. Approval ditolak [PENUH untuk kode]', () => {
   it('reject dengan catatan: kembali ke Copywriter, catatan menjadi konteks, record bertanda tangan', async () => {
     const w = world(clone(golden), 'in_review');
     const hash = currentPackageHash({ carousel: golden.carousel, design: golden['carousel-design'], renderDir }).hash.combined;
-    w.store.set('handoff', `# Handoff\n- Hash isi paket (sha256): ${hash}\n`);
+    const sheet = createHash('sha256').update(readFileSync(path.join(renderDir, 'contact-sheet.png'))).digest('hex');
+    w.store.set('handoff', `# Handoff\n- Hash isi paket (sha256): ${hash}\n- contact-sheet.png (sha256 ${sheet})\n`);
     const approvalDir = makeTmp('aao-s7-');
     const r = await decide({ client: w.client, token: TOKEN, expectedToken: TOKEN, issueId: ISSUE, decision: 'rejected', note: 'Slide 2 terlalu teknis.', approvalDir, renderDir });
     expect(r.returnedTo).toBe('Copywriter');
@@ -203,7 +204,7 @@ describe('8. Duplikat [BAGIAN KODE]', () => {
   // Belum terbukti: server Paperclip benar-benar melewati pemicu kedua (butuh routine aktif + izin run; O-005).
 });
 
-describe('10. Bypass approval [PENUH]', () => {
+describe('10. Bypass approval [PENUH untuk kode; sandbox agent nyata BELUM terbukti, FIX-G2-01b]', () => {
   it('prepare_publication tanpa approval ditolak dan tercatat; agent tidak punya tool publikasi/approval', () => {
     const root = makeTmp('aao-s10-');
     const args = { issue: { id: ISSUE, identifier: 'EDU-90' }, carousel: golden.carousel, design: golden['carousel-design'], renderDir, approvalDir: path.join(root, 'a'), token: TOKEN, issueStatus: 'done', outRoot: path.join(root, 'out', 'edukasiai'), auditFile: path.join(root, 'out', 'audit.log') };
@@ -235,7 +236,7 @@ describe('11. Regresi upgrade Paperclip [BAGIAN KODE]', () => {
   // Belum terbukti: git pull/upgrade Paperclip sungguhan lalu AC1.2 lolos lagi (upgrade adalah task terpisah dengan regression test, CLAUDE.md aturan 7).
 });
 
-describe('12-13. Teks meluber dan template hilang [PENUH]', () => {
+describe('12-13. Teks meluber [PENUH] dan template hilang [PENUH untuk template; ikon/aset hilang BELUM diuji]', () => {
   const render = path.join(repoRoot, 'scripts', 'render.mjs');
   const cover = (slots, template = 'cover') => ({ createdAt: '2026-10-08T00:00:00.000Z', brand: 'edukasiai', canvas: { width: 1080, height: 1350 }, slides: [{ index: 1, template, slots }] });
   const go = async (design) => { const dir = makeTmp('aao-s12-'); const out = path.join(dir, 'out'); const r = await runNode([render, '--design', writeJson(dir, 'd.json', design), '--out', out]); return { ...r, pngs: countPng(out), out }; };

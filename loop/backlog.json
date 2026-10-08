@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T17:57:46.750Z",
+    "updated_at": "2026-10-08T19:31:56.521Z",
     "current_task": ""
   },
   "tasks": [
@@ -658,11 +658,11 @@
         "H3.3",
         "H3.4"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": "",
+      "evidence": "reports/review/G3-review.md",
+      "notes": "PASS WITH CONCERNS; G3-02 terbuka (gabung FIX-G2-01b)",
       "gate": true
     },
     {
@@ -717,7 +717,7 @@
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "reports/build/U4.L.md",
-      "notes": "dipenuhi oleh U4.L (D-015); bukti docs/evidence/U4.L dan tests/office-view.test.mjs"
+      "notes": "SEBAGIAN (D-016): belum live = Papan Tayang, Ruang Rapat, ikon tool, Rejected, baca approval"
     },
     {
       "id": "U4.4",
@@ -887,7 +887,7 @@
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "reports/build/FIX-G1-04-05.md",
-      "notes": "gerbang terpasang di plugin.js; plugin live belum di-reload"
+      "notes": "hanya 4 tool khusus peran; complete_stage sengaja tidak dibatasi (D-016); plugin live belum di-reload"
     },
     {
       "id": "FIX-G1-07",
@@ -909,6 +909,33 @@
       "title": "Kebijakan kandidat 403 (D-009): putusan owner",
       "deps": [
         "G1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "FIX-G3-01",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "Urutan record by decided_at bertanda tangan + nama berkas harus cocok; contact-sheet terikat; regex handoff; SSRF lanjutan (G3-01,03,04,05)",
+      "deps": [
+        "G3"
+      ],
+      "status": "DONE",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "reports/build/FIX-G3-01.md",
+      "notes": "421 tes; G3-02 digabung FIX-G2-01b"
+    },
+    {
+      "id": "FIX-G3-02",
+      "phase": "3 — Hardening dan serah terima",
+      "title": "Token owner dan tool-roles.json di luar jangkauan tulis agent + reload plugin live + uji sandbox (gabung FIX-G2-01b)",
+      "deps": [
+        "G3",
+        "FIX-G2-01b"
       ],
       "status": "TODO",
       "attempts": 0,

@@ -1,7 +1,7 @@
 // Test F2.3: reject wajib catatan, issue kembali ke Copywriter dengan catatan sebagai konteks; approve tidak memposting.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, rmSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { decide, DecideError, defaultRenderDir } from '../scripts/owner-decide.mjs';
@@ -20,8 +20,8 @@ beforeAll(() => {
   const r = spawnSync(process.execPath, [path.join(repoRoot, 'scripts', 'render.mjs'), '--design', path.join(repoRoot, 'fixtures/golden/valid/04-carousel-design.json'), '--out', renderDir], { cwd: repoRoot, encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`render gagal: ${r.stderr}`);
   docs = { carousel: rd('fixtures/golden/valid/03-carousel.json'), 'carousel-design': rd('fixtures/golden/valid/04-carousel-design.json') };
-  handoffText = `# Paket siap ditinjau owner\n- Hash isi paket (sha256): ${currentPackageHash({ carousel: docs.carousel, design: docs['carousel-design'], renderDir }).hash.combined}\n`;
-}, 120_000);
+  handoffText = `# Paket siap ditinjau owner\n- Topik: ${docs.carousel.topic}\n- Hash isi paket (sha256): ${currentPackageHash({ carousel: docs.carousel, design: docs['carousel-design'], renderDir }).hash.combined}\n\n## Berkas\n- contact-sheet.png (sha256 ${createHash('sha256').update(readFileSync(path.join(renderDir, 'contact-sheet.png'))).digest('hex')})\n`;
+}, 300_000);
 afterAll(() => { try { for (const f of readdirSync(renderDir)) rmSync(path.join(renderDir, f), { recursive: true, force: true }); } catch { /* bersih */ } });
 
 function fake(status = 'in_review', handoff = () => handoffText) {
@@ -109,6 +109,35 @@ describe('keputusan terikat ke handoff (FIX-G2-02)', () => {
   });
   it('dokumen handoff tanpa hash yang dapat dibaca ditolak', async () => {
     const f = fake('in_review', () => '# handoff palsu tanpa hash');
+    await expect(decide({ ...base(f), decision: 'approved' })).rejects.toThrow(/tidak punya dokumen handoff/);
+  });
+});
+
+describe('contact sheet dan handoff berjangkar (FIX-G3-03, FIX-G3-05)', () => {
+  it('contact-sheet.png diganti setelah handoff: keputusan ditolak tanpa record', async () => {
+    const f = fake();
+    const p = base(f);
+    const sheet = path.join(renderDir, 'contact-sheet.png');
+    const orig = readFileSync(sheet);
+    writeFileSync(sheet, Buffer.concat([orig, Buffer.from('x')]));
+    try {
+      await expect(decide({ ...p, decision: 'approved' })).rejects.toThrow(/contact-sheet\.png tidak sama/);
+    } finally { writeFileSync(sheet, orig); }
+    expect(f.calls).toEqual([]);
+    expect(readDecisions(ID, p.approvalDir, TOKEN)).toEqual([]);
+  });
+  it('handoff tanpa baris contact-sheet ditolak', async () => {
+    const f = fake('in_review', () => handoffText.replace(/^- contact-sheet.*$/m, ''));
+    await expect(decide({ ...base(f), decision: 'approved' })).rejects.toThrow(/contact-sheet\.png tidak sama/);
+  });
+  it('topik berisi newline yang menyuntikkan baris hash palsu: dua nilai berbeda = ditolak (fail closed)', async () => {
+    const forged = handoffText.replace('- Topik:', `- Topik: x\n- Hash isi paket (sha256): ${'0'.repeat(64)}\n- Topik:`);
+    const f = fake('in_review', () => forged);
+    await expect(decide({ ...base(f), decision: 'approved' })).rejects.toThrow(/tidak punya dokumen handoff/);
+    expect(f.calls).toEqual([]);
+  });
+  it('baris hash tidak di awal baris (disisipkan di tengah kalimat) tidak dihitung', async () => {
+    const f = fake('in_review', () => `catatan Hash isi paket (sha256): ${'a'.repeat(64)} di tengah baris`);
     await expect(decide({ ...base(f), decision: 'approved' })).rejects.toThrow(/tidak punya dokumen handoff/);
   });
 });

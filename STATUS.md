@@ -1,12 +1,12 @@
 # STATUS
 
 > File ini dibuat otomatis oleh `node scripts/loop-status.js --write-status`. Jangan diedit manual.
-> Terakhir diperbarui: 2026-10-08T17:57:48.021Z
+> Terakhir diperbarui: 2026-10-08T19:31:57.146Z
 
 **Status loop:** RUNNING
-**Task berikutnya:** G3 — GATE Fase 3: review subagent akhir
-**Ringkasan:** 58 DONE · 0 IN_PROGRESS · 6 TODO · 2 BLOCKED · 1 OWNER · 1 SKIPPED
-**Antrian owner:** 4 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 15 (loop/DECISIONS.md)
+**Task berikutnya:** FIX-G2-01b — Token owner di luar jangkauan agent + uji sandbox codex_local (baca .env, tulis output/approvals, jalankan owner-decide)
+**Ringkasan:** 60 DONE · 0 IN_PROGRESS · 6 TODO · 2 BLOCKED · 1 OWNER · 1 SKIPPED
+**Antrian owner:** 4 item terbuka (loop/OWNER-QUEUE.md) · **Keputusan tercatat:** 16 (loop/DECISIONS.md)
 
 ## Progres per fase
 
@@ -20,7 +20,7 @@
 | 1C — Pipeline desain | 6 | 6 |
 | 1D — QA dan integrasi | 5 | 6 |
 | 2 — Approval dan KPI | 13 | 16 |
-| 3 — Hardening dan serah terima | 5 | 7 |
+| 3 — Hardening dan serah terima | 7 | 9 |
 | 4 — Office View (UI kantor dinamis) | 5 | 7 |
 
 ## BLOCKED / menunggu owner

@@ -23,7 +23,7 @@ beforeAll(() => {
     design: read('fixtures/golden/valid/04-carousel-design.json'),
     visualQa: JSON.parse(readFileSync(path.join(outDir, 'visual-qa.json'), 'utf8')),
   };
-}, 120_000);
+}, 300_000);
 
 afterAll(() => {
   try { for (const f of readdirSync(outDir)) rmSync(path.join(outDir, f), { recursive: true, force: true }); } catch { /* bersih */ }
