@@ -1,0 +1,182 @@
+{
+  "renderedAt": "2026-10-08T08:48:05.374Z",
+  "renderer": {
+    "engine": "playwright-chromium",
+    "version": "1.56.0"
+  },
+  "canvas": {
+    "width": 1080,
+    "height": 1350
+  },
+  "slideCount": 6,
+  "pngCount": 6,
+  "passed": true,
+  "thresholds": {
+    "minFontPx": 28,
+    "minContrastRatio": 4.5
+  },
+  "slides": [
+    {
+      "index": 1,
+      "file": "slide-01.png",
+      "template": "cover",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "ok": true,
+          "measured": "1080x1350"
+        },
+        "noOverflow": {
+          "ok": true
+        },
+        "minFontSize": {
+          "ok": true,
+          "measured": 28
+        },
+        "contrast": {
+          "ok": true,
+          "measured": 4.5
+        },
+        "slotLimits": {
+          "ok": true,
+          "detail": "divalidasi sebelum render"
+        }
+      }
+    },
+    {
+      "index": 2,
+      "file": "slide-02.png",
+      "template": "point",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "ok": true,
+          "measured": "1080x1350"
+        },
+        "noOverflow": {
+          "ok": true
+        },
+        "minFontSize": {
+          "ok": true,
+          "measured": 28
+        },
+        "contrast": {
+          "ok": true,
+          "measured": 4.5
+        },
+        "slotLimits": {
+          "ok": true,
+          "detail": "divalidasi sebelum render"
+        }
+      }
+    },
+    {
+      "index": 3,
+      "file": "slide-03.png",
+      "template": "stat",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "ok": true,
+          "measured": "1080x1350"
+        },
+        "noOverflow": {
+          "ok": true
+        },
+        "minFontSize": {
+          "ok": true,
+          "measured": 28
+        },
+        "contrast": {
+          "ok": true,
+          "measured": 4.5
+        },
+        "slotLimits": {
+          "ok": true,
+          "detail": "divalidasi sebelum render"
+        }
+      }
+    },
+    {
+      "index": 4,
+      "file": "slide-04.png",
+      "template": "quote",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "ok": true,
+          "measured": "1080x1350"
+        },
+        "noOverflow": {
+          "ok": true
+        },
+        "minFontSize": {
+          "ok": true,
+          "measured": 28
+        },
+        "contrast": {
+          "ok": true,
+          "measured": 4.5
+        },
+        "slotLimits": {
+          "ok": true,
+          "detail": "divalidasi sebelum render"
+        }
+      }
+    },
+    {
+      "index": 5,
+      "file": "slide-05.png",
+      "template": "comparison",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "ok": true,
+          "measured": "1080x1350"
+        },
+        "noOverflow": {
+          "ok": true
+        },
+        "minFontSize": {
+          "ok": true,
+          "measured": 28
+        },
+        "contrast": {
+          "ok": true,
+          "measured": 4.5
+        },
+        "slotLimits": {
+          "ok": true,
+          "detail": "divalidasi sebelum render"
+        }
+      }
+    },
+    {
+      "index": 6,
+      "file": "slide-06.png",
+      "template": "cta",
+      "passed": true,
+      "checks": {
+        "dimensions": {
+          "ok": true,
+          "measured": "1080x1350"
+        },
+        "noOverflow": {
+          "ok": true
+        },
+        "minFontSize": {
+          "ok": true,
+          "measured": 28
+        },
+        "contrast": {
+          "ok": true,
+          "measured": 4.5
+        },
+        "slotLimits": {
+          "ok": true,
+          "detail": "divalidasi sebelum render"
+        }
+      }
+    }
+  ]
+}

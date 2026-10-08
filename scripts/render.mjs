@@ -177,6 +177,22 @@ for (const entry of await readdir(outDir)) {
 }
 
 const browser = await chromium.launch({ headless: true });
+// Font lokal (F1.6a): di-embed sebagai data URI supaya render tidak menyentuh jaringan dan tidak bergantung
+// pada font yang terpasang di mesin. Tanpa ini Chromium diam-diam jatuh ke Segoe UI.
+const fontDir = path.join(brandDir, brand.typography.localFontDir ?? 'fonts');
+const FONT_FILES = [[400, 'Inter-Regular.woff2'], [500, 'Inter-Medium.woff2'], [600, 'Inter-SemiBold.woff2'], [700, 'Inter-Bold.woff2']];
+let fontCss = '';
+for (const [weight, file] of FONT_FILES) {
+  const fp = path.join(fontDir, file);
+  if (!existsSync(fp)) {
+    console.error(`GAGAL: font lokal tidak ada: ${fp}`);
+    process.exit(2);
+  }
+  const b64 = (await readFile(fp)).toString('base64');
+  fontCss += `@font-face{font-family:'Inter';font-style:normal;font-weight:${weight};font-display:block;src:url(data:font/woff2;base64,${b64}) format('woff2');}
+`;
+}
+const fontsUsed = new Set();
 const slideResults = [];
 const total = design.slides.length;
 
@@ -214,6 +230,7 @@ try {
       waitUntil: 'load',
       baseURL: pathToFileURL(path.join(brandDir, 'templates') + path.sep).href,
     });
+    await page.addStyleTag({ content: fontCss });
     await page.addStyleTag({ content: vars });
     await page.addStyleTag({ path: path.join(brandDir, 'templates', 'base.css') });
 
@@ -244,6 +261,11 @@ try {
     );
 
     await page.evaluate(() => document.fonts.ready);
+    const loadedFonts = await page.evaluate(() =>
+      [...document.fonts].filter((f) => f.status === 'loaded').map((f) => `${f.family.replace(/['"]/g, '')} ${f.weight}`)
+    );
+    if (!loadedFonts.some((f) => f.startsWith('Inter '))) throw new Error(`font Inter tidak termuat pada slide ${slide.index}; jatuh ke font lain`);
+    loadedFonts.forEach((f) => fontsUsed.add(f));
 
     // ── Cek visual dari DOM, bukan dari gambar ─────────────────────────────
     const measured = await page.evaluate(
@@ -420,6 +442,7 @@ const report = {
 };
 
 await writeFile(path.join(outDir, 'visual-qa.json'), JSON.stringify(report, null, 2), 'utf8');
+await writeFile(path.join(outDir, 'fonts.json'), JSON.stringify([...fontsUsed].sort(), null, 2), 'utf8');
 await writeFile(
   path.join(outDir, 'hashes.json'),
   JSON.stringify(Object.fromEntries(slideResults.map((s) => [s.file, s.sha256])), null, 2),
