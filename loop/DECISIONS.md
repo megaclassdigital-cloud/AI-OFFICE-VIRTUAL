@@ -102,3 +102,11 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Dampak: halaman approval nyata akan ditambahkan di F2.1 setelah FIX-G1-01..03.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-013 — Office View live diprioritaskan atas permintaan owner, 8 Okt 2026
+- Task: U4.L (ditambahkan di urutan paling atas backlog, deps [])
+- Konteks: owner meminta Office View (kantor virtual pixel art dinamis) tampil LIVE hari ini untuk presentasi, digerakkan data nyata Paperclip, dengan mode replay cadangan. Spesifikasi `docs/ui/OFFICE-VIEW.md`, ADR-0003.
+- Pilihan: prioritas di atas F2.1 dan FIX-G1-*. Tidak ada task IN_PROGRESS yang tertahan. FIX-G1 dan F2.1 dilanjutkan setelah U4.L.
+- Dampak: perbaikan keamanan G1 (FIX-G1-01..03) tertunda beberapa jam; F2.1 tetap tidak dimulai sebelum FIX-G1-01..03 selesai.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER

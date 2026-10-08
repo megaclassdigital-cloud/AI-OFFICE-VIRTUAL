@@ -40,7 +40,7 @@ Bukti: diff konfigurasi telemetry, `/api/health` tetap OK setelah restart.
 
 F0.1, F0.2, F0.2b, F0.3, F0.4, F0.5, F0.6, F0.7: **DONE**. Bukti di `reports/build/2026-10-0*_F0.*.md` dan `docs/spike/`.
 
-**G0 — Gate Fase 0.** Prosedur gate LOOP.md bagian 8. Tambahan khusus G0: jalankan `node scripts/smoke-test.mjs` (harus 29 PASS) dan minta reviewer memeriksa apakah klaim AC0.1–AC0.5 di `docs/spike/report.md` didukung file bukti yang benar-benar ada.
+**G0 — Gate Fase 0.** Prosedur gate LOOP.md bagian 5. Tambahan khusus G0: jalankan `node scripts/smoke-test.mjs` (harus 29 PASS) dan minta reviewer memeriksa apakah klaim AC0.1–AC0.5 di `docs/spike/report.md` didukung file bukti yang benar-benar ada.
 
 ## Fase 1A — Fondasi kode dan tiga blocker spike
 
@@ -146,7 +146,7 @@ Bukti: output lengkap.
 
 **G3 — Gate Fase 3.**
 
-**X.FINAL — Laporan akhir.** Lihat LOOP.md bagian 14.
+**X.FINAL — Laporan akhir.** Lihat LOOP.md bagian 6.
 
 ---
 
@@ -155,3 +155,23 @@ Bukti: output lengkap.
 - **Burn-in 2 minggu (AC2.4)**: 5 carousel per minggu selama 2 minggu. Butuh waktu kalender dan approval owner.
 - Persetujuan brand kit final (palet, logo, font).
 - Keputusan kuota: apakah langganan Codex cukup untuk 5 carousel per minggu.
+
+## Fase 4 — Office View (UI kantor dinamis)
+
+Spesifikasi: `docs/ui/OFFICE-VIEW.md`. Keputusan: ADR-0003. Referensi visual: `docs/ui/referensi-office-view.png`.
+Fase ini tidak menahan Fase 2–3. Kerjakan setelah G1, berselang-seling dengan task lain sesuai urutan backlog.
+
+**U4.0 — Spike.** Jalankan Pixel Agents v1.4.1 mode standalone di `127.0.0.1` (port bebas, bukan 3100/3177). Buktikan: (a) karakter bisa dibuat untuk agent yang bukan sesi Claude Code (provider eksternal atau pesan WebSocket di `core/asyncapi.yaml`); (b) karakter bisa dipindah ke Area lain secara terprogram; (c) asal-usul dan lisensi setiap aset tercatat di `docs/ui/asset-licenses.md`. Putuskan bridge eksternal vs fork ringan di `apps/office-view/`, perbarui ADR-0003.
+Bukti: screenshot, catatan lisensi, keputusan D-NNN.
+
+**U4.1 — Denah.** `divisions/edukasiai/office/layout.json` dengan 8 ruang di OFFICE-VIEW.md. Bukti: screenshot denah kosong.
+
+**U4.2 — office-bridge.** Modul deterministik yang membaca Paperclip (run, issue, komentar, approval) dan mengeluarkan office event ternormalisasi. Hanya membaca. Mendukung replay dari `fixtures/office-events/*.jsonl`. Bukti: test dengan rekaman event.
+
+**U4.3 — Perilaku dinamis.** Seluruh tabel pemetaan di OFFICE-VIEW.md, termasuk handoff (berjalan membawa dokumen ke meja tujuan). Bukti: rangkaian screenshot per kejadian.
+
+**U4.4 — Name tag dan badge.** Nama, peran, ID issue, emoji status, badge antrean approval. Bukti: screenshot.
+
+**U4.5 — Bukti end-to-end.** ACU.1–ACU.5 di OFFICE-VIEW.md. Bukti: GIF/rangkaian screenshot replay E1.1, log latency, daftar request jaringan.
+
+**G4 — Gate Fase 4.**

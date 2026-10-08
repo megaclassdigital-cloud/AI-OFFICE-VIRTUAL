@@ -9,6 +9,17 @@
   },
   "tasks": [
     {
+      "id": "U4.L",
+      "phase": "U — Office View",
+      "title": "Office View live (+ replay cadangan): kantor virtual dinamis digerakkan data nyata Paperclip",
+      "deps": [],
+      "status": "IN_PROGRESS",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "Prioritas tertinggi atas permintaan owner 2026-10-08. Spesifikasi docs/ui/OFFICE-VIEW.md, ADR-0003."
+    },
+    {
       "id": "L0.1",
       "phase": "L — Bootstrap loop",
       "title": "Inisialisasi git repo lokal dan commit awal (pastikan workspace/, node_modules/, .env tidak ikut)",
@@ -646,6 +657,101 @@
       "deps": [
         "H3.3",
         "H3.4"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "",
+      "gate": true
+    },
+    {
+      "id": "U4.0",
+      "phase": "4 — Office View (UI kantor dinamis)",
+      "title": "Spike Office View: jalankan Pixel Agents v1.4.1 standalone, uji agent non-Claude, perpindahan antar area, catat lisensi aset",
+      "deps": [
+        "G1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": "ADR-0003. Putuskan bridge eksternal vs fork ringan."
+    },
+    {
+      "id": "U4.1",
+      "phase": "4 — Office View (UI kantor dinamis)",
+      "title": "Denah kantor EdukasiAI sebagai data (layout.json): 8 ruang, meja per agent, meja owner",
+      "deps": [
+        "U4.0"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "U4.2",
+      "phase": "4 — Office View (UI kantor dinamis)",
+      "title": "office-bridge deterministik: Paperclip API ke office event, read-only, + rekaman event untuk replay",
+      "deps": [
+        "U4.0",
+        "F1.0e"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "U4.3",
+      "phase": "4 — Office View (UI kantor dinamis)",
+      "title": "Perilaku dinamis: pemetaan status ke ruang/animasi/bubble sesuai OFFICE-VIEW.md, termasuk handoff membawa dokumen",
+      "deps": [
+        "U4.1",
+        "U4.2"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "U4.4",
+      "phase": "4 — Office View (UI kantor dinamis)",
+      "title": "Name tag, ID issue, emoji status, badge antrean approval di meja owner",
+      "deps": [
+        "U4.3"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "U4.5",
+      "phase": "4 — Office View (UI kantor dinamis)",
+      "title": "Bukti end-to-end: replay pipeline E1.1 + event nyata, latency <= 5 detik, nol panggilan LLM",
+      "deps": [
+        "U4.4",
+        "E1.1"
+      ],
+      "status": "TODO",
+      "attempts": 0,
+      "max_attempts": 3,
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "G4",
+      "phase": "4 — Office View (UI kantor dinamis)",
+      "title": "GATE Fase 4: review subagent Office View",
+      "deps": [
+        "U4.5"
       ],
       "status": "TODO",
       "attempts": 0,
