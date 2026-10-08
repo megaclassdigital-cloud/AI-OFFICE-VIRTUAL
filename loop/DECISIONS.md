@@ -94,3 +94,11 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Dampak: tinjauan owner di UI Paperclip belum menampilkan gambar. Perlu keputusan sebelum F2.1 (halaman approval).
 - Biaya membalik: sedang
 - Label: REVIEW-OWNER
+
+## D-012 — Office Console (UI) dibangun atas permintaan owner di luar backlog
+- Task: di luar backlog (permintaan owner di chat, 2026-10-08, merujuk spesifikasi awal bagian 24/26/27)
+- Konteks: owner meminta UI "seperti PRD di awal" sambil loop berjalan. Spesifikasi awal bagian 26: Office → Divisions → Agents → Tasks → Workflow state → Approval → Output → Audit; prioritas visibilitas dan debugging.
+- Pilihan: aplikasi web mandiri read-only di `console/` (Node tanpa dependensi, 127.0.0.1:3180) yang membaca API Paperclip dan berkas render; TIDAK memodifikasi `ui/` Paperclip (ADR-0001, PRD). Tidak ada tombol approve/reject (F2.1 belum dibangun dan butuh token owner). `Office Mega Class` dan `IsolationTest` disembunyikan.
+- Dampak: halaman approval nyata akan ditambahkan di F2.1 setelah FIX-G1-01..03.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER

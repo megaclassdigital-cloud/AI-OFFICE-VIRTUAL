@@ -5,6 +5,7 @@
   "description": "Repo AI Agent Office: plugin, template division, skema, script. Core Paperclip dipasang terpisah.",
   "license": "MIT",
   "scripts": {
+    "console": "node console/server.mjs",
     "install-division": "node scripts/install-division.mjs",
     "render-spike": "node scripts/render-spike.mjs",
     "test": "vitest run",

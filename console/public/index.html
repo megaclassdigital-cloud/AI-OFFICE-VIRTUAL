@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Agent Office</title>
+<link rel="icon" href="/brand/logo.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side">
+    <a class="brand" href="#/"><img src="/brand/logo.png" alt="" width="36" height="36"><span><b>AI Agent Office</b><small>Console owner · read-only</small></span></a>
+    <nav id="nav" aria-label="Navigasi"></nav>
+    <div class="side-foot" id="sideFoot"></div>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <button class="burger" id="burger" aria-label="Menu">☰</button>
+      <div id="crumbs" class="crumbs"></div>
+      <div class="top-right"><span id="health" class="chip">memeriksa…</span><span id="updated" class="muted"></span></div>
+    </header>
+    <div id="view" class="view" aria-live="polite"></div>
+  </main>
+</div>
+<script src="/app.js" type="module"></script>
+</body>
+</html>
