@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T16:52:18.572Z",
+    "updated_at": "2026-10-08T16:56:40.088Z",
     "current_task": ""
   },
   "tasks": [
@@ -617,11 +617,11 @@
       "deps": [
         "G2"
       ],
-      "status": "TODO",
+      "status": "DONE",
       "attempts": 0,
       "max_attempts": 3,
-      "evidence": "",
-      "notes": ""
+      "evidence": "reports/build/H3.2.md",
+      "notes": "scan 0 temuan; sandbox agent dan ACL master.key dicatat sebagai risiko (FIX-G2-01b)"
     },
     {
       "id": "H3.3",
