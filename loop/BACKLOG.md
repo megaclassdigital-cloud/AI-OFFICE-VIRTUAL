@@ -26,10 +26,12 @@ Adapter yang tersedia hanya `codex_local` (langganan owner). Setiap run agent me
 **L0.1 — Git lokal.** `git init`, periksa `.gitignore` (node_modules, `.env`, `workspace/*`, `output/*`, `loop/.guard-state.json`), jalankan `git status` dan pastikan tidak ada file rahasia atau berukuran > 5 MB yang ikut. Commit awal. Tidak menambah remote.
 Bukti: `git log --oneline -1`, daftar file > 1 MB yang ter-commit (seharusnya hanya PNG bukti).
 
-**L0.2 — Uji mesin loop.** `node scripts/loop-status.js --check`, `--next`, `--write-status`. Selftest hook di PowerShell: `'{"session_id":"selftest"}' | node .claude/hooks/loop-guard.js` harus mengeluarkan JSON `decision: block`. Hapus `loop/.guard-state.json` setelahnya.
-Bukti: output keempat perintah.
+**L0.2 — Uji mesin loop.** DONE (versi hook lama). Sejak revisi 2026-10-08 hook tidak dipakai lagi.
 
 **L0.3 — Baseline tooling.** DONE (`docs/versions.md`).
+
+**L0.5 — Bersihkan mekanisme hook lama.** Hapus `setup/claude/`, `scripts/install-loop-config.ps1`, `scripts/loop.ps1`, dan `loop/.guard-state.json` (jika ada). Pastikan `.claude/settings.json` proyek tidak berisi hook `loop-guard`/`session-start` (folder `.claude` saat ini memang tidak ada). Tandai O-001 di OWNER-QUEUE sebagai `[x] DIBATALKAN — hook tidak dipakai lagi (revisi 2026-10-08)`. Hapus bagian loop.ps1/--pause/--resume dari `scripts/README.md`. Commit.
+Bukti: `git status` dan `git show --stat` commit tersebut.
 
 **L0.4 — Default keputusan tertunda.** Terapkan `loop/DEFAULTS.md` bagian "Keputusan operasional": matikan telemetry Paperclip lewat konfigurasi (bukan kode), jangan sentuh company `Office Mega Class`, catat ID cost-event uji 250 sen agar dikecualikan KPI, start server tetap manual. Catat masing-masing sebagai D-NNN.
 Bukti: diff konfigurasi telemetry, `/api/health` tetap OK setelah restart.

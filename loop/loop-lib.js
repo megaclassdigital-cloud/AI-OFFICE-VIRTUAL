@@ -1,14 +1,13 @@
 // loop-lib.js — shared, dependency-free logic for the AI Agent Office engineering loop.
-// Used by .claude/hooks/loop-guard.js, .claude/hooks/session-start.js and scripts/loop-status.js.
+// Used by scripts/loop-status.js. Read-only helpers: no hooks, nothing here keeps a session running.
 // Source of truth for loop state: loop/backlog.json. Do not duplicate this logic elsewhere.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 const TASK_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED', 'OWNER', 'SKIPPED'];
-const LOOP_STATUSES = ['RUNNING', 'PAUSED', 'DONE', 'HARD_STOP', 'STALLED'];
+const LOOP_STATUSES = ['RUNNING', 'PAUSED', 'DONE', 'HARD_STOP', 'STALLED']; // informational only
 const SATISFIED = new Set(['DONE', 'SKIPPED']);
 const OPEN = new Set(['TODO', 'IN_PROGRESS']);
 
@@ -121,85 +120,6 @@ function waiting(backlog) {
     .filter((x) => x.cause);
 }
 
-function fingerprint(backlog) {
-  const essence = {
-    loop: backlog.loop.status,
-    tasks: backlog.tasks.map((t) => [t.id, t.status, t.attempts || 0, t.notes || '', t.evidence || '']),
-  };
-  return crypto.createHash('sha256').update(JSON.stringify(essence)).digest('hex');
-}
-
-// Pure decision used by the Stop hook. Returns { allow: boolean, reason: string, markStalled?: boolean }.
-// guardState: { session_id, fingerprint, sameCount, totalBlocks }
-function stopDecision(backlog, guardState, sessionId, opts = {}) {
-  const maxSame = opts.maxSame ?? 3;
-  const maxTotal = opts.maxTotal ?? 300;
-  const status = backlog.loop.status;
-
-  if (status !== 'RUNNING') {
-    return { allow: true, reason: `loop.status = ${status}` };
-  }
-  if (process.env.AAO_LOOP_OFF === '1') {
-    return { allow: true, reason: 'AAO_LOOP_OFF=1' };
-  }
-
-  const fp = fingerprint(backlog);
-  const sameSession = guardState && guardState.session_id === sessionId;
-  const sameCount = sameSession && guardState.fingerprint === fp ? guardState.sameCount + 1 : 1;
-  const totalBlocks = sameSession ? guardState.totalBlocks + 1 : 1;
-
-  if (sameCount > maxSame) {
-    return {
-      allow: true,
-      markStalled: true,
-      reason: `No change in loop/backlog.json across ${maxSame} consecutive stop attempts. Loop marked STALLED.`,
-      state: { session_id: sessionId, fingerprint: fp, sameCount, totalBlocks },
-    };
-  }
-  if (totalBlocks > maxTotal) {
-    return {
-      allow: true,
-      markStalled: true,
-      reason: `Safety limit: ${maxTotal} continuations in one session. Loop marked STALLED.`,
-      state: { session_id: sessionId, fingerprint: fp, sameCount, totalBlocks },
-    };
-  }
-
-  const state = { session_id: sessionId, fingerprint: fp, sameCount, totalBlocks };
-  const stops = hardStops(backlog);
-  if (stops.length) {
-    return {
-      allow: false,
-      state,
-      reason:
-        `HARD STOP condition: ${stops.map((t) => t.id).join(', ')} is BLOCKED. ` +
-        'Write reports/LOOP-HARD-STOP.md (what failed, evidence, options for the owner), ' +
-        'set loop.status = "HARD_STOP" in loop/backlog.json, regenerate STATUS.md, then stop.',
-    };
-  }
-
-  const next = nextTask(backlog);
-  if (next) {
-    const verb = next.final ? 'All other tasks are closed. Do the final task' : 'Continue the loop with';
-    return {
-      allow: false,
-      state,
-      reason:
-        `${verb} ${next.id} — ${next.title}. Follow loop/LOOP.md (cycle steps 1-8). ` +
-        'Do not ask the owner; use loop/DEFAULTS.md, record decisions in loop/DECISIONS.md, ' +
-        'owner-only items in loop/OWNER-QUEUE.md. Update loop/backlog.json after every step.',
-    };
-  }
-
-  return {
-    allow: false,
-    state,
-    reason:
-      'No actionable task remains but loop.status is still RUNNING. ' +
-      'If the final task is DONE, set loop.status = "DONE"; otherwise close it. Then regenerate STATUS.md and stop.',
-  };
-}
-
 function renderStatus(backlog, root = projectDir()) {
   const c = counts(backlog);
   const next = nextTask(backlog);
@@ -253,5 +173,5 @@ function renderStatus(backlog, root = projectDir()) {
 
 module.exports = {
   TASK_STATUSES, LOOP_STATUSES, projectDir, backlogPath, loadBacklog, saveBacklog, validate,
-  nextTask, hardStops, counts, waiting, fingerprint, stopDecision, renderStatus,
+  nextTask, hardStops, counts, waiting, renderStatus,
 };

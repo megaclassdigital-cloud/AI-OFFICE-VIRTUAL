@@ -4,7 +4,7 @@
     "status": "RUNNING",
     "status_reason": "",
     "started_at": "2026-10-08T01:48:43.037Z",
-    "updated_at": "2026-10-08T08:36:40.007Z",
+    "updated_at": "2026-10-08T08:38:53.052Z",
     "current_task": ""
   },
   "tasks": [
@@ -344,11 +344,11 @@
       "deps": [
         "G0"
       ],
-      "status": "TODO",
+      "status": "BLOCKED",
       "attempts": 0,
       "max_attempts": 3,
       "evidence": "",
-      "notes": "brand.json sudah ada (status sementara). fonts/ dan icons/ masih kosong; render memakai Segoe UI."
+      "notes": "Menunggu izin unduh font Inter (O-003)"
     },
     {
       "id": "F1.6b",
