@@ -141,3 +141,11 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Dampak: tidak ada klaim bukti baru; hanya koreksi catatan.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-017 — Dua berkas milik owner ikut ter-commit tanpa sengaja
+- Task: (lintas task; ditemukan saat G3)
+- Konteks: pada commit `f25fdd6` (FIX-G2-01,02,03,05) berkas `scripts/loop-status.js` — berkas terlarang di CLAUDE.md yang sudah dimodifikasi owner sebelum sesi — ikut ter-commit karena implementer memakai `git add scripts`; pada commit `726165c` (H3.4) berkas `docs/decisions/ADR-0003-office-view-pixel-agents.md` (berkas owner yang belum di-commit) ikut karena `git add docs`. Isi kedua berkas TIDAK diubah implementer. Commit hanya lokal (tidak ada remote, tidak ada push).
+- Pilihan: tidak menulis ulang riwayat git (tindakan destruktif di luar wewenang implementer). Mulai sekarang implementer hanya men-stage berkas per nama, tidak per folder. `CLAUDE.md` dan `README.md` (modifikasi owner) tetap belum ter-commit.
+- Dampak: riwayat memuat modifikasi owner atas dua berkas itu atas nama commit implementer. Bila owner tidak menghendaki, owner dapat memisahkannya sendiri (mis. `git revert`/rebase lokal) karena belum ada push.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER
