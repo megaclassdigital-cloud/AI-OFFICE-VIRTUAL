@@ -13,6 +13,8 @@ function h(tag, attrs = {}, ...kids) {
   for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
   return el;
 }
+// replaceChildren(null) menulis teks "null" di DOM: saring nilai kosong dan ratakan array.
+function setKids(el, ...kids) { el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false)); }
 const jget = (u) => fetch(u, { cache: 'no-store' }).then((r) => r.json());
 const hhmm = (ms) => (ms ? new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':') : '');
 const hhmmss = (ms) => (ms ? new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replaceAll('.', ':') : '');
@@ -142,11 +144,11 @@ const agentNames = ['Manager', 'Researcher', 'Verifier', 'Copywriter', 'Designer
 function pickAgent(name) { state.agent = name; ls.set('dock.agent', name); window.__office?.select?.(name); loadAgent(); }
 async function loadAgent() {
   const chips = h('div', { class: 'chips' }, agentNames.map((n) => h('button', { type: 'button', class: 'chip' + (n === state.agent ? ' on' : ''), onclick: () => pickAgent(n) }, `${AGENT_ICON[n]} ${n}`)));
-  if (!state.agent) { agentTab.replaceChildren(chips, h('p', { class: 'hint' }, 'Klik karakter di peta, atau pilih agen di atas, untuk melihat sedang apa dia dan jejak kerjanya.')); return; }
-  if (!agentTab.querySelector('.card')) agentTab.replaceChildren(chips, h('p', { class: 'hint' }, `Memuat ${state.agent}…`)); // kerangka seketika, data menyusul
+  if (!state.agent) { setKids(agentTab, chips, h('p', { class: 'hint' }, 'Klik karakter di peta, atau pilih agen di atas, untuk melihat sedang apa dia dan jejak kerjanya.')); return; }
+  if (!agentTab.querySelector('.card')) setKids(agentTab, chips, h('p', { class: 'hint' }, `Memuat ${state.agent}…`)); // kerangka seketika, data menyusul
   let d; try { d = await jget(`/api/inspect/agent?name=${encodeURIComponent(state.agent)}`); } catch { d = { error: 'tidak terhubung' }; }
   if (state.tab !== 'agent') return;
-  if (d.error) { agentTab.replaceChildren(chips, h('p', { class: 'hint' }, `Gagal memuat: ${d.error}`)); return; }
+  if (d.error) { setKids(agentTab, chips, h('p', { class: 'hint' }, `Gagal memuat: ${d.error}`)); return; }
   const a = d.agent;
   const head = h('div', { class: 'card head' },
     h('div', { class: 'avatar' }, AGENT_ICON[a.name] ?? '🙂'),
@@ -162,7 +164,7 @@ async function loadAgent() {
     (d.runs ?? []).length ? h('ul', { class: 'runs' }, d.runs.map((r) => h('li', {}, h('span', { class: `dot ${RUN_COLOR[r.status] ?? 'mut'}` }), `${hhmm(Date.parse(r.startedAt))} · ${r.status}`, r.error ? h('div', { class: 'sub bad' }, r.error) : null))) : h('div', { class: 'sub' }, 'Belum ada.'));
   const cm = h('div', { class: 'card' }, h('h4', {}, 'Komentar terbaru dari agen ini'),
     (d.comments ?? []).length ? d.comments.map((c) => h('div', { class: 'cm' }, h('div', { class: 'sub' }, `${hhmm(Date.parse(c.at))}`), c.body)) : h('div', { class: 'sub' }, 'Belum ada.'));
-  agentTab.replaceChildren(chips, head, now, timeline, runs, cm);
+  setKids(agentTab, chips, head, now, timeline, runs, cm);
 }
 
 // ───────── Approval inbox ─────────
@@ -171,7 +173,7 @@ async function loadAppr() {
   if (state.appr) return;
   let d; try { d = await jget('/api/inspect/approvals'); } catch { d = null; }
   if (state.tab !== 'appr' || state.appr) return;
-  if (!d || d.error) { apprTab.replaceChildren(h('p', { class: 'hint' }, 'Tidak bisa memuat approval.')); return; }
+  if (!d || d.error) { setKids(apprTab, h('p', { class: 'hint' }, 'Tidak bisa memuat approval.')); return; }
   setBadge(d.items.length);
   const byProd = new Map();
   for (const it of d.items) { const k = it.production ?? '—'; if (!byProd.has(k)) byProd.set(k, []); byProd.get(k).push(it); }
@@ -183,16 +185,16 @@ async function loadAppr() {
     blocks.push(h('h4', { class: 'grp' }, prod === '—' ? 'Lainnya' : `Produksi ${prod}`, prod !== '—' ? h('button', { type: 'button', class: 'ghost sm', onclick: () => openProd(prod) }, '📁 berkas') : null));
     for (const it of items.slice().sort((p, q) => Number(q.package) - Number(p.package))) blocks.push(h('button', { type: 'button', class: 'item' + (it.package ? ' pkg' : ''), onclick: () => openIssue(it) }, it.package ? h('span', { class: 'pill ok' }, '📦 Paket final') : null, it.package ? ' ' : null, h('b', {}, it.stage ?? it.identifier), ' ', h('span', { class: 'sub' }, `${it.identifier}${it.assignee ? ' · ' + it.assignee : ''}${it.updatedAt ? ' · ' + ago(Date.parse(it.updatedAt)) : ''}`)));
   }
-  apprTab.replaceChildren(...blocks);
+  setKids(apprTab, ...blocks);
 }
 function setBadge(n) { for (const b of [badge, $('openBadge')]) { b.textContent = String(n); b.hidden = !n; } }
 const back = (label = '← Kembali') => h('button', { type: 'button', class: 'ghost', onclick: () => { state.appr = null; loadAppr(); } }, label);
 
 async function openIssue(it) {
-  state.appr = 'issue'; apprTab.replaceChildren(back(), h('p', { class: 'hint' }, 'Memuat…'));
+  state.appr = 'issue'; setKids(apprTab, back(), h('p', { class: 'hint' }, 'Memuat…'));
   let d; try { d = await jget(`/api/inspect/issue?id=${encodeURIComponent(it.id)}`); } catch { d = { error: 'gagal' }; }
-  if (d.error) { apprTab.replaceChildren(back(), h('p', { class: 'hint' }, d.error)); return; }
-  apprTab.replaceChildren(back(),
+  if (d.error) { setKids(apprTab, back(), h('p', { class: 'hint' }, d.error)); return; }
+  setKids(apprTab, back(),
     h('div', { class: 'card' }, h('div', { class: 'title' }, `${d.identifier}`, h('span', { class: 'pill ok' }, d.status)), h('div', { class: 'sub' }, d.title), d.assignee ? h('div', { class: 'sub' }, `Penanggung jawab: ${d.assignee}`) : null),
     (d.documents ?? []).includes('handoff') ? decisionCard(d) : null,
     h('details', { class: 'card' }, h('summary', {}, 'Instruksi yang diberikan (input)'), h('pre', { class: 'pre' }, d.description || '(kosong)')),
@@ -200,12 +202,12 @@ async function openIssue(it) {
     d.production ? h('button', { type: 'button', class: 'ghost', onclick: () => openProd(d.production) }, `📁 Berkas produksi ${d.production}`) : null);
 }
 async function openProd(prod) {
-  state.appr = 'prod'; apprTab.replaceChildren(back(), h('p', { class: 'hint' }, 'Memuat berkas…'));
+  state.appr = 'prod'; setKids(apprTab, back(), h('p', { class: 'hint' }, 'Memuat berkas…'));
   let d; try { d = await jget(`/api/inspect/files?prod=${encodeURIComponent(prod)}`); } catch { d = { error: 'gagal' }; }
   const files = d.files ?? [];
   const imgs = files.filter((f) => f.kind === 'image').sort((p, q) => (q.path.includes('contact-sheet') ? 1 : 0) - (p.path.includes('contact-sheet') ? 1 : 0));
   const texts = files.filter((f) => f.kind === 'text');
-  apprTab.replaceChildren(back(), h('h4', { class: 'grp' }, `Paket produksi ${prod}`),
+  setKids(apprTab, back(), h('h4', { class: 'grp' }, `Paket produksi ${prod}`),
     imgs.length ? h('div', { class: 'gallery' }, imgs.map((f) => h('a', { href: `/api/inspect/image?path=${encodeURIComponent(f.path)}`, target: '_blank', rel: 'noopener', title: f.path }, h('img', { loading: 'lazy', src: `/api/inspect/image?path=${encodeURIComponent(f.path)}`, alt: f.path })))) : null,
     texts.length ? h('div', { class: 'files' }, texts.map((f) => fileRow(f))) : h('p', { class: 'hint' }, files.length ? '' : 'Belum ada berkas.'));
 }

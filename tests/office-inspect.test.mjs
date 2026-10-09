@@ -113,3 +113,46 @@ describe('endpoint inspeksi (Paperclip tiruan)', () => {
     expect((await call('GET', '/api/inspect/file?path=runs/EDU-9/tidak-ada.json')).res.code).toBe(404);
   });
 });
+
+describe('endpoint Papan Tayang (board) dan production', () => {
+  let mock; let base; let root;
+  beforeAll(async () => {
+    root = mkdtempSync(path.join(os.tmpdir(), 'aao-board-'));
+    const run = path.join(root, 'runs', 'EDU-9'); mkdirSync(path.join(run, 'render'), { recursive: true }); mkdirSync(path.join(root, 'orders'), { recursive: true });
+    writeFileSync(path.join(root, 'orders', 'EDU-9.json'), JSON.stringify({ title: 'Carousel uji', stages: { researcher: 'cari' } }));
+    writeFileSync(path.join(run, 'carousel.json'), JSON.stringify({ topic: 'Tren', angle: 'a', caption: 'cap', hashtags: [], sources: [], slides: [{ index: 1, role: 'hook', heading: 'H', body: 'B', sourceRefs: [] }] }));
+    writeFileSync(path.join(run, 'render', 'slide-01.png'), Buffer.from([137, 80, 78, 71]));
+    mock = http.createServer((req, res) => {
+      const out = (j) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(j)); };
+      const u = req.url;
+      if (u === '/api/companies') return out([{ id: 'c1', name: 'EdukasiAI' }]);
+      if (u === '/api/companies/c1/agents') return out([]);
+      if (u === '/api/companies/c1/issues') return out([{ id: 'm9', identifier: 'EDU-9', title: 'Produksi: Carousel uji', status: 'in_review' }]);
+      if (u === '/api/issues/m9/documents') return out([{ key: 'handoff', body: JSON.stringify({ contentHash: 'h123' }) }]);
+      res.writeHead(404); res.end('{}');
+    });
+    await new Promise((r) => mock.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${mock.address().port}`;
+  });
+  afterAll(() => mock.close());
+  const call = async (url) => {
+    const res = { code: 0, body: null };
+    const h = createInspector({ base, outputRoot: root });
+    await h({ method: 'GET' }, res, new URL(url, 'http://x'), (r, c, b) => { r.code = c; r.body = b; }, () => {});
+    return res;
+  };
+  it('board: sampul, jumlah slide, dan status "menunggu approval" dari issue + handoff', async () => {
+    const r = await call('/api/inspect/board');
+    expect(r.code).toBe(200);
+    expect(r.body.items[0]).toMatchObject({ prod: 'EDU-9', title: 'Carousel uji', cover: 'runs/EDU-9/render/slide-01.png', slides: 1 });
+    expect(r.body.items[0].status.key).toBe('menunggu_approval');
+  });
+  it('production: ringkasan per divisi dari berkas; id tidak valid ditolak', async () => {
+    const r = await call('/api/inspect/production?prod=EDU-9');
+    expect(r.code).toBe(200);
+    expect(r.body).toMatchObject({ title: 'Carousel uji', master: { id: 'm9', hasHandoff: true, contentHash: 'h123' } });
+    expect(r.body.copy.slides[0]).toMatchObject({ roleLabel: 'Pembuka', heading: 'H' });
+    expect(r.body.research).toBeNull();
+    expect((await call('/api/inspect/production?prod=../x')).code).toBe(400);
+  });
+});

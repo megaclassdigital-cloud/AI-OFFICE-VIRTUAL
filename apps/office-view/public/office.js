@@ -7,7 +7,7 @@ const ctx = cv.getContext('2d');
 const W = 1920, H = 1080, SC = 3, FW = 16, FH = 32;
 const $ = (id) => document.getElementById(id);
 
-const app = { layout: null, world: null, mode: 'live', paused: false, speed: 1, epoch: 0, seq: 0, connected: true, simClock: 0, simEvents: [], simIdx: 0, simEndAt: 0, bgCache: new Map(), sprites: [], metrics: [] };
+const app = { layout: null, world: null, mode: 'live', paused: false, speed: 1, epoch: 0, seq: 0, connected: true, simClock: 0, simEvents: [], simIdx: 0, simEndAt: 0, bgCache: new Map(), sprites: [], metrics: [], boardItems: [], boardImgs: new Map() };
 
 // ───────── gambar statis (digambar sekali per mode, lalu di-cache) ─────────
 function rr(c, x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r); }
@@ -55,7 +55,11 @@ function drawStatic(layout, mode) {
   const bd = layout.bugDesk; drawDesk(c, bd, null); c.fillStyle = '#facc15'; c.save(); c.translate(bd.x + 20, bd.y - 54); c.beginPath(); c.moveTo(0, 46); c.lineTo(26, 0); c.lineTo(52, 46); c.closePath(); c.fill(); c.restore(); label(c, '!', bd.x + 40, bd.y - 36, 26, '#111');
   c.strokeStyle = '#ef444488'; c.setLineDash([14, 10]); c.lineWidth = 4; c.strokeRect(1610, 900, 240, 62); c.setLineDash([]);
   // papan tayang
-  const bo = layout.board; c.fillStyle = '#7a5a3a'; c.fillRect(bo.x - 8, bo.y - 8, bo.w + 16, bo.h + 16); c.fillStyle = '#c79a62'; c.fillRect(bo.x, bo.y, bo.w, bo.h);
+  const bo = layout.board;
+  c.fillStyle = '#1b1f2b'; rr(c, bo.x - 14, bo.y - 14, bo.w + 28, bo.h + 28, 14); c.fill();
+  c.strokeStyle = '#4b5568'; c.lineWidth = 3; rr(c, bo.x - 14, bo.y - 14, bo.w + 28, bo.h + 28, 14); c.stroke();
+  c.fillStyle = '#080b12'; c.fillRect(bo.x, bo.y, bo.w, bo.h);
+  c.fillStyle = '#2b3140'; c.fillRect(bo.x + bo.w / 2 - 50, bo.y + bo.h + 14, 100, 10); c.fillRect(bo.x + bo.w / 2 - 80, bo.y + bo.h + 24, 160, 8); // kaki TV
   // redupkan ruang tanpa sumber data nyata
   for (const r of layout.rooms) {
     const lit = r.live || (r.liveInSim && mode === 'sim');
@@ -129,6 +133,46 @@ function drawThought(c, ch, placed = []) {
   lines.forEach((l, i) => c.fillText(l, x + 11, y - h + 6 + lh * i + lh / 2));
   c.restore();
 }
+const BOARD_LABEL = { menunggu_approval: ['MENUNGGU', '#f59e0b'], disetujui: ['DISETUJUI', '#22c55e'], perlu_revisi: ['REVISI', '#ef4444'], berjalan: ['PRODUKSI', '#3b82f6'], terblokir: ['TERBLOKIR', '#ef4444'], draf: ['DRAF', '#64748b'] };
+function boardImg(path) {
+  let e = app.boardImgs.get(path);
+  if (!e) { const im = new Image(); e = { im, ok: false }; im.onload = () => { e.ok = true; }; im.src = '/api/inspect/image?path=' + encodeURIComponent(path); app.boardImgs.set(path, e); }
+  return e.ok ? e.im : null;
+}
+// TV: sampul tayangan terbaru + status. Hanya menggambar data yang dikembalikan server; klik membuka dashboard (tv.js).
+function drawBoardLive(c, bo) {
+  c.save();
+  c.textBaseline = 'middle';
+  c.font = '800 14px "Segoe UI", sans-serif'; c.fillStyle = '#9fb0cc'; c.textAlign = 'left';
+  c.fillText('📺 PAPAN TAYANG', bo.x + 12, bo.y + 15);
+  const items = app.boardItems ?? [];
+  if (!items.length) { c.font = '600 16px "Segoe UI", sans-serif'; c.fillStyle = '#6b7a93'; c.textAlign = 'center'; c.fillText('Belum ada tayangan', bo.x + bo.w / 2, bo.y + bo.h / 2); c.restore(); return; }
+  const lab = (it) => BOARD_LABEL[it.status?.key] ?? ['—', '#64748b'];
+  // Tayangan utama (terbaru): sampul besar di kiri, judul + status di kanan
+  const m = items[0], cw = 150, chh = 188, x0 = bo.x + 14, y0 = bo.y + 32;
+  c.fillStyle = '#111827'; c.fillRect(x0, y0, cw, chh);
+  const im = m.cover ? boardImg(m.cover) : null;
+  if (im) c.drawImage(im, x0, y0, cw, chh); else { c.fillStyle = '#6b7a93'; c.font = '600 12px "Segoe UI"'; c.textAlign = 'center'; c.fillText('tanpa sampul', x0 + cw / 2, y0 + chh / 2); }
+  c.strokeStyle = lab(m)[1]; c.lineWidth = 3; c.strokeRect(x0 - 1, y0 - 1, cw + 2, chh + 2);
+  const tx = x0 + cw + 14, tw = bo.x + bo.w - 12 - tx;
+  c.textAlign = 'left'; c.font = '700 14px "Segoe UI", sans-serif'; c.fillStyle = '#e6edf7';
+  const words = String(m.title ?? m.prod).split(' '); const rows = []; let cur = '';
+  for (const w of words) { const t = cur ? cur + ' ' + w : w; if (c.measureText(t).width <= tw || !cur) cur = t; else { rows.push(cur); cur = w; } }
+  if (cur) rows.push(cur);
+  rows.slice(0, 4).forEach((r, i) => c.fillText(i === 3 && rows.length > 4 ? r.slice(0, Math.max(4, r.length - 3)) + '…' : r, tx, y0 + 12 + i * 18));
+  const [label, col] = lab(m);
+  c.fillStyle = col; rr(c, tx, y0 + 92, Math.min(tw, 130), 24, 7); c.fill();
+  c.fillStyle = '#0b0e14'; c.font = '800 12px "Segoe UI", sans-serif'; c.fillText(label, tx + 8, y0 + 104);
+  c.fillStyle = '#9fb0cc'; c.font = '600 12px "Segoe UI", sans-serif'; c.fillText(m.prod + (m.slides ? ' · ' + m.slides + ' slide' : ''), tx, y0 + 130);
+  // tayangan sebelumnya: kartu kecil
+  items.slice(1, 3).forEach((it, i) => {
+    const sx = tx + i * 56, sy = y0 + 146, sw = 48, sh = 60; const sm = it.cover ? boardImg(it.cover) : null;
+    c.fillStyle = '#111827'; c.fillRect(sx, sy, sw, sh); if (sm) c.drawImage(sm, sx, sy, sw, sh);
+    c.strokeStyle = lab(it)[1]; c.lineWidth = 2; c.strokeRect(sx, sy, sw, sh);
+  });
+  c.font = '600 11px "Segoe UI", sans-serif'; c.fillStyle = '#5b6b86'; c.textAlign = 'right'; c.fillText('klik TV untuk dashboard', bo.x + bo.w - 10, bo.y + bo.h - 12);
+  c.restore();
+}
 function drawRing(c, ch) {
   c.save(); c.strokeStyle = '#60a5fa'; c.lineWidth = 4; c.shadowColor = '#60a5fa'; c.shadowBlur = 14;
   c.beginPath(); c.ellipse(ch.x, ch.y + 4, 36, 13, 0, 0, Math.PI * 2); c.stroke(); c.restore();
@@ -168,7 +212,8 @@ function render() {
   }
   // kartu di papan tayang
   const bo = L.board;
-  w.board.forEach((card, i) => { const bx = bo.x + 12 + (i % 2) * 142, by = bo.y + 12 + Math.floor(i / 2) * 76; ctx.fillStyle = '#fff'; ctx.fillRect(bx, by, 130, 64); ctx.fillStyle = '#16a34a'; ctx.fillRect(bx, by, 130, 12); ctx.fillStyle = '#111'; ctx.font = '600 12px "Segoe UI"'; ctx.textBaseline = 'top'; ctx.fillText(trunc(card.title, 20), bx + 6, by + 18); ctx.fillText('siap posting ✓', bx + 6, by + 40); });
+  if (app.mode === 'live') drawBoardLive(ctx, bo);
+  if (app.mode !== 'live') w.board.forEach((card, i) => { const bx = bo.x + 12 + (i % 2) * 142, by = bo.y + 12 + Math.floor(i / 2) * 76; ctx.fillStyle = '#fff'; ctx.fillRect(bx, by, 130, 64); ctx.fillStyle = '#16a34a'; ctx.fillRect(bx, by, 130, 12); ctx.fillStyle = '#111'; ctx.font = '600 12px "Segoe UI"'; ctx.textBaseline = 'top'; ctx.fillText(trunc(card.title, 20), bx + 6, by + 18); ctx.fillText('siap posting ✓', bx + 6, by + 40); });
   // badge owner
   const b = L.ownerBox;
   for (let i = 0; i < Math.min(w.ownerCount, 4); i++) { ctx.fillStyle = '#fff'; ctx.fillRect(b.x + 12 + i * 3, b.y - 6 - i * 6, 66, 12); }
@@ -273,6 +318,8 @@ async function init() {
   app.sprites = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(im); im.src = `/assets/characters/char_${i}.png`; })));
   await startLive();
   setInterval(pollLive, 1000);
+  const pollBoard = async () => { try { app.boardItems = (await jget('/api/inspect/board')).items ?? []; } catch { /* TV tetap menampilkan data terakhir */ } };
+  pollBoard(); setInterval(pollBoard, 10000);
   requestAnimationFrame(frame);
 }
 
@@ -300,6 +347,8 @@ function hitTest(p) {
     if (Math.abs(p.x - ch.x) <= FW * SC / 2 + 6 && p.y <= ch.y + 8 && p.y >= ch.y - FH * SC - 8 && (!best || ch.y > best.y)) best = ch;
   }
   if (best) return { type: 'agent', name: best.name, id: best.id, isOwner: !!best.isOwner };
+  const tv = app.layout.board;
+  if (tv && p.x >= tv.x - 16 && p.x <= tv.x + tv.w + 16 && p.y >= tv.y - 16 && p.y <= tv.y + tv.h + 34) return { type: 'board' };
   const b = app.layout.ownerBox;
   if (b && p.x >= b.x - 40 && p.x <= b.x + b.w + 30 && p.y >= b.y - 50 && p.y <= b.y + b.h + 24) return { type: 'approvals' };
   return null;

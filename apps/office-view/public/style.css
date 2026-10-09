@@ -107,3 +107,39 @@ details.card summary { cursor: pointer; font-weight: 700; } .row2 { margin-top: 
 .cmd { display: flex; gap: 6px; align-items: center; margin: 4px 0 8px; }
 .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; background: #0a0f1a; padding: 5px 8px; border-radius: 6px; font: 11.5px Consolas, monospace; }
 .card.decide { border-color: #16a34a; }
+
+/* ───────── TV dashboard (Papan Tayang) ───────── */
+#tv { position: fixed; inset: 0; z-index: 60; background: rgba(2, 4, 9, .78); display: grid; place-items: center; }
+#tv[hidden] { display: none; }
+.tv-bezel { width: min(1240px, 96vw); height: min(780px, 94vh); display: grid; grid-template-rows: auto auto 1fr auto; background: #0a0e17; border: 10px solid #1b1f2b; border-radius: 22px; box-shadow: 0 0 0 2px #4b5568, 0 20px 80px #000c; overflow: hidden; }
+.tv-bezel header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #0f1524; border-bottom: 1px solid var(--line); }
+.tv-title { font-weight: 800; letter-spacing: .08em; color: #9fb0cc; }
+#tvProd { flex: 1; max-width: 520px; background: #0b1220; color: inherit; border: 1px solid #334155; border-radius: 8px; padding: 6px 8px; font: inherit; }
+.tv-chip { padding: 3px 12px; border-radius: 999px; font-weight: 800; font-size: 12px; background: #334155; } .tv-chip.warn { background: #f59e0b; color: #1f1300; } .tv-chip.ok { background: #22c55e; color: #052e16; } .tv-chip.bad { background: #ef4444; } .tv-chip.run { background: #3b82f6; }
+.tv-x { margin-left: auto; font-size: 18px; padding: 2px 12px; }
+.tv-tabs { display: flex; gap: 4px; padding: 8px 12px 0; background: #0b101c; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tv-tabs button { border: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); padding: 8px 14px; font-weight: 700; white-space: nowrap; }
+.tv-tabs button.on { background: #0a0e17; color: #fff; box-shadow: inset 0 -3px 0 #60a5fa; }
+#tvMain { overflow: auto; padding: 16px 18px; min-height: 0; }
+.tv-lead { font-size: 16px; font-weight: 700; margin: 0 0 12px; } .tv-empty { color: var(--muted); padding: 30px; text-align: center; }
+.tv-card { background: #121a2b; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.tv-card h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); } .tv-card p { margin: 6px 0; } .tv-card .pre { white-space: pre-wrap; font-size: 13.5px; }
+.tv-card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; } .tv-card a { color: #93c5fd; }
+.tv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; } .tv-grid .tv-card { margin: 0; }
+.tv-card.decide { border-color: #f59e0b; } .tick { list-style: none; padding: 0; margin: 4px 0; } .tick li { padding: 2px 0; } .tick li.bad { color: #fca5a5; } .tick li.ok { color: #86efac; }
+.pill.warn { background: #92400e; } .tv-mini { width: 100%; border-radius: 8px; margin-bottom: 8px; display: block; }
+.tv-show { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr); gap: 18px; height: 100%; }
+.tv-stage { display: flex; flex-direction: column; gap: 10px; min-height: 0; } .tv-viewer { flex: 1; min-height: 0; display: flex; align-items: center; gap: 8px; justify-content: center; }
+.tv-viewer a { display: block; height: 100%; max-height: 520px; } .tv-viewer img { height: 100%; max-height: 520px; aspect-ratio: 4 / 5; object-fit: contain; border-radius: 10px; border: 1px solid var(--line); background: #000; }
+.tv-viewer .nav { font-size: 28px; padding: 14px 12px; border-radius: 12px; }
+.tv-thumbs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; } .tv-thumbs button { padding: 0; border: 2px solid transparent; border-radius: 6px; background: none; } .tv-thumbs button.on { border-color: #60a5fa; } .tv-thumbs img { width: 52px; border-radius: 4px; display: block; }
+.tv-side { overflow: auto; min-width: 0; } .tv-side h3 { margin: 0 0 4px; } .tv-side ul { margin: 4px 0; padding-left: 18px; }
+#tvStages { display: flex; gap: 6px; padding: 8px 12px; background: #0b101c; border-top: 1px solid var(--line); overflow-x: auto; }
+.stg { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #121a2b; white-space: nowrap; font-size: 12px; } .stg small { color: var(--muted); }
+.stg .dot { width: 9px; height: 9px; border-radius: 50%; background: #475569; } .stg.done .dot { background: #22c55e; } .stg.running .dot { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; } .stg.blocked .dot { background: #ef4444; }
+@media (max-width: 900px) { .tv-show { grid-template-columns: 1fr; } }
+
+.tv-kpi { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0 12px; }
+.tv-kpi div { background: #121a2b; border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; text-align: center; } .tv-kpi b { display: block; font-size: 15px; } .tv-kpi small { color: var(--muted); font-size: 11px; }
+.tv-warn { background: #78350f; color: #fff; border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; font-weight: 600; }
+.tv-side .cmd { display: flex; gap: 6px; align-items: center; margin: 4px 0; } .tv-side .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; background: #0a0f1a; padding: 5px 8px; border-radius: 6px; font: 11.5px Consolas, monospace; }

@@ -97,9 +97,8 @@
       },
       "aisleY": 650,
       "floor": "#3d4f4f",
-      "live": false,
-      "liveInSim": true,
-      "dimLabel": "segera aktif"
+      "live": true,
+      "liveInSim": true
     },
     {
       "id": "lounge",
@@ -270,10 +269,10 @@
     "y": 850
   },
   "board": {
-    "x": 640,
-    "y": 625,
-    "w": 300,
-    "h": 170
+    "x": 600,
+    "y": 640,
+    "w": 380,
+    "h": 262
   },
   "loungeSlots": [
     {

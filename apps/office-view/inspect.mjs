@@ -3,6 +3,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { activityTimeline } from './status.mjs';
+import { summarizeProduction, productionStatus, cleanTitle } from './production.mjs';
 
 const TEXT_EXT = new Set(['.json', '.md', '.txt']);
 const IMG_EXT = new Set(['.png']);
@@ -108,6 +109,58 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
     return { status: 200, body: { id, identifier: issue.identifier, title: issue.title, status: issue.status, description: String(issue.description ?? '').slice(0, 4000), assignee: names.get(issue.assigneeAgentId) ?? null, documents, comments, ...(productionOf(issue.title) ?? {}) } };
   }
 
+  const readJsonSafe = async (abs) => { try { return JSON.parse((await readFile(abs, 'utf8')).replace(/^﻿/, '')); } catch { return null; } };
+  async function listRender(prod) {
+    const dir = path.join(outputRoot, 'runs', prod, 'render');
+    return (await readdir(dir).catch(() => [])).filter((f) => /[.](png|json)$/.test(f)).map((f) => `runs/${prod}/render/${f}`);
+  }
+  async function masterOf(prod) {
+    const { companyId } = await ctx();
+    const master = (await api(`/companies/${companyId}/issues`)).find((i) => i.identifier === prod) ?? null;
+    let handoff = null;
+    if (master) {
+      try { const dl = await api(`/issues/${master.id}/documents`); const d = (Array.isArray(dl) ? dl : dl.documents ?? []).find((x) => x.key === 'handoff'); if (d) { try { handoff = JSON.parse(d.body); } catch { handoff = {}; } } } catch { /* tanpa dokumen */ }
+    }
+    return { master, handoff };
+  }
+  async function activeJob() {
+    if (!stateFile) return null;
+    const s = await readJsonSafe(stateFile);
+    return s?.job ?? null;
+  }
+  async function productionView(prod) {
+    if (!/^EDU-[0-9]+$/.test(prod ?? '')) return { status: 400, body: { error: 'id produksi tidak valid' } };
+    const dir = path.join(outputRoot, 'runs', prod);
+    const [research, verification, carousel, design, qaAcc, qaMain, visualQa, order] = await Promise.all([
+      readJsonSafe(path.join(dir, 'research-output.json')), readJsonSafe(path.join(dir, 'verification-result.json')), readJsonSafe(path.join(dir, 'carousel.json')),
+      readJsonSafe(path.join(dir, 'carousel-design.json')), readJsonSafe(path.join(dir, 'qa-result.json.accepted')), readJsonSafe(path.join(dir, 'qa-result.json')),
+      readJsonSafe(path.join(dir, 'render', 'visual-qa.json')), readJsonSafe(path.join(outputRoot, 'orders', `${prod}.json`)),
+    ]);
+    let master = null; let handoff = null; let paperclipOk = true;
+    try { ({ master, handoff } = await masterOf(prod)); } catch { paperclipOk = false; }
+    const mt = async (f) => (await stat(path.join(dir, f)).catch(() => null))?.mtimeMs ?? null;
+    const mtimes = { manager: (await stat(path.join(outputRoot, 'orders', `${prod}.json`)).catch(() => null))?.mtimeMs ?? null, researcher: await mt('research-output.json'), verifier: await mt('verification-result.json'), copywriter: await mt('carousel.json'), designer: await mt('carousel-design.json'), qa: await mt('qa-result.json.accepted') ?? await mt('qa-result.json') };
+    const view = summarizeProduction({ prod, order, research, verification, carousel, design, qa: qaAcc ?? qaMain, visualQa, master, handoff, job: await activeJob(), renderFiles: await listRender(prod), mtimes, paperclipOk });
+    return { status: 200, body: view };
+  }
+  /** Papan Tayang: tiga produksi terbaru dengan sampul dan status (untuk digambar di peta). */
+  async function boardView() {
+    const dirs = (await readdir(path.join(outputRoot, 'runs'), { withFileTypes: true }).catch(() => [])).filter((e) => e.isDirectory() && /^EDU-[0-9]+$/.test(e.name));
+    const withTime = await Promise.all(dirs.map(async (e) => ({ prod: e.name, t: (await stat(path.join(outputRoot, 'runs', e.name)).catch(() => ({ mtimeMs: 0 }))).mtimeMs })));
+    const items = [];
+    const job = await activeJob();
+    for (const { prod } of withTime.sort((a, b) => b.t - a.t).slice(0, 3)) {
+      const render = await listRender(prod);
+      const slides = render.filter((f) => /slide-[0-9]+[.]png$/.test(f)).sort();
+      const carousel = await readJsonSafe(path.join(outputRoot, 'runs', prod, 'carousel.json'));
+      const order = await readJsonSafe(path.join(outputRoot, 'orders', `${prod}.json`));
+      let master = null; let handoff = null; let unknown = false;
+      try { ({ master, handoff } = await masterOf(prod)); } catch { unknown = true; }
+      items.push({ prod, title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: job?.identifier === prod ? job : null, unknown }) });
+    }
+    return { status: 200, body: { items } };
+  }
+
   async function filesView(prod) {
     if (!/^EDU-\d+$/.test(prod ?? '')) return { status: 400, body: { error: 'id produksi tidak valid' } };
     const dir = path.join(outputRoot, 'runs', prod);
@@ -137,6 +190,8 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
       else if (p === '/api/inspect/approvals') r = await approvalsView();
       else if (p === '/api/inspect/issue') r = await issueView(q('id'));
       else if (p === '/api/inspect/files') r = await filesView(q('prod'));
+      else if (p === '/api/inspect/board') r = await boardView();
+      else if (p === '/api/inspect/production') r = await productionView(q('prod'));
       else if (p === '/api/inspect/file') {
         const abs = safeJoin(outputRoot, q('path'), TEXT_EXT);
         const st = abs ? await stat(abs).catch(() => null) : null;
