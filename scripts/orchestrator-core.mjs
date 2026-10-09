@@ -204,6 +204,18 @@ export const laneOf = (job) => {
 export const occupiedLanes = (jobs = []) => new Set(jobs.map(laneOf).filter((x) => x !== null));
 /** Job yang akan maju ke tahap berikutnya harus menunggu bila jalur itu masih dipegang job di depannya (urutan konten tidak pernah saling mendahului). */
 export const mustWaitForLane = (before, after, occupied) => Boolean(before?.phase === 'running' && after?.phase === 'running' && after.stageIndex > before.stageIndex && after.stageIndex < STAGES.length && occupied.has(after.stageIndex));
+/**
+ * Satu keputusan memajukan sebuah konten (dipakai orkestrator DAN simulasi tes): jalankan step(), lalu tahan bila tahap berikutnya masih dipegang konten di depannya.
+ * Berlaku sama untuk SEMUA tahap/agent (Researcher, Verifier, Copywriter, Designer, QA).
+ * @returns {{ wait: boolean, job: object, actions: object[] }}
+ */
+export function decideAdvance(job, facts, occupied) {
+  const { job: next, actions } = step(job, facts);
+  const merged = { ...job, ...next };
+  if (mustWaitForLane(job, merged, occupied)) return { wait: true, job: { ...job, laneWait: true }, actions: [] };
+  merged.laneWait = false;
+  return { wait: false, job: merged, actions };
+}
 /** Rencana siap boleh dipromosikan bila jalur Researcher (0) bebas dan konten aktif belum mencapai batas. */
 export const canPromote = (jobs = [], max = MAX_ACTIVE_JOBS) => {
   const live = jobs.filter((j) => j && !['done', 'blocked'].includes(j.phase));

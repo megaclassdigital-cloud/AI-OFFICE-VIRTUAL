@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { laneOf, mustWaitForLane, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
@@ -621,13 +621,13 @@ const isFinished = (j) => ['done', 'blocked'].includes(j.phase);
 async function advanceJob(job, net, occupied, state) {
   const facts = await gatherFacts(job, state);
   facts.offline = net.hold === true;
-  const { job: next, actions } = step(job, facts);
-  const merged = { ...job, ...next };
-  if (mustWaitForLane(job, merged, occupied)) {
-    if (!job.laneWait) log(job.identifier + ' selesai tahap ' + STAGE_AGENT[STAGES[job.stageIndex]] + '; menunggu ' + STAGE_AGENT[STAGES[merged.stageIndex]] + ' bebas (jalur perakitan)');
-    return { ...job, laneWait: true };
+  const decision = decideAdvance(job, facts, occupied);
+  if (decision.wait) {
+    if (!job.laneWait) log(job.identifier + ' selesai tahap ' + STAGE_AGENT[STAGES[job.stageIndex]] + '; menunggu tahap berikutnya bebas (jalur perakitan)');
+    return decision.job;
   }
-  merged.laneWait = false;
+  const merged = decision.job;
+  const actions = decision.actions;
   if (facts.managerFailedError && !isNetworkErr(facts.managerFailedError) && !isManagerRetryable(facts.managerFailedError)) { actions.push({ type: 'block', reason: 'run Manager gagal: ' + String(facts.managerFailedError).slice(0, 120) }); merged.phase = 'blocked'; }
   await applyActions(merged, actions, facts);
   return merged;
