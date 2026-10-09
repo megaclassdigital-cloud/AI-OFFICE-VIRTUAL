@@ -10,6 +10,7 @@
 import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PROFILE_DIR } from './browser-login.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from 'node:fs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -49,7 +50,7 @@ async function isBlocked(page) {
   return BLOCK_RE.test(text);
 }
 
-const BRAND_OK_RE = /logo|brand|icon|wordmark/i;
+const BRAND_OK_RE = /logo|brand|icon|wordmark|symbol|simbol/i;
 const STOP = new Set(['the', 'and', 'for', 'with', 'official', 'logo', 'dan', 'yang', 'dengan', 'screenshot', 'resmi']);
 
 /** Token kata kunci bermakna dari query (huruf kecil, tanpa kata umum). */
@@ -74,32 +75,37 @@ async function googleOne(page, req, q, outFile) {
   await dismissConsent(page);
   await page.waitForTimeout(1500);
   if (await isBlocked(page)) return { status: 'blocked', reason: 'Google meminta verifikasi (CAPTCHA/unusual traffic); tidak dilewati.' };
-  const handles = await page.$$('img');
-  const cands = [];
-  for (const h of handles) {
-    const box = await h.boundingBox().catch(() => null);
-    if (box && box.width >= 110 && box.height >= 80 && box.y > 120) cands.push({ h, box });
-  }
-  if (!cands.length) return { status: 'missing', reason: 'tidak ada hasil gambar yang terbaca' };
-  for (const { h } of cands.slice(0, 6)) {
-    await h.click({ timeout: 4000 }).catch(() => {});
-    await page.waitForTimeout(1800);
+  // kandidat grid: gambar + teks judul/sumber di dekatnya; diberi skor relevansi (merek: nama merek + kata logo)
+  const grid = await page.evaluate(() => [...document.images].map((img, idx) => {
+    const r = img.getBoundingClientRect();
+    if (r.width < 110 || r.height < 80 || r.top < 120 || r.bottom > innerHeight) return null;
+    return { idx, x: r.x + r.width / 2, y: r.y + r.height / 2, t: (img.alt || '').slice(0, 200) }; // judul hasil ada di atribut alt
+  }).filter(Boolean));
+  if (!grid.length) return { status: 'missing', reason: 'tidak ada hasil gambar yang terbaca' };
+  const min = MIN_SCORE[req.kind] ?? 0.5;
+  const ranked = grid.map((g) => ({ ...g, score: scoreResult(req, { t: g.t, murl: '', purl: '' }) })).filter((g) => g.score >= min).sort((x, y) => y.score - x.score).slice(0, 4);
+  if (!ranked.length) return { status: 'missing', reason: req.kind === 'brand' ? 'tidak ada hasil yang jelas berupa logo resmi merek tsb' : 'tidak ada hasil yang cukup relevan dengan kata kunci' };
+  for (const g of ranked) {
+    await page.mouse.click(g.x, g.y);
+    await page.waitForTimeout(2200);
     if (await isBlocked(page)) return { status: 'blocked', reason: 'diblokir setelah klik hasil' };
-    const big = await page.evaluateHandle(() => {
-      const imgs = [...document.images].filter((i) => /^https?:/.test(i.src) && i.naturalWidth >= 300);
+    // pratinjau besar di panel kanan: gambar bersumber http(s) terbesar yang tampak penuh di viewport
+    const big = await page.evaluate(() => {
       let best = null; let area = 0;
-      for (const i of imgs) {
+      for (const i of document.images) {
+        if (!/^https?:/.test(i.src) || i.naturalWidth < 300) continue;
         const r = i.getBoundingClientRect();
-        if (r.width < 250 || r.height < 150 || r.top < 0 || r.bottom > innerHeight + 4) continue;
-        if (r.width * r.height > area) { area = r.width * r.height; best = i; }
+        if (r.left < 700 || r.width < 250 || r.height < 150 || r.top < 0 || r.bottom > innerHeight + 4) continue;
+        if (r.width * r.height > area) { area = r.width * r.height; const sc = Math.min(r.width / i.naturalWidth, r.height / i.naturalHeight); const w = i.naturalWidth * sc; const h = i.naturalHeight * sc; best = { x: r.x + (r.width - w) / 2 + 1, y: r.y + (r.height - h) / 2 + 1, width: w - 2, height: h - 2, src: i.src }; }
       }
       return best;
     });
-    const el = big.asElement();
-    if (!el) continue;
-    const href = await page.evaluate((i) => i.src, el).catch(() => '');
-    await el.screenshot({ path: outFile, type: path.extname(outFile) === '.png' ? 'png' : 'jpeg' });
-    return { status: 'captured', imageUrl: href.slice(0, 300), searchUrl: page.url().slice(0, 300) };
+    if (!big) continue;
+    // sembunyikan tombol overlay UI Google (lensa/aksi) agar tidak ikut terpotret; gambarnya sendiri tidak diubah
+    await page.addStyleTag({ content: 'button, [role=button], [aria-label*=ens] { visibility: hidden !important; }' }).catch(() => {});
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: outFile, type: path.extname(outFile) === '.png' ? 'png' : 'jpeg', clip: { x: big.x, y: big.y, width: big.width, height: big.height } });
+    return { status: 'captured', imageUrl: big.src.slice(0, 300), searchUrl: page.url().slice(0, 300), title: g.t.slice(0, 160) };
   }
   return { status: 'missing', reason: 'pratinjau besar tidak terbaca setelah beberapa percobaan' };
 }
@@ -171,15 +177,20 @@ export async function main(argv) {
       const owner = inboxPath(issue, req.file);
       if (owner) { copyFileSync(owner, out); manifest.assets.push({ ...entry, status: 'owner-supplied', source: owner }); continue; }
       if (!force && existsSync(out) && statSync(out).size > 2000) { manifest.assets.push({ ...entry, status: 'kept', source: 'sudah ada' }); continue; }
-      if (!browser) {
-        browser = await chromium.launch({ headless: !argv.includes('--headed') });
-        context = await browser.newContext({ locale: 'id-ID', viewport: { width: 1400, height: 1000 } });
+      if (!context) {
+        // Profil Edge tersimpan (sesi hasil verifikasi OWNER via browser-login.mjs) dipakai bila ada; selain itu Chromium bawaan.
+        if (existsSync(PROFILE_DIR) && !argv.includes('--no-profile')) {
+          context = await chromium.launchPersistentContext(PROFILE_DIR, { channel: 'msedge', headless: !argv.includes('--headed'), locale: 'id-ID', viewport: { width: 1400, height: 1000 } });
+        } else {
+          browser = await chromium.launch({ headless: !argv.includes('--headed') });
+          context = await browser.newContext({ locale: 'id-ID', viewport: { width: 1400, height: 1000 } });
+        }
         page = await context.newPage();
       }
       const r = await captureOne(page, req, out, engines, state).catch((e) => ({ status: 'missing', query: buildQuery(req), reason: `galat: ${e.message}` }));
       manifest.assets.push({ ...entry, ...r, capturedAt: new Date().toISOString() });
     }
-  } finally { if (browser) await browser.close(); }
+  } finally { if (context) await context.close().catch(() => {}); if (browser) await browser.close().catch(() => {}); }
   const missing = manifest.assets.filter((a) => !['captured', 'owner-supplied', 'kept'].includes(a.status));
   manifest.complete = missing.length === 0;
   writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
