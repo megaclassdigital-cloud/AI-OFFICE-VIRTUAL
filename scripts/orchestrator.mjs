@@ -7,8 +7,10 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { STAGES, STAGE_AGENT, STAGE_OUTPUT, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult } from './orchestrator-core.mjs';
+import { STAGES, STAGE_AGENT, STAGE_OUTPUT, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
+import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
+import { notifyOwner } from './notify.mjs';
 import { validate } from '../schemas/validate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -77,6 +79,35 @@ function checkOutput(job, stageName) {
 // Contoh berkas valid (fixture golden) per tahap, supaya agent meniru bentuknya alih-alih menebak.
 const EXAMPLES = { researcher: '01-research-output.json', verifier: '02-verification-result.json', copywriter: '03-carousel.json', designer: '04-carousel-design.json' };
 const exampleFor = (stage) => (EXAMPLES[stage] ? path.join(ROOT, 'fixtures', 'golden', 'valid', EXAMPLES[stage]) : null);
+
+const NET_FILE = path.join(ROOT, 'workspace', 'network-state.json');
+let netState = readNetworkState(NET_FILE) ?? {};
+const fmtDur = (ms) => (ms < 90_000 ? Math.round(ms / 1000) + ' detik' : Math.round(ms / 60_000) + ' menit');
+const hhmm = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+/** Satu pemeriksaan internet per tick. Galat pada pemeriksa sendiri dianggap "terjangkau" (jangan pernah menahan kerja karena bug). */
+async function checkNetwork(job) {
+  let reachable = true;
+  try { reachable = (await probe()).reachable; } catch { reachable = true; }
+  const { state, events } = decide(netState, reachable, Date.now());
+  netState = state;
+  try { writeNetworkState(NET_FILE, state); } catch { /* UI hanya kehilangan banner; pekerjaan tidak terganggu */ }
+  for (const ev of events) {
+    const live = job && ['planning', 'running'].includes(job.phase) ? job : null;
+    if (ev.type === 'offline') {
+      const msg = 'Internet terputus sejak ' + hhmm(ev.since) + '. Pekerjaan agent ditahan dan akan DILANJUTKAN OTOMATIS saat internet kembali.';
+      log('OFFLINE: ' + msg);
+      if (live && !DRY) await comment(live.masterIssueId, '⚠ ' + msg);
+      notifyOwner('AI Agent Office: internet terputus', 'Pekerjaan ditahan, lanjut otomatis saat online.');
+    } else if (ev.type === 'online') {
+      const msg = 'Internet kembali setelah ' + fmtDur(ev.downMs) + '. Pekerjaan dilanjutkan dari tahap terakhir.';
+      log('ONLINE: ' + msg);
+      if (live && !DRY) await comment(live.masterIssueId, '✔ ' + msg);
+      notifyOwner('AI Agent Office: internet kembali', 'Pekerjaan dilanjutkan otomatis.');
+    }
+  }
+  return state;
+}
 
 const orderPathFor = (identifier) => path.join(ORDERS, `${identifier}.json`);
 
@@ -175,7 +206,7 @@ async function applyActions(job, actions, facts) {
       await new Promise((r) => setTimeout(r, 45_000));
       job.stageIssueId = await createStage(job, act.stage);
       job.stageStartedMs = Date.now();
-      log(job.identifier + ' tahap ' + STAGE_AGENT[act.stage] + ' diulang otomatis (percobaan ' + job.stageAttempts + '): ' + act.reason);
+      log(job.identifier + ' tahap ' + STAGE_AGENT[act.stage] + (act.network ? ' diulang karena jaringan (ke-' + job.netRetries + ')' : ' diulang otomatis (percobaan ' + job.stageAttempts + ')') + ': ' + act.reason);
     }
     else if (act.type === 'rejectStage') {
       await j('/issues/' + job.stageIssueId + '/comments', jb('POST', { body: '[Orkestrator] Keluaran belum lolos pemeriksaan: ' + act.errors.join('; ') + '. Perbaiki file keluaran, baca ulang, lalu panggil complete_stage lagi.' }));
@@ -190,6 +221,7 @@ async function applyActions(job, actions, facts) {
 
 async function once() {
   const state = readState();
+  const net = await checkNetwork(state.job);
   if (!state.job || ['done', 'blocked'].includes(state.job.phase)) {
     if (state.job) { state.history.push({ ...state.job, endedMs: Date.now() }); state.job = null; }
     const made = await ingest();
@@ -198,9 +230,10 @@ async function once() {
     return;
   }
   const facts = await gatherFacts(state.job, state);
+  facts.offline = net.hold === true;
   const { job, actions } = step(state.job, facts);
   const merged = { ...state.job, ...job };
-  if (facts.managerFailedError) { actions.push({ type: 'block', reason: `run Manager gagal: ${String(facts.managerFailedError).slice(0, 120)}` }); merged.phase = 'blocked'; }
+  if (facts.managerFailedError && !isNetworkErr(facts.managerFailedError)) { actions.push({ type: 'block', reason: `run Manager gagal: ${String(facts.managerFailedError).slice(0, 120)}` }); merged.phase = 'blocked'; }
   await applyActions(merged, actions, facts);
   state.job = merged;
   if (!DRY) writeState(state);

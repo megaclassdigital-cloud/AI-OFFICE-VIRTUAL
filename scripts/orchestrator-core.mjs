@@ -3,7 +3,10 @@
 
 export const STAGES = ['researcher', 'verifier', 'copywriter', 'designer', 'qa'];
 export const STAGE_AGENT = { researcher: 'Researcher', verifier: 'Verifier', copywriter: 'Copywriter', designer: 'Designer', qa: 'QA' };
-export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxStageAttempts: 3, maxText: 4000 });
+export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxStageAttempts: 3, maxNetRetries: 20, maxText: 4000 });
+
+/** Galat jaringan (permintaan agent tidak sampai ke penyedia): ditangani sebagai "tunggu online", bukan kegagalan tahap. */
+export const isNetworkError = (text) => /cannot connect to api|unable to connect|socket connection was closed|econnreset|enotfound|etimedout|eai_again|fetch failed|getaddrinfo|network|typo in the url|connection (was )?(refused|reset)/i.test(String(text ?? ''));
 
 /** Galat sementara dari penyedia model (bukan salah tugas): layak diulang otomatis. */
 const TRANSIENT_RE = /\b50[0-4]\b|high demand|overloaded|unavailable|temporar|timed? ?out|econnreset|etimedout|rate.?limit|too many requests|\b429\b|requests ending with a model turn|terminal service failure|cannot connect to api|unable to connect|socket connection was closed/i;
@@ -65,6 +68,16 @@ export const newJob = ({ masterIssueId, identifier, nowMs }) => ({
 export function step(job, facts) {
   const j = { ...job };
   const actions = [];
+  // Jam internal: selama offline, waktu tidak dihitung ke batas waktu perencanaan/tahap (digeser maju sebesar selang tick).
+  const dt = j.lastTickMs ? Math.max(0, facts.nowMs - j.lastTickMs) : 0;
+  j.lastTickMs = facts.nowMs;
+  if (facts.offline && (j.phase === 'planning' || j.phase === 'running')) {
+    j.createdMs += dt;
+    if (j.stageStartedMs) j.stageStartedMs += dt;
+    if (!j.heldSince) j.heldSince = facts.nowMs;
+    return { job: j, actions };
+  }
+  if (j.heldSince) j.heldSince = null;
   const block = (reason) => { j.phase = 'blocked'; actions.push({ type: 'block', reason }); };
 
   if (j.phase === 'planning') {
@@ -105,6 +118,10 @@ export function step(job, facts) {
         actions.push({ type: 'comment', text: `Tahap ${STAGE_AGENT[stageName]} selesai. Lanjut ${j.stageIndex + 1}/${STAGES.length}: ${STAGE_AGENT[STAGES[j.stageIndex]]}.` });
         actions.push({ type: 'createStage', stage: STAGES[j.stageIndex] });
       }
+    } else if (st.failed && isNetworkError(st.error) && (j.netRetries ?? 0) < LIMITS.maxNetRetries) {
+      // Putus jaringan: ulangi tahap yang sama tanpa menghabiskan jatah percobaan biasa.
+      j.netRetries = (j.netRetries ?? 0) + 1; j.stageStartedMs = facts.nowMs; j.stageIssueId = null;
+      actions.push({ type: 'retryStage', stage: stageName, reason: 'jaringan terputus, diulang saat online', network: true });
     } else if (st.failed && isTransientError(st.error) && (j.stageAttempts ?? 1) < LIMITS.maxStageAttempts) {
       j.stageAttempts = (j.stageAttempts ?? 1) + 1; j.stageStartedMs = facts.nowMs; j.stageIssueId = null;
       actions.push({ type: 'retryStage', stage: stageName, reason: String(st.error).slice(0, 100) });

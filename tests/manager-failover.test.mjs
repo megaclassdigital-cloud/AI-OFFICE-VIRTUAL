@@ -42,9 +42,9 @@ describe('galat model/ACP juga memicu pindah', () => {
   });
 });
 
-describe('galat koneksi API juga memicu pindah', () => {
-  it('Cannot connect to API / socket ditutup', () => {
-    expect(isFailoverError('Cannot connect to API: Unable to connect. Is the computer able to access the url?')).toBe(true);
-    expect(isFailoverError('Cannot connect to API: The socket connection was closed unexpectedly.')).toBe(true);
+describe('galat jaringan BUKAN alasan pindah model', () => {
+  it('Cannot connect to API / socket ditutup tidak memicu failover', () => {
+    expect(isFailoverError('Cannot connect to API: Unable to connect. Is the computer able to access the url?')).toBe(false);
+    expect(isFailoverError('Cannot connect to API: The socket connection was closed unexpectedly.')).toBe(false);
   });
 });

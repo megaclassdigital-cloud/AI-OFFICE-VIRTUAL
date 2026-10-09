@@ -45,6 +45,12 @@ export const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET') return json(res, 405, { error: 'Office View read-only' });
     const p = u.pathname;
     if (p === '/api/layout') return json(res, 200, JSON.parse(strip(await readFile(LAYOUT_FILE, 'utf8'))));
+    if (p === '/api/network') {
+      // Status internet dari sentinel orkestrator (read-only). Berkas basi = tidak dianggap offline.
+      let st = null; try { st = JSON.parse(strip(await readFile(path.join(repoRoot, 'workspace', 'network-state.json'), 'utf8'))); } catch { /* belum ada */ }
+      const fresh = st && Date.now() - (st.updatedAtMs ?? 0) < 120_000;
+      return json(res, 200, { offline: !!(fresh && st.hold === true), announced: !!(fresh && st.announcedOffline), since: fresh ? st.since : null, known: !!fresh });
+    }
     if (p === '/api/status') return json(res, 200, bridge.status());
     if (p === '/api/snapshot') return json(res, 200, bridge.snapshot());
     if (p === '/api/events') return json(res, 200, bridge.eventsSince(Number(u.searchParams.get('since') ?? 0) || 0));

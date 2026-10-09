@@ -2,6 +2,22 @@
 const $ = (id) => document.getElementById(id);
 let issueId = null; let timer = null;
 
+// Banner internet (selalu aktif, hanya-baca): terlihat di UI walau panel Manager tidak diaktifkan.
+{
+  const bar = document.createElement('div');
+  bar.id = 'netbanner'; bar.hidden = true;
+  bar.style.cssText = 'position:absolute;top:44px;left:50%;transform:translateX(-50%);z-index:40;background:#b45309;color:#fff;font:600 14px system-ui;padding:8px 16px;border-radius:10px;box-shadow:0 2px 10px #0008;';
+  document.getElementById('stage')?.append(bar);
+  const hhmm = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  const tick = async () => {
+    const n = await fetch('/api/network', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+    if (!n || !n.offline) { bar.hidden = true; return; }
+    bar.textContent = `🔌 Internet terputus${n.since ? ' sejak ' + hhmm(n.since) : ''} — pekerjaan agent ditahan, lanjut otomatis saat online`;
+    bar.hidden = false;
+  };
+  tick(); setInterval(tick, 5000);
+}
+
 const info = await fetch('/api/talk/info', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ enabled: false }));
 if (info.enabled) {
   $('talk').hidden = false;

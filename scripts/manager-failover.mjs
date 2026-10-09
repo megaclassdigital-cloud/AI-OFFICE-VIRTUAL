@@ -5,9 +5,10 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isOffline, readNetworkState, isNetworkError } from './netcheck.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FAIL_RE = /quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|capacity|terminal service failure|acpx_turn_failed|cannot connect to api|unable to connect|socket connection was closed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
+const FAIL_RE = /quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|capacity|terminal service failure|acpx_turn_failed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
 
 export const isFailoverError = (text) => FAIL_RE.test(String(text ?? ''));
 
@@ -92,7 +93,10 @@ async function main() {
     const last = runs[0];
     if (!last || Date.parse(last.startedAt ?? 0) <= st.switchedAtMs) return;
     if (!['failed', 'error', 'timed_out'].includes(last.status)) return;
-    if (!isFailoverError(`${last.error ?? ''} ${last.errorCode ?? ''}`)) return; // galat tugas biasa / galat sementara: bukan urusan failover
+    const errText = `${last.error ?? ''} ${last.errorCode ?? ''}`;
+    // Putus internet BUKAN masalah model: jangan pernah berpindah model karenanya (orkestrator menahan dan melanjutkan sendiri).
+    if (isNetworkError(errText) || isOffline(readNetworkState(path.join(ROOT, 'workspace', 'network-state.json')))) return;
+    if (!isFailoverError(errText)) return; // galat tugas biasa / galat sementara: bukan urusan failover
     const n = nextIndex(chain.length, idx);
     if (n === null) return log(`SEMUA model ${name} habis/gagal; butuh owner (login ulang atau tunggu kuota)`);
     await apply(name, chain[n], `run gagal: ${String(last.error).slice(0, 80)}`);
