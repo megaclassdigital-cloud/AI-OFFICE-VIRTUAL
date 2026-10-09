@@ -167,6 +167,16 @@ async function applyActions(job, actions, facts) {
     if (act.type === 'comment') await comment(job.masterIssueId, act.text);
     else if (act.type === 'createStage') { job.stageIssueId = await createStage(job, act.stage); if (act.stage === STAGES[0]) await parkMaster(job); }
     else if (act.type === 'rewakeManager') { job.handledRuns = facts.succeeded; await comment(job.masterIssueId, `Work order belum valid: ${act.errors.join('; ')}. Perbaiki file ${orderPathFor(job.identifier)}, baca ulang, lalu complete_stage lagi.`); }
+    else if (act.type === 'retryStage') {
+      // Galat sementara penyedia model: pulihkan agent bila status error, tunggu sebentar, lalu buat issue tahap baru.
+      const ag = agentByName(STAGE_AGENT[act.stage]);
+      const cur = await j('/agents/' + ag.id);
+      if (['error', 'paused'].includes(cur.status)) await j('/agents/' + ag.id + '/resume', jb('POST', {}));
+      await new Promise((r) => setTimeout(r, 45_000));
+      job.stageIssueId = await createStage(job, act.stage);
+      job.stageStartedMs = Date.now();
+      log(job.identifier + ' tahap ' + STAGE_AGENT[act.stage] + ' diulang otomatis (percobaan ' + job.stageAttempts + '): ' + act.reason);
+    }
     else if (act.type === 'rejectStage') {
       await j('/issues/' + job.stageIssueId + '/comments', jb('POST', { body: '[Orkestrator] Keluaran belum lolos pemeriksaan: ' + act.errors.join('; ') + '. Perbaiki file keluaran, baca ulang, lalu panggil complete_stage lagi.' }));
       await j('/issues/' + job.stageIssueId, jb('PATCH', { status: 'in_progress' }));

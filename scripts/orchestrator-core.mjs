@@ -3,7 +3,11 @@
 
 export const STAGES = ['researcher', 'verifier', 'copywriter', 'designer', 'qa'];
 export const STAGE_AGENT = { researcher: 'Researcher', verifier: 'Verifier', copywriter: 'Copywriter', designer: 'Designer', qa: 'QA' };
-export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxText: 4000 });
+export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxStageAttempts: 3, maxText: 4000 });
+
+/** Galat sementara dari penyedia model (bukan salah tugas): layak diulang otomatis. */
+const TRANSIENT_RE = /\b50[0-4]\b|high demand|overloaded|unavailable|temporar|timed? ?out|econnreset|etimedout|rate.?limit|too many requests|\b429\b|requests ending with a model turn|terminal service failure/i;
+export const isTransientError = (text) => TRANSIENT_RE.test(String(text ?? ''));
 
 /** Keluaran baku tiap tahap: nama berkas (di workspace/agent/runs/<ID>/) dan skema yang memvalidasinya. */
 export const STAGE_OUTPUT = Object.freeze({
@@ -97,10 +101,13 @@ export function step(job, facts) {
         j.phase = 'done'; j.stageIssueId = null;
         actions.push({ type: 'finish', text: 'Semua tahap selesai. Paket menunggu keputusan owner.' });
       } else {
-        j.stageIndex += 1; j.stageIssueId = null; j.stageStartedMs = facts.nowMs;
+        j.stageIndex += 1; j.stageIssueId = null; j.stageStartedMs = facts.nowMs; j.stageAttempts = 1;
         actions.push({ type: 'comment', text: `Tahap ${STAGE_AGENT[stageName]} selesai. Lanjut ${j.stageIndex + 1}/${STAGES.length}: ${STAGE_AGENT[STAGES[j.stageIndex]]}.` });
         actions.push({ type: 'createStage', stage: STAGES[j.stageIndex] });
       }
+    } else if (st.failed && isTransientError(st.error) && (j.stageAttempts ?? 1) < LIMITS.maxStageAttempts) {
+      j.stageAttempts = (j.stageAttempts ?? 1) + 1; j.stageStartedMs = facts.nowMs; j.stageIssueId = null;
+      actions.push({ type: 'retryStage', stage: stageName, reason: String(st.error).slice(0, 100) });
     } else if (st.status === 'blocked' || st.failed) {
       block(`tahap ${STAGE_AGENT[stageName]} ${st.failed ? 'gagal' : 'terhalang'}${st.error ? `: ${String(st.error).slice(0, 120)}` : ''}`);
     } else if (facts.nowMs - j.stageStartedMs > LIMITS.stageTimeoutMs) {

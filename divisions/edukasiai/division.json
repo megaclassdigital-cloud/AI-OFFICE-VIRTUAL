@@ -70,7 +70,7 @@
       "instructionsFile": "agents/copywriter.md",
       "adapterType": "opencode_local",
       "adapterConfig": {
-        "model": "google/gemini-3.7-flash"
+        "model": "google/gemini-3.5-flash"
       },
       "envFromDotenv": [
         "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"

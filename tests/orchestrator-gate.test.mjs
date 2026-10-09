@@ -65,3 +65,25 @@ describe('stageDescription: masukan dan keluaran', () => {
     expect(d).not.toContain('KELUARAN WAJIB'); expect(d).not.toContain('Masukan dari tahap');
   });
 });
+
+import { isTransientError } from '../scripts/orchestrator-core.mjs';
+describe('percobaan ulang otomatis untuk galat sementara', () => {
+  it('mengenali galat penyedia model yang sementara, bukan galat tugas', () => {
+    for (const t of ['503 This model is currently experiencing high demand', 'Upstream request failed: Endpoint is unavailable.', 'Requests ending with a model turn are not supported.', 'ACP agent reported a terminal service failure.', 'Timed out after 600s']) expect(isTransientError(t), t).toBe(true);
+    for (const t of ['schema validation failed', 'file keluaran belum ada', '', null]) expect(isTransientError(t), String(t)).toBe(false);
+  });
+  it('gagal sementara -> ulang tahap yang sama, maksimal 3 percobaan lalu blok', () => {
+    let j = running(2, { stageAttempts: 1 });
+    for (const expectAttempt of [2, 3]) {
+      const r = step(j, { stage: { status: 'in_progress', failed: true, error: '503 high demand' }, nowMs: T0 + 5 });
+      expect(r.actions[0]).toMatchObject({ type: 'retryStage', stage: 'copywriter' });
+      expect(r.job.stageAttempts).toBe(expectAttempt); j = r.job;
+    }
+    const last = step({ ...j, stageIssueId: 'x' }, { stage: { status: 'in_progress', failed: true, error: '503 high demand' }, nowMs: T0 + 5 });
+    expect(last.job.phase).toBe('blocked');
+  });
+  it('gagal non-sementara langsung blok tanpa ulang', () => {
+    const r = step(running(2, { stageAttempts: 1 }), { stage: { status: 'in_progress', failed: true, error: 'schema validation failed' }, nowMs: T0 + 5 });
+    expect(r.job.phase).toBe('blocked'); expect(r.actions[0].type).toBe('block');
+  });
+});
