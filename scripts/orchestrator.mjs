@@ -12,6 +12,7 @@ import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
 import { validate } from '../schemas/validate.mjs';
+import { imageSlotsUsed, matchRequests, manifestVerdict, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INBOX = path.join(ROOT, 'workspace', 'inbox');
@@ -47,6 +48,40 @@ const standingRefs = (stage) => (STANDING_REFS[stage] ?? []).filter((p) => exist
 const outPathFor = (identifier, stage) => outputPath(OUTPUTS, identifier, stage, path.sep);
 const artifactPathFor = (identifier, stage) => artifactPath(OUTPUTS, identifier, stage, path.sep);
 
+const TEMPLATES = (() => { try { return JSON.parse(readFileSync(path.join(ROOT, 'divisions', 'edukasiai', 'brand', 'templates.json'), 'utf8').replace(/^﻿/, '')).templates; } catch { return {}; } })();
+
+/**
+ * Gerbang aset gambar (KODE): desain yang memakai gambar runs/<ID>/assets/* wajib punya asset-requests.json yang cocok;
+ * kode mengambil gambarnya (screenshot pencarian gambar / inbox owner). Belum lengkap => TAHAN (hold), bukan gambar pengganti.
+ * Mengembalikan null bila aman lanjut ke render, atau hasil gerbang { ok:false, ... }.
+ */
+function assetGate(job, design, designPath) {
+  const used = imageSlotsUsed(design, TEMPLATES, job.identifier);
+  if (!used.length) return null;
+  const runDir = path.dirname(designPath);
+  const reqFile = path.join(runDir, 'asset-requests.json');
+  if (!existsSync(reqFile)) return { ok: false, errors: [`desain memakai gambar tetapi ${reqFile} belum ada. Tulis permintaan aset (skema asset-requests: slide, file, kind photo|brand|product, query) untuk tiap gambar, lalu panggil complete_stage lagi.`] };
+  let doc;
+  try { doc = JSON.parse(readFileSync(reqFile, 'utf8').replace(/^﻿/, '')); } catch (e) { return { ok: false, errors: [`asset-requests.json bukan JSON valid: ${e.message}`] }; }
+  const sv = validate('asset-requests', doc);
+  if (!sv.ok) return { ok: false, errors: sv.errors.slice(0, 6).map((e) => `asset-requests.json ${e.path || '(root)'}: ${e.message}`) };
+  const mm = matchRequests(used, doc);
+  if (mm.length) return { ok: false, errors: mm };
+  const holdFile = path.join(runDir, 'assets-hold.json');
+  const manFile = path.join(runDir, 'assets-manifest.json');
+  const sig = inboxSignature(ROOT, job.identifier);
+  const files = used.map((u) => u.file);
+  const prev = readHold(holdFile);
+  if (prev && !shouldRetryCapture(prev, sig, Date.now())) return { ok: false, hold: true, missing: prev.missing, errors: [holdMessage(job.identifier, prev.missing)] };
+  spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'capture-asset.mjs'), '--issue', job.identifier], { encoding: 'utf8', timeout: 420_000 });
+  let manifest = null;
+  try { manifest = JSON.parse(readFileSync(manFile, 'utf8')); } catch { /* dianggap belum ada */ }
+  const verdict = manifestVerdict(manifest, files);
+  if (verdict.complete) { try { writeHold(holdFile, null); } catch { /* kosmetik */ } return null; }
+  writeHold(holdFile, { at: Date.now(), sig, missing: verdict.missing });
+  return { ok: false, hold: true, missing: verdict.missing, errors: [holdMessage(job.identifier, verdict.missing)] };
+}
+
 /** Deterministic gate for a finished stage: file exists, JSON parses, schema passes; designer also renders (visual QA). */
 function checkOutput(job, stageName) {
   const p = outPathFor(job.identifier, stageName);
@@ -67,6 +102,8 @@ function checkOutput(job, stageName) {
     if (!r.ok) return { ok: false, errors: r.errors.slice(0, 8).map((e) => `${e.path || '(root)'}: ${e.message}`) };
   }
   if (stageName === 'designer') {
+    const held = assetGate(job, data, p);
+    if (held) return held;
     const outDir = path.join(path.dirname(p), 'render');
     const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'render.mjs'), '--design', p, '--out', outDir], { encoding: 'utf8', timeout: 180_000 });
     let qa = null;
@@ -250,7 +287,7 @@ async function createStage(job, stage) {
     description: stageDescription({
       order, stage, identifier: job.identifier, outputsDir: OUTPUTS, brief: job.brief, refs: standingRefs(stage),
       inputs: STAGES.slice(0, STAGES.indexOf(stage)).map((s) => artifactPathFor(job.identifier, s)),
-      output: { path: outPathFor(job.identifier, stage), schema: STAGE_OUTPUT[stage].schema, example: exampleFor(stage), note: stage === 'researcher' ? 'Isi: {"candidates":[{"title","summary","url","published_at","source_name"}]} saja, 5-10 kandidat; kode yang menambah id dan metadata.' : stage === 'qa' ? 'Isi: {"passed": true|false, "llmReview": {"textOk": true|false, "designOk": true|false}, "notes": ["..."]}; passed=true hanya bila render, teks, dan sumber sesuai brief tetap. JANGAN memanggil qa_submit_result atau handoff_to_owner: orkestrator memanggilnya (di issue produksi) memakai penilaianmu di llmReview.' : stage === 'designer' ? 'Setelah menulis, jalankan render_carousel dan perbaiki bila passed=false.' : '' },
+      output: { path: outPathFor(job.identifier, stage), schema: STAGE_OUTPUT[stage].schema, example: exampleFor(stage), note: stage === 'researcher' ? 'Isi: {"candidates":[{"title","summary","url","published_at","source_name"}]} saja, 5-10 kandidat; kode yang menambah id dan metadata.' : stage === 'qa' ? 'Isi: {"passed": true|false, "llmReview": {"textOk": true|false, "designOk": true|false}, "notes": ["..."]}; passed=true hanya bila render, teks, dan sumber sesuai brief tetap. JANGAN memanggil qa_submit_result atau handoff_to_owner: orkestrator memanggilnya (di issue produksi) memakai penilaianmu di llmReview.' : stage === 'designer' ? `Jika desain memakai gambar (slot image), tulis juga ${path.join(OUTPUTS, 'runs', job.identifier, 'asset-requests.json')} (skema asset-requests; file sama persis dengan nama di slot image runs/${job.identifier}/assets/<file>); gambar diambil KODE setelah kamu selesai, jangan membuat gambar sendiri. Setelah menulis, jalankan render_carousel hanya bila semua gambar sudah ada; bila render gagal karena gambar belum ada, itu normal: serahkan saja, orkestrator mengambil aset lalu merender.` : '' },
     }),
     status: 'todo', projectId: project.id, assigneeAgentId: ag.id,
   }));
@@ -297,6 +334,11 @@ async function applyActions(job, actions, facts) {
       await comment(job.masterIssueId, act.text + ` LAPORAN AKHIR untuk Manager: baca ${path.join(OUTPUTS, 'runs', job.identifier, 'qa-result.json')} dan ${artifactPathFor(job.identifier, 'copywriter')}, lalu tulis SATU komentar ringkas untuk Owner (judul, jumlah slide, sumber, vonis QA, catatan penting, lokasi contact-sheet ${path.join(OUTPUTS, 'runs', job.identifier, 'render', 'contact-sheet.png')}) dengan perintah say, lalu berhenti.`);
       log(`${job.identifier} selesai; diserahkan ke Manager untuk laporan akhir, menunggu owner`);
       await tidyStageIssues(job.identifier, null).catch(() => {});
+    }
+    else if (act.type === 'holdAssets') {
+      await comment(job.masterIssueId, act.text);
+      notifyOwner('AI Agent Office: butuh gambar asli', 'Produksi ' + job.identifier + ' ditahan; lihat komentar atau TV.');
+      log(job.identifier + ' DITAHAN menunggu aset gambar asli');
     }
     else if (act.type === 'block') { await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
   }

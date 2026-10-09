@@ -85,3 +85,22 @@ describe('instruksi Designer', () => {
     for (const k of ['attach_file', 'complete_stage', 'render_carousel', 'Dilarang membuat panggilan HTTP sendiri']) expect(md).toContain(k);
   });
 });
+
+describe('format foto/ikon v3', () => {
+  const hero = (image) => run((d) => { d.slides[0].template = 'hero-cover'; d.slides[0].slots = { image, kicker: 'Berita AI', headline: 'California batasi AI menilai pekerja lewat biometrik.', subtitle: 'Aturan baru juga mewajibkan pemberitahuan tertulis sebelum PHK massal.', source: 'Sumber: Associated Press' }; });
+  it('peran hook boleh hero-cover; template di luar peran ditolak', () => {
+    expect(hero('runs/EDU-9/assets/logo.png').errors.join(' | ')).not.toMatch(/tidak sesuai peran/);
+    expectFail(run((d) => { d.slides[0].template = 'stat'; }), /tidak sesuai peran hook/);
+  });
+  it('slot gambar harus runs/EDU-n/assets/<berkas> atau brand/<berkas>', () => {
+    expectFail(hero('../../etc/passwd.png'), /harus berupa runs/);
+    expectFail(hero('https://x.com/a.png'), /harus berupa runs/);
+    expect(hero('runs/EDU-9/assets/logo.png').errors.join(' | ')).not.toMatch(/harus berupa runs/);
+    expect(hero('brand/hero-1.png').errors.join(' | ')).not.toMatch(/harus berupa runs/);
+  });
+  it('slot source harus memuat nama media dari daftar sumber carousel', () => {
+    expect(hero('runs/EDU-9/assets/logo.png').errors.join(' | ')).not.toMatch(/slot source/);
+    const r = run((d) => { d.slides[0].template = 'hero-cover'; d.slides[0].slots = { image: 'runs/EDU-9/assets/logo.png', kicker: 'Berita AI', headline: 'California batasi AI menilai pekerja lewat biometrik.', subtitle: 'x', source: 'Sumber: Media Karangan' }; });
+    expectFail(r, /slot source/);
+  });
+});

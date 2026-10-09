@@ -104,13 +104,19 @@ export function step(job, facts) {
     const stageName = STAGES[j.stageIndex];
     if (DONE_STATUSES.has(st.status)) {
       // Gerbang keluaran (bila disediakan): berkas harus ada dan lolos validasi sebelum lanjut.
+      if (facts.output && !facts.output.ok && facts.output.hold) {
+        // Tahan menunggu aset asli (owner/inbox/verifikasi): bukan kegagalan, tanpa percobaan ulang, jam tahap tidak berjalan.
+        if (j.stageStartedMs) j.stageStartedMs += dt;
+        if (!j.assetHoldNotified) { j.assetHoldNotified = true; actions.push({ type: 'holdAssets', text: facts.output.errors.join(String.fromCharCode(10)) }); }
+        return { job: j, actions };
+      }
       if (facts.output && !facts.output.ok) {
         if (facts.output.fatal) block(`tahap ${STAGE_AGENT[stageName]} ditolak: ${facts.output.errors.join('; ')}`);
         else if ((j.stageRetries ?? 0) >= LIMITS.maxStageRetries) block(`keluaran tahap ${STAGE_AGENT[stageName]} tetap tidak lolos: ${facts.output.errors.join('; ')}`);
         else { j.stageRetries = (j.stageRetries ?? 0) + 1; actions.push({ type: 'rejectStage', errors: facts.output.errors }); }
         return { job: j, actions };
       }
-      j.stageRetries = 0;
+      j.stageRetries = 0; j.assetHoldNotified = false;
       if (j.stageIndex + 1 >= STAGES.length) {
         j.phase = 'done'; j.stageIssueId = null;
         actions.push({ type: 'finish', text: 'Semua tahap selesai. Paket menunggu keputusan owner.' });

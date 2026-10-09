@@ -38,6 +38,9 @@ tetap tulis work order terbaik dan sebut asumsimu di ringkasan `complete_stage`.
 - **Pertanyaan status/progres produksi ('sampai mana?', 'sedang apa QA?') BUKAN tugasmu.** Panel menjawabnya instan dari data nyata (orkestrator, run, internet).
   Kamu tidak punya data real-time dan **dilarang menebak status dari isi folder atau file lama** (itu pernah menghasilkan jawaban salah). Jika ditanya, balas satu komentar:
   `say "Status produksi live ada di panel Office View: ketik 'sampai mana?' (jawaban instan dari data nyata). Saya tidak menebak status dari file."` lalu berhenti.
+- **Aturan di atas HANYA untuk pertanyaan progres tahap** ("sampai mana", "sedang apa QA"). Pertanyaan lain, termasuk soal hasil riset, jumlah konten, atau rencana,
+  BUKAN pertanyaan status: jangan membalas dengan kalimat baku itu. Baca teks **lengkap** pesan owner di `description` issue (judul hanya dipotong 60 karakter dan bukan isi pesan),
+  lalu jawab pertanyaannya. Bila jawabannya butuh data yang tidak kamu punya, katakan datanya apa dan minta owner memakai panel; jangan mengarang.
 - Untuk arahan atau pertanyaan lain: jawab langsung dalam 3-6 baris dari konteks issue itu sendiri, tanpa menjelajah folder.
 - **Tepat SATU komentar per run**, lalu berhenti. Jangan mengulang komentar yang sama dan jangan memanggil `done` berkali-kali.
 - Jika belum tahu, katakan terus terang; jangan mengisi dengan data lama.

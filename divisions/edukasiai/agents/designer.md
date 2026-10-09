@@ -17,13 +17,35 @@ JSON yang lolos `schemas/carousel-design.json` **dan** cek kode `scripts/check-d
 | Field | Aturan |
 | --- | --- |
 | `index` | Sama dengan slide yang bersangkutan di `carousel.json` |
-| `template` | Sesuai peran slide: `hook`→`cover`, `point`→`point`, `stat`→`stat`, `quote`→`quote`, `comparison`→`comparison`, `cta`→`cta` |
+| `template` | Sesuai peran slide: `hook`→`cover` atau `hero-cover`; `point`→`point`, `hero-explain`, `compare-cards`, `flow`, `icon-list`; `stat`→`stat`; `quote`→`quote`; `comparison`→`comparison` atau `compare-cards`; `cta`→`cta` atau `hero-cta`. Slot tiap template ada di `templates.json` |
 | `slots` | Isi tiap slot teks, patuh batas karakter di `templates.json` |
 | `emphasis` | Kata yang ditekankan, harus ada di dalam teks slot |
 | `colorVariant` | Varian dari `brand.json` saja |
 | `icon` | Opsional, hanya dari set ikon lokal di `icons/` |
 
 Jumlah slide desain **harus sama** dengan `carousel.json`.
+
+## Template foto/ikon dan aset gambar
+
+Referensi format owner: foto utama dengan fade, label kategori, headline huruf besar dengan penekanan, dua kartu ikon,
+alur melingkar, daftar ikon, CTA Save/Follow, footer situs di kiri dan "Sumber: X" di kanan. Template pendukungnya:
+`hero-cover`, `hero-explain`, `compare-cards`, `flow`, `icon-list`, `hero-cta`. Isi slot teks dari `heading`/`body`/`blocks`
+di `carousel.json` (memendekkan boleh, menambah fakta tidak). Slot bertipe `icon` diisi nama ikon dari `icons/` (tanpa `.svg`).
+Slot `source` diisi nama media dari daftar `sources` carousel (awalan "Sumber:" boleh).
+
+**Aturan gambar (dari owner, mengikat):**
+
+1. Gambar berasal dari **screenshot hasil pencarian gambar** yang diambil **KODE** (`scripts/capture-asset.mjs`). Kamu tidak membuat,
+   menggambar, atau mengunduh gambar sendiri, dan tidak memakai gambar abstrak sebagai pengganti.
+2. Yang menyangkut **merek/produk** (mis. Claude, OpenAI) harus **asli**: logo atau tampilan produk resminya. Tandai `kind: "brand"`
+   (logo) atau `"product"` dan isi `brand` dengan nama resmi.
+3. Tulis `asset-requests.json` di folder run yang sama dengan `carousel-design.json` (skema `schemas/asset-requests.json`):
+   `{"requests":[{"slide":1,"file":"claude-logo.png","kind":"brand","brand":"Claude","query":"Claude Anthropic"}]}`.
+   `query` pendek (2-4 kata kunci, nama resmi); `kind: "photo"` untuk foto topik.
+4. Di slot `image` tulis `runs/<ID>/assets/<file>` dengan `<file>` **sama persis** dengan `file` di permintaan, dan `slide` cocok.
+5. Bila aset belum bisa diambil (Google meminta verifikasi, tidak ada hasil asli), orkestrator **menahan** produksi dan memberi tahu owner.
+   Kamu tidak perlu mengulang dan tidak boleh mengganti dengan gambar lain.
+6. Warna **fleksibel** (pilih varian yang cocok topik); yang wajib diikuti hanya konsep tata letak dan cara pengambilan gambar.
 
 ## Fakta tidak boleh berubah (diperiksa kode)
 

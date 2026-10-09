@@ -87,3 +87,28 @@ export function activityTimeline(content, limit = 30) {
   }
   return out.slice(-limit);
 }
+
+/** Pertanyaan owner tentang HASIL RISET (mis. "yang sudah ditemukan itu untuk 1 konten atau beberapa?"): dijawab dari berkas nyata, tanpa LLM. */
+export function isResearchQuestion(text) {
+  const t = String(text ?? '').trim();
+  if (!t || t.length > 600 || /^manager\s*:/i.test(t)) return false;
+  if (!/(\?|apakah|berapa|sudah)/i.test(t)) return false;
+  const about = /(researcher|riset|peneliti|berita|kandidat|temuan|ditemukan|hasil cari)/i.test(t);
+  const unit = /(konten|carousel|topik|kandidat|beberapa|berapa|copywriter|konsep)/i.test(t);
+  const command = /\b(buat|tulis|ubah|ganti|tambah|hapus|kirim|jalankan|mulai)\b/i.test(t) && !/\?/.test(t);
+  return about && unit && !command;
+}
+
+/** Jawaban dari berkas run terakhir. data: { identifier, research, verification, carousel } (semua boleh null). */
+export function buildResearchText(data) {
+  const { identifier, research, verification, carousel } = data ?? {};
+  const cands = research?.candidates ?? [];
+  if (!cands.length) return 'Belum ada hasil riset yang tersimpan (folder run belum berisi research-output.json). Minta produksi baru lewat tombol Produksi atau beri arahan topik.';
+  const res = verification?.results ?? [];
+  const ok = res.filter((r) => r.status === 'verified').length;
+  const lines = [`Hasil riset terakhir (${identifier ?? 'run terakhir'}): ${cands.length} kandidat berita${res.length ? `, ${ok} lolos verifikasi, ${res.length - ok} ditolak/ragu` : ' (belum diverifikasi)'}.`];
+  lines.push(...cands.slice(0, 8).map((c) => `- ${c.id}: ${String(c.title).slice(0, 90)}${(res.find((r) => r.candidateId === c.id)?.status ?? '') ? ` [${res.find((r) => r.candidateId === c.id).status}]` : ''}`));
+  lines.push('Satu produksi menghasilkan SATU carousel: Copywriter merangkai satu topik/angle dari kandidat terverifikasi, bukan satu carousel per kandidat.' + (carousel?.topic ? ` Carousel run ini: "${String(carousel.topic).slice(0, 100)}" (${carousel.slides?.length ?? '?'} slide, ${carousel.sources?.length ?? '?'} sumber).` : ''));
+  lines.push('Kandidat lain tidak otomatis jadi konten. Untuk beberapa konten, beri arahan satu topik per produksi (mis. "buat carousel tentang <judul kandidat>"); produksi berjalan satu per satu.');
+  return lines.join('\n');
+}

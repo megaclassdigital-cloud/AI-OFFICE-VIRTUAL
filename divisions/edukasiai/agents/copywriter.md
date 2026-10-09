@@ -20,6 +20,8 @@ JSON yang lolos `schemas/carousel.json` **dan** cek kode `scripts/check-carousel
 | `heading`, `body` | Muat batas slot template (lihat tabel). Satu gagasan per slide |
 | `sourceRefs` | **Wajib** pada setiap slide selain `cta`: id kandidat terverifikasi yang mendukung klaim slide itu |
 | `emphasis` | Opsional; kata yang benar-benar ada di heading/body |
+| `blocks` | Opsional, maks 5 butir `{title (<=34), text (<=90)}` untuk slide berformat kartu/langkah/daftar: 2 butir untuk perbandingan dua sisi, 3-5 untuk alur/langkah, 4 untuk daftar ikon. Isinya fakta yang sama dengan slide, tanpa klaim baru |
+| `visualIdea` | Opsional, <=160 karakter: saran visual (mis. "logo OpenAI", "foto produk Claude Opus 5"). Hanya saran; Designer yang menetapkan dan KODE yang mengambil gambarnya |
 | `caption` | Caption posting, bahasa Indonesia |
 | `hashtags` | Relevan, tidak berlebihan, diawali `#` |
 | `sources` | Hanya kandidat `verified`, URL persis sama dengan hasil Verifier, tanpa duplikat |
@@ -34,6 +36,10 @@ Batas panjang (karakter) yang akan diperiksa kode:
 | quote | 220 (kutipan) | 70 (atribusi) |
 | comparison | 60 | 320 (kiri + kanan) |
 | cta | 70 | 180 |
+
+Bila topik menyebut **merek, produk, atau model tertentu** (mis. Claude, GPT, Gemini), sebutkan nama resminya persis di
+`heading`/`body` dan isi `visualIdea` dengan merek itu ("logo Claude", "tampilan produk X"). Gambar merek wajib yang asli;
+kamu tidak membuat atau mendeskripsikan gambar palsu.
 
 ## Cara menyerahkan hasil (WAJIB lewat tool plugin)
 

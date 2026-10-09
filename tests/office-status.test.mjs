@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isStatusQuestion, lastActivityFromLog, buildStatusText } from '../apps/office-view/status.mjs';
+import { isStatusQuestion, lastActivityFromLog, buildStatusText, isResearchQuestion, buildResearchText } from '../apps/office-view/status.mjs';
 
 describe('isStatusQuestion', () => {
   it('pertanyaan progres singkat dikenali', () => {
@@ -42,5 +42,24 @@ describe('buildStatusText', () => {
   });
   it('perencanaan oleh Manager', () => {
     expect(buildStatusText({ ...base, job: { identifier: 'EDU-9', phase: 'planning', stageIndex: -1 } })).toContain('Manager sedang menyusun work order');
+  });
+});
+
+describe('isResearchQuestion / buildResearchText', () => {
+  it('mengenali pertanyaan hasil riset (termasuk pesan owner yang memicu bug EDU-44)', () => {
+    const q = 'saya mau tanya dulu, researcher sudah mencari berita" tentang AI, untuk yang sudah ditemukan sekarang itu untuk 1 konten atau untuk beberapa konten yang siap dibuatkan konsep nya oleh copywriter?';
+    expect(isResearchQuestion(q)).toBe(true);
+    expect(isStatusQuestion(q)).toBe(false);
+    expect(isResearchQuestion('berapa kandidat berita yang ditemukan riset?')).toBe(true);
+  });
+  it('bukan perintah dan bukan status', () => {
+    for (const t of ['buat carousel tentang riset AI', 'sampai mana?', 'halo', '', 'manager: berapa kandidat?']) expect(isResearchQuestion(t), t).toBe(false);
+  });
+  it('jawaban dari berkas: jumlah kandidat, terverifikasi, satu carousel per produksi', () => {
+    const a = buildResearchText({ identifier: 'EDU-27', research: { candidates: [{ id: 'c01', title: 'A' }, { id: 'c02', title: 'B' }] }, verification: { results: [{ candidateId: 'c01', status: 'verified' }, { candidateId: 'c02', status: 'rejected' }] }, carousel: { topic: 'Topik X panjang', slides: [1, 2, 3, 4, 5, 6], sources: [1] } });
+    expect(a).toMatch(/EDU-27/); expect(a).toMatch(/2 kandidat/); expect(a).toMatch(/1 lolos verifikasi/); expect(a).toMatch(/SATU carousel/); expect(a).toMatch(/c01: A \[verified\]/); expect(a).toMatch(/6 slide/);
+  });
+  it('tanpa data riset: jujur, tidak mengarang', () => {
+    expect(buildResearchText({})).toMatch(/Belum ada hasil riset/);
   });
 });

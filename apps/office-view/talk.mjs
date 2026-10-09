@@ -3,7 +3,7 @@
 // owner comment to an issue created here). Loopback only, same-origin only, size and rate limited. No LLM here.
 import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { isStatusQuestion, buildStatusText, lastActivityFromLog } from './status.mjs';
+import { isStatusQuestion, buildStatusText, lastActivityFromLog, isResearchQuestion, buildResearchText } from './status.mjs';
 import { STAGES, STAGE_AGENT } from '../../scripts/orchestrator-core.mjs';
 
 const MAX_TEXT = 4000;
@@ -64,6 +64,19 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
       try { const l = (await readFile(orchLogFile, 'utf8')).split(/\r?\n/).reverse().find((x) => x.includes('DIBLOKIR')); lastBlockLine = l ? l.replace(/^\S+\s+/, '').slice(0, 200) : null; } catch { /* tanpa log */ }
     }
     return { nowMs, job, lastJob, agents, net, activity, lastBlockLine, queue };
+  }
+
+  // Berkas run terbaru (job berjalan atau terakhir) untuk menjawab pertanyaan hasil riset.
+  async function gatherResearch() {
+    const readJson = async (f) => { try { return JSON.parse((await readFile(f, 'utf8')).replace(/^﻿/, '')); } catch { return null; } };
+    const st = stateFile ? await readJson(stateFile) : null;
+    const ids = [st?.job?.identifier, ...(st?.history ?? []).map((h) => h.identifier).reverse()].filter(Boolean);
+    for (const identifier of ids) {
+      const dir = path.join(outputRoot ?? '', 'runs', identifier);
+      const research = await readJson(path.join(dir, 'research-output.json'));
+      if (research?.candidates?.length) return { identifier, research, verification: await readJson(path.join(dir, 'verification-result.json')), carousel: await readJson(path.join(dir, 'carousel.json')) };
+    }
+    return { identifier: null, research: null, verification: null, carousel: null };
   }
 
   const sameOrigin = (req) => {
@@ -149,6 +162,8 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         let msg = typeof text === 'string' ? text.trim() : '';
         // Pertanyaan progres dijawab instan dari data nyata (tanpa membangunkan Manager). "manager:" memaksa ke Manager.
         if (!issueId && isStatusQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildStatusText(await gatherStatus()) }); return true; }
+        // Pertanyaan tentang hasil riset (kandidat, untuk berapa konten) juga dijawab dari berkas nyata, bukan oleh LLM Manager.
+        if (!issueId && outputRoot && isResearchQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildResearchText(await gatherResearch()) }); return true; }
         msg = msg.replace(/^manager\s*:\s*/i, '');
         if (!msg || msg.length > MAX_TEXT) { json(res, 400, { error: `pesan 1-${MAX_TEXT} karakter` }); return true; }
         last = now();

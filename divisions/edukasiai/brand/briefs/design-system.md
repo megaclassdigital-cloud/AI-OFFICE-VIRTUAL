@@ -49,12 +49,13 @@ Jangan memakai semua aksen sekaligus. Satu carousel = satu varian. Varian `defau
 1. Hook (`cover`): satu gagasan kuat. 2. Apa yang terjadi (`point`/`stat`): fakta, tanggal. 3. Konteks (`point`).
 4. Kenapa penting (`point`/`comparison`). 5. Dampak atau insight (`point`/`quote`). 6. CTA + sumber (`cta`): follow, save, diskusi, atau support riset.
 
-## Visual utama (HERO IMAGE) — KETERBATASAN YANG HARUS DILAPORKAN
+## Visual utama (HERO IMAGE) dan aset gambar
 
-Referensi menginginkan visual cinematic relevan topik di bagian atas (35-50% tinggi). **Renderer saat ini tidak punya slot gambar dan
-sistem ini tidak punya sumber gambar berlisensi/generator.** Yang tersedia: pencahayaan gradient atas (glow) dan ikon lokal di `icons/`.
-Aturan: jangan memalsukan visual, jangan memakai gambar dari internet. Di `summary` `complete_stage`, tulis satu kalimat
-"Visual utama: belum didukung (butuh slot gambar + sumber berlisensi)" dan usulkan ikon lokal yang paling relevan.
+Pembaruan owner (2026-10-09): renderer kini punya slot gambar (`hero-cover`, `hero-explain`, `hero-cta`) dan ikon Lucide di `icons/`.
+Gambar **harus screenshot hasil pencarian gambar yang diambil kode** (`capture-asset.mjs`); yang menyangkut merek/produk harus
+**logo atau tampilan resmi yang asli**. Dilarang gambar abstrak/buatan sebagai pengganti. Cara menulis permintaan aset ada di
+`agents/designer.md` bagian "Template foto/ikon dan aset gambar". Warna fleksibel; tata letak dan cara pengambilan gambar yang mengikat.
+Bila gambar tidak bisa diambil, produksi ditahan dan owner diberi tahu (bukan diganti gambar lain).
 
 ## Checklist QC sebelum menyerahkan
 
