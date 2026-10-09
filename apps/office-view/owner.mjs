@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { verifyPin, readPinHash, createLimiter, hashPin, writePinHash, MIN_PIN } from '../../scripts/owner-pin.mjs';
 import { decide, httpClient, DecideError } from '../../scripts/owner-decide.mjs';
-import { ApprovalError, readOwnerToken, defaultApprovalDir } from '../../scripts/owner-approval.mjs';
+import { ApprovalError, readOwnerToken, initOwnerToken, defaultApprovalDir } from '../../scripts/owner-approval.mjs';
 import { routingDirFor, cancelFile, doneFile, ROUTE_STAGES } from '../../scripts/revision-router.mjs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,6 +17,7 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
   const decideFn = deps.decide ?? decide;
   const clientFn = deps.httpClient ?? httpClient;
   const tokenFn = deps.readOwnerToken ?? (() => readOwnerToken(path.join(repoRoot, '.env')));
+  const initTokenFn = deps.initOwnerToken ?? (() => initOwnerToken(path.join(repoRoot, '.env')));
   const approvalDirFn = deps.approvalDir ?? (() => defaultApprovalDir());
   const routingDir = routingDirFor(repoRoot);
 
@@ -90,7 +91,10 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
         try {
           const company = (await (await fetch(`${base}/api/companies`)).json()).find((c) => /edukasi/i.test(c.name) && !/mega\s*class/i.test(c.name));
           if (!company) throw new DecideError('company EdukasiAI tidak ditemukan');
-          const token = tokenFn();
+          // Pemakaian pertama: token owner dibuat otomatis setelah PIN lolos (sebelumnya langkah manual owner-approval.mjs init).
+          let token = tokenFn();
+          if (!token) { initTokenFn(); token = tokenFn(); }
+          if (!token) throw new DecideError('token owner tidak dapat dibuat di .env');
           const r = await decideFn({
             client: clientFn(`${base}/api`, company.id), token, expectedToken: token, issueId, decision: decision === 'approve' ? 'approved' : 'rejected', note: text || undefined,
             approvalDir: approvalDirFn(), routing: decision === 'reject' ? { dir: routingDir, forceStage: stage || null } : null,

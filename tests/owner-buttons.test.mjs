@@ -139,3 +139,25 @@ describe('atur PIN dari panel (sekali)', () => {
     srv.close();
   });
 });
+
+describe('token owner dibuat otomatis pada pemakaian pertama', () => {
+  it('tanpa token: init dipanggil sekali setelah PIN lolos, lalu decide memakai token baru', async () => {
+    const root = makeTmp('aao-tok-'); const env = path.join(root, '.env');
+    writePinHash(hashPin(PIN), env);
+    const paperclip = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify([{ id: 'c1', name: 'EdukasiAI' }])); });
+    await new Promise((r) => paperclip.listen(0, '127.0.0.1', r));
+    const srv = http.createServer(); await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    let token = null; let inits = 0; const seen = [];
+    const handle = createOwner({ base: `http://127.0.0.1:${paperclip.address().port}`, port, repoRoot: root, envFile: env,
+      deps: { httpClient: () => ({}), approvalDir: () => root, readOwnerToken: () => token, initOwnerToken: () => { inits++; token = 'baru'.repeat(16); }, decide: async (a) => { seen.push(a.token); return { issueStatus: 'done', returnedTo: null, record: { record_id: 'r' } }; } } });
+    const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
+    srv.on('request', async (req, res) => { if (!(await handle(req, res, new URL(req.url, 'http://x'), json))) json(res, 404, {}); });
+    const call = () => fetch(`http://127.0.0.1:${port}/api/owner/decide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ issueId: UUID, decision: 'approve', pin: PIN }) });
+    expect((await call()).status).toBe(200);
+    expect((await call()).status).toBe(200);
+    expect(inits).toBe(1);
+    expect(seen).toEqual(['baru'.repeat(16), 'baru'.repeat(16)]);
+    srv.close(); paperclip.close();
+  });
+});
