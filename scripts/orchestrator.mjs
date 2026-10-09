@@ -176,6 +176,10 @@ async function tidyBlocked(state) {
   for (const i of issues) {
     const m = String(i.title).match(/^(EDU-[0-9]+) · [A-Za-z]+/);
     if (!m || i.status !== 'blocked' || (state.job?.phase === 'running' && i.id === state.job.stageIssueId)) continue;
+    // Blokir yang SENGAJA dari agen (mis. disposisi QA "fail") tidak boleh dibalik: hanya blokir akibat pemulihan otomatis Paperclip yang dipulihkan.
+    const cm = await j('/issues/' + i.id + '/comments').catch(() => []);
+    const lastC = Array.isArray(cm) ? cm[0] : null;
+    if (lastC && lastC.authorAgentId) continue;
     if (doneProds.has(m[1])) { await j('/issues/' + i.id, jb('PATCH', { status: 'in_review' })).catch(() => {}); restored += 1; }
     else { await j('/issues/' + i.id, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {}); cancelled += 1; }
   }
