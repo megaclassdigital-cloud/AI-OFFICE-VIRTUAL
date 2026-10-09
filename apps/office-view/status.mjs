@@ -63,6 +63,7 @@ export function buildStatusText(f) {
     lines.push(`🏭 ${fj.identifier}: ${where} (jalur paralel di belakang ${f.job?.identifier ?? 'konten terdepan'})`);
   }
   for (const p of f.pending ?? []) lines.push(p.ready ? `📝 ${p.identifier}: rencana Manager siap, menunggu giliran.` : `📝 ${p.identifier}: Manager sedang menyusun rencana (paralel, tidak mengganggu job yang berjalan).`);
+  if (f.paused) lines.push(`⏸ DIJEDA owner: tidak ada pekerjaan baru dan jam tahap dibekukan. Agent yang masih menyelesaikan run: ${(f.agents ?? []).filter((a) => a.status === 'running').map((a) => a.name).join(', ') || 'tidak ada (aman menutup aplikasi)'}. Ketik "kerja lagi" untuk melanjutkan.`.replace('\u00ad', ''));
   lines.push(f.net?.offline ? `🔌 Internet: TERPUTUS${f.net.since ? ' sejak ' + hhmm(f.net.since) : ''}; pekerjaan ditahan, lanjut otomatis saat online.` : '🌐 Internet: online');
   const busy = (f.agents ?? []).filter((a) => a.status !== 'idle');
   const idle = (f.agents ?? []).filter((a) => a.status === 'idle').map((a) => a.name);

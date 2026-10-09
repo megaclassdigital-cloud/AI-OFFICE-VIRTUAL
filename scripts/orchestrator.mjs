@@ -636,10 +636,23 @@ async function advanceJob(job, net, occupied, state) {
 async function once() {
   const state = readState();
   state.pending ??= []; state.followers ??= [];
+  const settings = readJsonLoose(SETTINGS_FILE) ?? {};
+  if (settings.paused === true) {
+    // JEDA owner: tidak ada pekerjaan baru; jam tahap/perencanaan dibekukan (seperti offline) supaya tidak ada batas waktu yang lewat; agent yang sedang bekerja menyelesaikan run-nya sendiri.
+    const nowMs = Date.now();
+    const freeze = (j) => ({ ...j, ...step(j, { offline: true, nowMs }).job });
+    if (state.job && !isFinished(state.job)) state.job = freeze(state.job);
+    state.followers = state.followers.map((j) => (isFinished(j) ? j : freeze(j)));
+    state.pending = state.pending.map((p) => (p.ready || p.hold ? p : freeze(p)));
+    if (!state.pausedLogged) { state.pausedLogged = true; log('DIJEDA owner: tidak ada pekerjaan baru; agent yang sedang berjalan menyelesaikan run-nya, jam tahap dibekukan'); }
+    if (!DRY) writeState(state);
+    return;
+  }
+  if (state.pausedLogged) { delete state.pausedLogged; log('jeda dicabut: pekerjaan dilanjutkan'); }
   const net = await checkNetwork(state.job);
   try { await tidyBlocked(state); } catch { /* pembersihan hanya kosmetik; jangan pernah mengganggu alur */ }
   try { await processRoutings(); } catch (e) { log('routing revisi galat: ' + String(e?.message ?? e).slice(0, 160)); }
-  const review = (readJsonLoose(SETTINGS_FILE) ?? {}).reviewPlans === true;
+  const review = settings.reviewPlans === true;
   try { await planAhead(state, net.hold, review); } catch (e) { log('perencanaan di muka galat: ' + String(e?.message ?? e).slice(0, 160)); }
 
   // 1. Majukan semua konten aktif (terdepan dulu). Jalur yang dipegang konten di depan tidak boleh diambil konten di belakangnya.

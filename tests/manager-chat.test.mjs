@@ -71,3 +71,19 @@ describe('kotak keluar Manager', () => {
     expect(speakerName('claude_local')).toBe('Manager (Claude)'); expect(speakerName('codex_local')).toBe('Manager (ChatGPT)'); expect(speakerName('lain')).toBe('Manager');
   });
 });
+
+import { classifyControl } from '../scripts/owner-reply.mjs';
+import { buildStatusText } from '../apps/office-view/status.mjs';
+describe('jeda dan lanjut pekerjaan', () => {
+  it('perintah kendali khusus; tidak bentrok dengan persetujuan rencana', () => {
+    for (const t of ['jeda', 'Jeda dulu', 'pause', 'istirahat', 'hentikan sementara']) expect(classifyControl(t), t).toBe('pause');
+    for (const t of ['kerja lagi', 'lanjut kerja', 'resume']) expect(classifyControl(t), t).toBe('resume');
+    for (const t of ['setuju', 'lanjutkan', 'batal', 'sampai mana?', 'jedanya dicabut?']) expect(classifyControl(t), t).toBeNull();
+  });
+  it('status menyebut jeda dan agent yang masih bekerja (aman menutup bila kosong)', () => {
+    const base = { nowMs: 1_000_000, job: null, agents: [{ name: 'Designer', status: 'running', model: 'x' }, { name: 'QA', status: 'idle', model: 'y' }], net: null, activity: null, queue: 0, paused: true };
+    expect(buildStatusText(base)).toMatch(/DIJEDA owner.*Agent yang masih menyelesaikan run: Designer.*kerja lagi/);
+    expect(buildStatusText({ ...base, agents: [{ name: 'QA', status: 'idle', model: 'y' }] })).toMatch(/aman menutup aplikasi/);
+    expect(buildStatusText({ ...base, paused: false })).not.toMatch(/DIJEDA/);
+  });
+});

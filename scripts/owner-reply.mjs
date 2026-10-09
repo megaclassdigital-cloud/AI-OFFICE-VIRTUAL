@@ -48,3 +48,13 @@ export function planReplyText({ action, identifier, note = '', others = [] }) {
   if (action === 'cancel') return `Rencana ${identifier} dibatalkan. Tidak ada kuota agent yang terpakai.${more}`;
   return `Jawaban Anda dicatat ke rencana ${identifier}; Researcher akan membacanya. Ketik "setuju" untuk memulai atau "batal" untuk membatalkan.${more}`;
 }
+
+const PAUSE_RE = /^(jeda|pause|istirahat(?:kan)?|hentikan sementara|tahan semua)\b/i;
+const RESUME_RE = /^(kerja lagi|lanjut kerja|resume|teruskan kerja|aktifkan lagi|mulai kerja lagi)\b/i;
+/** Perintah kendali pekerjaan di chat: 'pause' | 'resume' | null. Kata sengaja khusus agar tidak bentrok dengan "setuju/lanjutkan" untuk rencana. */
+export function classifyControl(text) {
+  const t = String(text ?? '').trim();
+  if (PAUSE_RE.test(t)) return 'pause';
+  if (RESUME_RE.test(t)) return 'resume';
+  return null;
+}

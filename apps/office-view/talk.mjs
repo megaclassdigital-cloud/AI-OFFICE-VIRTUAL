@@ -5,7 +5,7 @@ import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isStatusQuestion, buildStatusText, lastActivityFromLog, isResearchQuestion, buildResearchText, buildBriefAck } from './status.mjs';
 import { STAGES, STAGE_AGENT } from '../../scripts/orchestrator-core.mjs';
-import { decidePlanAction, planReplyText } from '../../scripts/owner-reply.mjs';
+import { decidePlanAction, planReplyText, classifyControl } from '../../scripts/owner-reply.mjs';
 import { readOutbox } from '../../scripts/manager-outbox.mjs';
 
 const MAX_TEXT = 4000;
@@ -47,6 +47,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     const st = stateFile ? await readJson(stateFile) : null;
     const job = st?.job ? { identifier: st.job.identifier, phase: st.job.phase, stageIndex: st.job.stageIndex, stageStartedMs: st.job.stageStartedMs } : null;
     const lastJob = !job && st?.history?.length ? { identifier: st.history[st.history.length - 1].identifier, phase: st.history[st.history.length - 1].phase } : null;
+    const paused = (await readSettings()).paused === true;
     const followers = (st?.followers ?? []).map((x) => ({ identifier: x.identifier, phase: x.phase, stageIndex: x.stageIndex, laneWait: !!x.laneWait }));
     const pending = (st?.pending ?? []).map((p) => ({ identifier: p.identifier, ready: !!p.ready }));
     let queue = 0; try { queue = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* tanpa inbox */ }
@@ -67,7 +68,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     if (job?.phase === 'blocked' && orchLogFile) {
       try { const l = (await readFile(orchLogFile, 'utf8')).split(/\r?\n/).reverse().find((x) => x.includes('DIBLOKIR')); lastBlockLine = l ? l.replace(/^\S+\s+/, '').slice(0, 200) : null; } catch { /* tanpa log */ }
     }
-    return { nowMs, job, lastJob, agents, net, activity, lastBlockLine, queue, pending, followers };
+    return { nowMs, job, lastJob, agents, net, activity, lastBlockLine, queue, pending, followers, paused };
   }
 
   // Berkas run terbaru (job berjalan atau terakhir) untuk menjawab pertanyaan hasil riset.
@@ -105,6 +106,19 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     if (d.action === 'approve') await writeFile(path.join(dir, d.identifier + '.release'), JSON.stringify({ at: stamp }), 'utf8');
     if (d.action === 'cancel') await writeFile(path.join(dir, d.identifier + '.cancel'), JSON.stringify({ at: stamp }), 'utf8');
     return planReplyText(d);
+  }
+
+  const settingsPath = () => path.join(outputRoot ?? '', '..', 'orchestrator-settings.json');
+  async function readSettings() { try { return JSON.parse((await readFile(settingsPath(), 'utf8')).replace(/^\uFEFF/, '')); } catch { return {}; } }
+  /** Jeda/lanjut pekerjaan lewat chat (kode, tanpa LLM). Mengembalikan teks balasan. */
+  async function handleControl(kind) {
+    const settings = await readSettings();
+    settings.paused = kind === 'pause';
+    await writeFile(settingsPath(), JSON.stringify(settings, null, 2) + String.fromCharCode(10), 'utf8');
+    if (kind === 'resume') return 'Pekerjaan dilanjutkan: orkestrator mengambil pekerjaan dari tempat terakhir dalam beberapa detik.';
+    const st = await gatherStatus().catch(() => null);
+    const running = (st?.agents ?? []).filter((a) => a.status === 'running').map((a) => a.name);
+    return 'Pekerjaan DIJEDA: tidak ada pekerjaan baru dan jam tahap dibekukan. ' + (running.length ? 'Agent yang masih menyelesaikan run-nya: ' + running.join(', ') + '. Tunggu sampai kosong (tanya "sampai mana?"), lalu aman menutup aplikasi.' : 'Tidak ada agent yang sedang bekerja: aman menutup aplikasi sekarang.') + ' Ketik "kerja lagi" untuk melanjutkan.';
   }
 
   const sameOrigin = (req) => {
@@ -199,6 +213,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         let msg = typeof text === 'string' ? text.trim() : '';
         // Pertanyaan progres dijawab instan dari data nyata (tanpa membangunkan Manager). "manager:" memaksa ke Manager.
         if (!issueId && isStatusQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildStatusText(await gatherStatus()) }); return true; }
+        if (!issueId && outputRoot) { const ctl = classifyControl(msg); if (ctl) { json(res, 200, { kind: 'plan', answer: await handleControl(ctl) }); return true; } }
         if (!issueId && !/^manager\s*:/i.test(msg)) { const reply = await handlePlanReply(msg); if (reply) { json(res, 200, { kind: 'plan', answer: reply }); return true; } }
         // Pertanyaan tentang hasil riset (kandidat, untuk berapa konten) juga dijawab dari berkas nyata, bukan oleh LLM Manager.
         if (!issueId && outputRoot && isResearchQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildResearchText(await gatherResearch()) }); return true; }
