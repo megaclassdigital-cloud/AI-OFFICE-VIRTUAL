@@ -1,15 +1,15 @@
 {
   "key": "edukasiai",
   "displayName": "EdukasiAI",
-  "status": "sementara",
-  "catatan": "Brand kit SEMENTARA, dibuat Claude Code di F1.6 karena owner belum menyediakan logo, palet, dan font. Harus disetujui atau diganti owner sebelum produksi. Lihat divisions/edukasiai/brand/README.md.",
+  "status": "v2-owner-design-system",
+  "catatan": "Brand kit v2 mengikuti Master Design System edukasiai.co.id dari owner (2026-10-09): dark futuristic editorial, Poppins, label kategori kuning uppercase, footer edukasiai.co.id, tanpa nomor halaman, kanvas 1080x1350. Varian lama default/tegas/terang hanya untuk kompatibilitas. Visual utama topik belum bisa dihasilkan renderer (butuh sumber gambar berlisensi); lihat docs/ui atau brief.",
   "canvas": {
     "width": 1080,
     "height": 1350,
     "safeMargin": 72
   },
   "typography": {
-    "fontFamilyStack": "'Inter', 'Segoe UI', system-ui, sans-serif",
+    "fontFamilyStack": "'Poppins', 'Segoe UI', system-ui, sans-serif",
     "localFontDir": "fonts",
     "minFontPx": 28,
     "scale": {
@@ -19,9 +19,53 @@
       "display": 92,
       "hero": 108,
       "stat": 180
-    }
+    },
+    "fontFamily": "Poppins",
+    "fontFiles": [
+      [
+        400,
+        "Poppins-Regular.woff2"
+      ],
+      [
+        500,
+        "Poppins-Medium.woff2"
+      ],
+      [
+        600,
+        "Poppins-SemiBold.woff2"
+      ],
+      [
+        700,
+        "Poppins-Bold.woff2"
+      ],
+      [
+        800,
+        "Poppins-ExtraBold.woff2"
+      ]
+    ]
   },
   "variants": {
+    "editorial": {
+      "text": "#FFFFFF",
+      "muted": "#C4C7D0",
+      "kicker": "#FFD21F",
+      "accent": "#FFD21F",
+      "background": "radial-gradient(900px 520px at 80% -8%, rgba(20,217,245,.26), transparent 62%), radial-gradient(700px 480px at 6% 10%, rgba(124,58,237,.22), transparent 64%), linear-gradient(180deg, #050505 0%, #15151B 100%)"
+    },
+    "risiko": {
+      "text": "#FFFFFF",
+      "muted": "#C4C7D0",
+      "kicker": "#FFD21F",
+      "accent": "#FF3B42",
+      "background": "radial-gradient(900px 520px at 80% -8%, rgba(255,59,66,.30), transparent 62%), radial-gradient(700px 480px at 6% 10%, rgba(124,58,237,.16), transparent 64%), linear-gradient(180deg, #050505 0%, #15151B 100%)"
+    },
+    "teknologi": {
+      "text": "#FFFFFF",
+      "muted": "#C4C7D0",
+      "kicker": "#FFD21F",
+      "accent": "#14D9F5",
+      "background": "radial-gradient(900px 520px at 80% -8%, rgba(20,217,245,.34), transparent 62%), radial-gradient(700px 480px at 6% 10%, rgba(37,99,235,.24), transparent 64%), linear-gradient(180deg, #050505 0%, #15151B 100%)"
+    },
     "default": {
       "background": "linear-gradient(160deg, #0F172A 0%, #1E3A8A 100%)",
       "text": "#F8FAFC",
@@ -29,27 +73,28 @@
       "accent": "#FDE047",
       "kicker": "#93C5FD"
     },
-    "terang": {
-      "background": "linear-gradient(160deg, #F8FAFC 0%, #DBEAFE 100%)",
-      "text": "#0F172A",
-      "muted": "#475569",
-      "accent": "#1D4ED8",
-      "kicker": "#1E40AF"
-    },
     "tegas": {
       "background": "linear-gradient(160deg, #111827 0%, #7F1D1D 100%)",
       "text": "#F9FAFB",
       "muted": "#E5E7EB",
       "accent": "#FCA5A5",
       "kicker": "#FCD34D"
+    },
+    "terang": {
+      "background": "linear-gradient(160deg, #F8FAFC 0%, #DBEAFE 100%)",
+      "text": "#0F172A",
+      "muted": "#475569",
+      "accent": "#1D4ED8",
+      "kicker": "#1E40AF"
     }
   },
-  "defaultVariant": "default",
+  "defaultVariant": "editorial",
   "logo": {
-    "text": "EdukasiAI",
+    "text": "edukasiai.co.id",
     "file": null,
-    "catatan": "Belum ada berkas logo. Renderer memakai logo teks sampai owner menyediakan berkas."
+    "catatan": "Teks kecil di footer sesuai design system owner; berkas logo belum ada."
   },
   "iconDir": "icons",
-  "minContrastRatio": 4.5
+  "minContrastRatio": 4.5,
+  "slideCounter": false
 }

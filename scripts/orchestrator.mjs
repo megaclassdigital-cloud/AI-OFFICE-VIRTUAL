@@ -35,6 +35,10 @@ const agents = await j(`/companies/${company.id}/agents`);
 const agentByName = (n) => agents.find((x) => x.name === n);
 const project = (await j(`/companies/${company.id}/projects`))[0];
 
+// Brief tetap per tahap (mis. design system untuk Designer): dilampirkan otomatis pada setiap produksi.
+const STANDING_REFS = { designer: [path.join(ROOT, 'divisions', 'edukasiai', 'brand', 'briefs', 'design-system.md')] };
+const standingRefs = (stage) => (STANDING_REFS[stage] ?? []).filter((p) => existsSync(p));
+
 const orderPathFor = (identifier) => path.join(ORDERS, `${identifier}.json`);
 
 function managerInstruction({ identifier, brief }) {
@@ -62,8 +66,8 @@ async function ingest() {
   const manager = agentByName('Manager');
   if (!manager) throw new Error('agent Manager tidak ada');
   if (DRY) { log(`[dry-run] akan membuat issue master dari ${f}: "${title}"`); return null; }
-  const issue = await j(`/companies/${company.id}/issues`, jb('POST', { title: `Produksi: ${title}`, description: 'Menyiapkan work order…', status: 'todo', projectId: project.id }));
-  await j(`/issues/${issue.id}`, jb('PATCH', { description: managerInstruction({ identifier: issue.identifier, brief }), assigneeAgentId: manager.id }));
+  const issue = await j(`/companies/${company.id}/issues`, jb('POST', { title: `Produksi: ${title} (${new Date().toISOString().slice(5, 16).replace('T', ' ')})`, description: 'Menyiapkan work order…', status: 'todo', projectId: project.id }));
+  await j(`/issues/${issue.id}`, jb('PATCH', { description: managerInstruction({ identifier: issue.identifier, brief }), assigneeAgentId: manager.id, status: 'todo' }));
   mkdirSync(PROCESSED, { recursive: true });
   renameSync(full, path.join(PROCESSED, `${Date.now()}-${f}`));
   log(`brief ${f} -> issue master ${issue.identifier} (Manager menyusun work order)`);
@@ -77,7 +81,11 @@ async function gatherFacts(job, state) {
   const manager = agentByName('Manager');
   const runs = await j(`/companies/${company.id}/heartbeat-runs?limit=60`);
   const mgrRuns = runs.filter((r) => r.agentId === manager.id && Date.parse(r.startedAt ?? r.createdAt ?? 0) >= job.createdMs - 5000);
-  const managerFinished = mgrRuns.length > 0 && !mgrRuns.some((r) => ['queued', 'running'].includes(r.status));
+  // "Selesai" = ada run Manager yang BERHASIL dan belum pernah ditangani; run dibatalkan/gagal bukan selesai.
+  const succeeded = mgrRuns.filter((r) => r.status === 'succeeded').length;
+  const live = mgrRuns.some((r) => ['queued', 'running'].includes(r.status));
+  const managerFinished = !live && succeeded > (job.handledRuns ?? 0);
+  const managerFailed = !live && !managerFinished && mgrRuns.find((r) => ['failed', 'error', 'timed_out'].includes(r.status));
   let order = null;
   const op = orderPathFor(job.identifier);
   if (existsSync(op)) { try { order = validateOrder(JSON.parse(readFileSync(op, 'utf8'))); } catch (e) { order = { ok: false, errors: [`JSON tidak bisa dibaca: ${e.message}`] }; } }
@@ -89,7 +97,8 @@ async function gatherFacts(job, state) {
     const failed = !!last && ['failed', 'error', 'timed_out'].includes(last.status) && !['in_review', 'done'].includes(issue.status);
     stage = { status: issue.status, failed, error: failed ? last.error : undefined };
   }
-  return { order, managerFinished, stage, nowMs: now };
+  if (job.phase === 'planning' && managerFailed && !order?.ok) return { order, managerFinished: false, managerFailedError: managerFailed.error ?? managerFailed.status, succeeded, stage, nowMs: now };
+  return { order, managerFinished, succeeded, stage, nowMs: now };
 }
 
 async function createStage(job, stage) {
@@ -97,19 +106,19 @@ async function createStage(job, stage) {
   const ag = agentByName(STAGE_AGENT[stage]);
   const issue = await j(`/companies/${company.id}/issues`, jb('POST', {
     title: `${job.identifier} · ${STAGE_AGENT[stage]}: ${order.title}`,
-    description: stageDescription({ order, stage, identifier: job.identifier, outputsDir: OUTPUTS, brief: job.brief }),
+    description: stageDescription({ order, stage, identifier: job.identifier, outputsDir: OUTPUTS, brief: job.brief, refs: standingRefs(stage) }),
     status: 'todo', projectId: project.id, assigneeAgentId: ag.id,
   }));
   log(`tahap ${STAGE_AGENT[stage]} -> issue ${issue.identifier}`);
   return issue.id;
 }
 
-async function applyActions(job, actions) {
+async function applyActions(job, actions, facts) {
   for (const act of actions) {
     if (DRY) { log(`[dry-run] ${JSON.stringify(act)}`); continue; }
     if (act.type === 'comment') await comment(job.masterIssueId, act.text);
     else if (act.type === 'createStage') job.stageIssueId = await createStage(job, act.stage);
-    else if (act.type === 'rewakeManager') await comment(job.masterIssueId, `Work order belum valid: ${act.errors.join('; ')}. Perbaiki file ${orderPathFor(job.identifier)}, baca ulang, lalu complete_stage lagi.`);
+    else if (act.type === 'rewakeManager') { job.handledRuns = facts.succeeded; await comment(job.masterIssueId, `Work order belum valid: ${act.errors.join('; ')}. Perbaiki file ${orderPathFor(job.identifier)}, baca ulang, lalu complete_stage lagi.`); }
     else if (act.type === 'finish') { await comment(job.masterIssueId, act.text); await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'in_review' })); log(`${job.identifier} selesai, menunggu owner`); }
     else if (act.type === 'block') { await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'blocked' })); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
   }
@@ -127,7 +136,8 @@ async function once() {
   const facts = await gatherFacts(state.job, state);
   const { job, actions } = step(state.job, facts);
   const merged = { ...state.job, ...job };
-  await applyActions(merged, actions);
+  if (facts.managerFailedError) { actions.push({ type: 'block', reason: `run Manager gagal: ${String(facts.managerFailedError).slice(0, 120)}` }); merged.phase = 'blocked'; }
+  await applyActions(merged, actions, facts);
   state.job = merged;
   if (!DRY) writeState(state);
 }

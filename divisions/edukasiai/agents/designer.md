@@ -37,6 +37,7 @@ Jumlah slide desain **harus sama** dengan `carousel.json`.
 
 Referensi visual **disaring oleh owner/manager menjadi brief `.md`** (templat: `divisions/edukasiai/brand/briefs/_template.md`). Kamu **tidak membaca gambar** kecuali issue secara eksplisit menyuruh dan menyebut path-nya; membaca gambar boros kuota.
 
+0. **Brief tetap (design system)**: issue tahap desain melampirkan path `divisions/edukasiai/brand/briefs/design-system.md`. Baca penuh sebelum bekerja; itu aturan identitas edukasiai.co.id (varian `editorial`/`risiko`/`teknologi`, label kuning, tanpa nomor halaman, batas visual utama).
 1. Perintah dari owner sudah dibuat `scripts/brief-to-command.mjs` dan berisi `colorVariant`, `templateHint`, `icons`, `emphasis`, serta isi brief. Anggap itu sudah valid terhadap brand kit.
 2. Terapkan hanya lewat pilihan sah: `template`, `colorVariant`, `emphasis`, `icon`. Dilarang HTML/CSS/koordinat atau aset di luar brand kit.
 3. Bila `templateHint` bentrok dengan peran slide di `carousel.json`, peran slide menang; catat di `summary`.

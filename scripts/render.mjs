@@ -180,7 +180,9 @@ const browser = await chromium.launch({ headless: true });
 // Font lokal (F1.6a): di-embed sebagai data URI supaya render tidak menyentuh jaringan dan tidak bergantung
 // pada font yang terpasang di mesin. Tanpa ini Chromium diam-diam jatuh ke Segoe UI.
 const fontDir = path.join(brandDir, brand.typography.localFontDir ?? 'fonts');
-const FONT_FILES = [[400, 'Inter-Regular.woff2'], [500, 'Inter-Medium.woff2'], [600, 'Inter-SemiBold.woff2'], [700, 'Inter-Bold.woff2']];
+// Font dan bobot dibaca dari brand.json (typography.fontFamily + typography.fontFiles); bawaan Inter agar brand kit lama tetap jalan.
+const FONT_FAMILY = brand.typography.fontFamily ?? 'Inter';
+const FONT_FILES = brand.typography.fontFiles ?? [[400, 'Inter-Regular.woff2'], [500, 'Inter-Medium.woff2'], [600, 'Inter-SemiBold.woff2'], [700, 'Inter-Bold.woff2']];
 let fontCss = '';
 for (const [weight, file] of FONT_FILES) {
   const fp = path.join(fontDir, file);
@@ -189,7 +191,7 @@ for (const [weight, file] of FONT_FILES) {
     process.exit(2);
   }
   const b64 = (await readFile(fp)).toString('base64');
-  fontCss += `@font-face{font-family:'Inter';font-style:normal;font-weight:${weight};font-display:block;src:url(data:font/woff2;base64,${b64}) format('woff2');}
+  fontCss += `@font-face{font-family:'${FONT_FAMILY}';font-style:normal;font-weight:${weight};font-display:block;src:url(data:font/woff2;base64,${b64}) format('woff2');}
 `;
 }
 const fontsUsed = new Set();
@@ -256,7 +258,7 @@ try {
           Object.entries(slide.slots ?? {}).map(([k, v]) => [k, applyEmphasis(escapeHtml(v), slide.emphasis)])
         ),
         brandmark: brand.logo.text,
-        counter: `${slide.index}/${total}`,
+        counter: brand.slideCounter === false ? '' : `${slide.index}/${total}`,
       }
     );
 
@@ -264,7 +266,7 @@ try {
     const loadedFonts = await page.evaluate(() =>
       [...document.fonts].filter((f) => f.status === 'loaded').map((f) => `${f.family.replace(/['"]/g, '')} ${f.weight}`)
     );
-    if (!loadedFonts.some((f) => f.startsWith('Inter '))) throw new Error(`font Inter tidak termuat pada slide ${slide.index}; jatuh ke font lain`);
+    if (!loadedFonts.some((f) => f.startsWith(`${FONT_FAMILY} `))) throw new Error(`font ${FONT_FAMILY} tidak termuat pada slide ${slide.index}; jatuh ke font lain`);
     loadedFonts.forEach((f) => fontsUsed.add(f));
 
     // ── Cek visual dari DOM, bukan dari gambar ─────────────────────────────

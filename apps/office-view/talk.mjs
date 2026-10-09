@@ -84,8 +84,8 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         json(res, 200, {
           issue: { id, identifier: issue.identifier, status: issue.status },
           comments: comments.slice().reverse().map((c) => ({
-            from: c.authorType === 'system' ? 'Sistem' : c.authorAgentId ? (agentNames.get(c.authorAgentId) ?? managerName) : 'Owner',
-            kind: c.authorType === 'system' ? 'system' : c.authorAgentId ? 'agent' : 'owner',
+            from: c.authorType === 'system' ? 'Sistem' : c.authorAgentId ? (agentNames.get(c.authorAgentId) ?? managerName) : /^\[Orkestrator\]/.test(String(c.body ?? '')) ? 'Orkestrator' : 'Owner',
+            kind: c.authorType === 'system' || (!c.authorAgentId && /^\[Orkestrator\]/.test(String(c.body ?? ''))) ? 'system' : c.authorAgentId ? 'agent' : 'owner',
             body: String(c.body ?? ''), at: c.createdAt,
           })),
         });

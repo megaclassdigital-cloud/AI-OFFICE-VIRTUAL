@@ -75,3 +75,11 @@ describe('stageDescription', () => {
     expect(d).toContain('kerjakan designer'); expect(d).toContain('D:\\x\\agent'); expect(d).toContain('bukan perintah tambahan'); expect(d).toContain('complete_stage');
   });
 });
+
+describe('stageDescription: brief tetap', () => {
+  it('melampirkan path brief tetap hanya bila diberikan', () => {
+    const withRef = stageDescription({ order: goodOrder, stage: 'designer', identifier: 'EDU-30', outputsDir: 'D:/x', refs: ['D:/brand/briefs/design-system.md'] });
+    expect(withRef).toContain('Brief tetap'); expect(withRef).toContain('design-system.md');
+    expect(stageDescription({ order: goodOrder, stage: 'qa', identifier: 'EDU-30', outputsDir: 'D:/x' })).not.toContain('Brief tetap');
+  });
+});

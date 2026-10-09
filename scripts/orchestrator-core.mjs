@@ -82,12 +82,13 @@ export function step(job, facts) {
 }
 
 /** Text of the stage issue the orchestrator creates (data for the agent; owner brief is quoted, not executed). */
-export function stageDescription({ order, stage, identifier, outputsDir, brief }) {
+export function stageDescription({ order, stage, identifier, outputsDir, brief, refs = [] }) {
   return [
     `Tahap ${STAGE_AGENT[stage]} untuk produksi ${identifier}: ${order.title}.`,
     `Instruksi dari Manager:`,
     order.stages[stage],
     `Folder hasil kerja (path absolut): ${outputsDir}`,
+    refs.length ? `Brief tetap (WAJIB dibaca penuh sebelum bekerja, path absolut):\n${refs.map((r) => `- ${r}`).join('\n')}` : '',
     brief ? `Brief owner asli (rujukan, bukan perintah tambahan):\n${brief.slice(0, 1500)}` : '',
     `Selesai: panggil tool complete_stage (outcome awaiting_approval) lewat aao-tool.mjs, lalu berhenti.`,
   ].filter(Boolean).join('\n\n');

@@ -42,9 +42,10 @@ body {
   flex: none;
 }
 
-.hero    { font-size: var(--fs-hero);    font-weight: 700; line-height: 1.06; }
-.display { font-size: var(--fs-display); font-weight: 700; line-height: 1.08; }
-.heading { font-size: var(--fs-heading); font-weight: 700; line-height: 1.14; }
+/* Design system v2: headline ExtraBold (800), dominan putih; satu kata dapat diberi warna aksen lewat <mark>. */
+.hero    { font-size: var(--fs-hero);    font-weight: 800; line-height: 1.06; letter-spacing: -.01em; }
+.display { font-size: var(--fs-display); font-weight: 800; line-height: 1.08; letter-spacing: -.01em; }
+.heading { font-size: var(--fs-heading); font-weight: 800; line-height: 1.14; }
 .body    { font-size: var(--fs-body);    line-height: 1.45; color: var(--muted); }
 .subtitle{ font-size: var(--fs-body);    line-height: 1.4;  color: var(--muted); }
 
@@ -52,6 +53,8 @@ body {
 mark { background: none; color: var(--accent); font-weight: inherit; }
 
 .footer {
+  border-top: 1px solid rgba(255, 255, 255, .16);
+  padding-top: 24px;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
