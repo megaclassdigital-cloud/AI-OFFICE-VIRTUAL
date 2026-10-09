@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// manager-failover.mjs — keeps the Manager on the best available model: ChatGPT -> Gemini -> Claude.
+// manager-failover.mjs — keeps EVERY agent on its best available model (chains in divisions/edukasiai/agent-models.json; Manager: ChatGPT -> Gemini -> Claude).
 // Deterministic (no LLM). Only quota / rate-limit / auth failures trigger a switch; normal task failures never do.
 // Usage: node scripts/manager-failover.mjs --status | --use <id> | --once | --watch [--interval 30] | --reset
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -31,21 +31,30 @@ export function shouldReset({ currentIdx, lastSwitchMs, nowMs }) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
 
+// Multi-agent: setiap agent di agent-models.json punya rantai modelnya sendiri; keadaan (kapan terakhir berpindah, entri aktif) per agent.
 async function main() {
   const a = process.argv.slice(2);
   const arg = (n, d) => (a.includes(n) ? a[a.indexOf(n) + 1] : d);
   const API = arg('--api', 'http://127.0.0.1:3177/api');
-  const cfg = JSON.parse(readFileSync(path.join(ROOT, 'divisions', 'edukasiai', 'manager-models.json'), 'utf8'));
+  const cfg = JSON.parse(readFileSync(path.join(ROOT, 'divisions', 'edukasiai', 'agent-models.json'), 'utf8'));
   const stateFile = path.join(ROOT, 'workspace', 'failover-state.json');
   const logFile = path.join(ROOT, 'reports', 'failover.log');
-  const readState = () => (existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : { switchedAtMs: 0 });
+  const readAll = () => { try { return JSON.parse(readFileSync(stateFile, 'utf8').replace(/^﻿/, '')); } catch { return {}; } };
+  const readState = (name) => readAll()[name] ?? { switchedAtMs: 0, entry: null };
+  const writeState = (name, st) => { const all = readAll(); all[name] = st; mkdirSync(path.dirname(stateFile), { recursive: true }); writeFileSync(stateFile, JSON.stringify(all, null, 2)); };
   const log = (m) => { const l = `${new Date().toISOString()} ${m}`; console.log(l); mkdirSync(path.dirname(logFile), { recursive: true }); appendFileSync(logFile, l + '\n'); };
 
   const j = async (p, o) => { const r = await fetch(API + p, o); const t = await r.text(); try { return JSON.parse(t); } catch { return t; } };
   const jb = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(body)) });
   const company = (await j('/companies')).find((c) => /edukasi/i.test(c.name));
-  const agentOf = async () => (await j(`/companies/${company.id}/agents`)).find((x) => x.name === cfg.agent);
-  const idxOf = (agent) => Math.max(0, cfg.chain.findIndex((e) => e.adapterType === agent.adapterType));
+  const agentOf = async (name) => (await j(`/companies/${company.id}/agents`)).find((x) => x.name === name);
+  const idxOf = (name, agent) => {
+    const chain = cfg.agents[name];
+    const byState = chain.findIndex((e) => e.id === readState(name).entry);
+    if (byState >= 0) return byState;
+    const byAdapter = chain.findIndex((e) => e.adapterType === agent.adapterType && (e.adapterConfig.model ?? null) === (agent.adapterConfig?.model ?? null));
+    return Math.max(0, byAdapter);
+  };
 
   const dotenv = () => {
     const f = path.join(ROOT, '.env');
@@ -54,56 +63,61 @@ async function main() {
     return m;
   };
 
-  async function apply(entry, why) {
-    const agent = await agentOf();
-    const live = (await j(`/companies/${company.id}/heartbeat-runs?limit=30`)).filter((r) => r.agentId === agent.id);
-    if (isBusy(live) && !a.includes('--force')) { log(`ditunda: Manager sedang menjalankan run, tidak ganti model ke ${entry.label}`); return false; }
+  async function apply(name, entry, why) {
+    const agent = await agentOf(name);
+    const live = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id);
+    if (isBusy(live) && !a.includes('--force')) { log(`ditunda: ${name} sedang menjalankan run, tidak ganti model ke ${entry.label}`); return false; }
     const base = { cwd: path.join(ROOT, 'workspace', 'agent'), timeoutSec: 1500, nonInteractivePermissions: 'deny' };
     const env = { ...(entry.adapterConfig.env ?? {}) };
     const de = dotenv();
-    for (const k of entry.envFromDotenv ?? []) { if (!de.has(k)) throw new Error(`${k} tidak ada di .env`); env[k] = de.get(k); }
+    for (const spec of entry.envFromDotenv ?? []) { const [k, src = k] = spec.split('='); if (!de.has(src)) throw new Error(`${src} tidak ada di .env`); env[k] = de.get(src); }
     // PATCH menggabungkan config lama; kunci model dari adapter sebelumnya harus dikosongkan bila entri tidak menyebut model.
     const adapterConfig = { ...base, ...(entry.adapterConfig.model ? {} : { model: null }), ...entry.adapterConfig, ...(Object.keys(env).length ? { env } : {}) };
     await j(`/agents/${agent.id}`, jb('PATCH', { adapterType: entry.adapterType, adapterConfig }));
     await j(`/agents/${agent.id}/resume`, jb('POST', {}));
-    mkdirSync(path.dirname(stateFile), { recursive: true });
-    writeFileSync(stateFile, JSON.stringify({ switchedAtMs: Date.now(), entry: entry.id }));
-    log(`Manager -> ${entry.label} (${entry.adapterType}) — ${why}`);
+    writeState(name, { switchedAtMs: Date.now(), entry: entry.id });
+    log(`${name} -> ${entry.label} (${entry.adapterType}) — ${why}`);
     return true;
   }
 
-  async function once() {
-    const agent = await agentOf();
-    const idx = idxOf(agent);
-    const st = readState();
-    if (shouldReset({ currentIdx: idx, lastSwitchMs: st.switchedAtMs, nowMs: Date.now() })) return apply(cfg.chain[0], 'hari baru, kembali ke prioritas utama');
-    const runs = (await j(`/companies/${company.id}/heartbeat-runs?limit=30`)).filter((r) => r.agentId === agent.id);
+  async function once(name) {
+    const chain = cfg.agents[name];
+    const agent = await agentOf(name);
+    if (!agent) return;
+    const idx = idxOf(name, agent);
+    const st = readState(name);
+    if (shouldReset({ currentIdx: idx, lastSwitchMs: st.switchedAtMs, nowMs: Date.now() })) return apply(name, chain[0], 'hari baru, kembali ke prioritas utama');
+    const runs = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id);
     const last = runs[0];
     if (!last || Date.parse(last.startedAt ?? 0) <= st.switchedAtMs) return;
     if (!['failed', 'error', 'timed_out'].includes(last.status)) return;
-    if (!isFailoverError(`${last.error ?? ''} ${last.errorCode ?? ''}`)) return log(`run gagal bukan karena kuota/auth, tidak ganti model: ${String(last.error).slice(0, 80)}`);
-    const n = nextIndex(cfg.chain.length, idx);
-    if (n === null) return log('SEMUA model Manager habis/gagal; butuh owner (login ulang atau tunggu kuota)');
-    await apply(cfg.chain[n], `run gagal: ${String(last.error).slice(0, 80)}`);
+    if (!isFailoverError(`${last.error ?? ''} ${last.errorCode ?? ''}`)) return; // galat tugas biasa / galat sementara: bukan urusan failover
+    const n = nextIndex(chain.length, idx);
+    if (n === null) return log(`SEMUA model ${name} habis/gagal; butuh owner (login ulang atau tunggu kuota)`);
+    await apply(name, chain[n], `run gagal: ${String(last.error).slice(0, 80)}`);
   }
 
+  const names = arg('--agent') ? [arg('--agent')] : Object.keys(cfg.agents);
   if (a.includes('--status')) {
-    const agent = await agentOf();
-    console.log(`Manager: ${agent.adapterType} (${agent.status}), urutan ${idxOf(agent) + 1}/${cfg.chain.length}`);
-    for (const e of cfg.chain) console.log(`- ${e.label}: auth ${JSON.stringify(await j(`/companies/${company.id}/adapters/${e.adapterType}/auth-signal`))}`);
+    for (const name of names) {
+      const agent = await agentOf(name);
+      console.log(`${name}: ${agent.adapterType}${agent.adapterConfig?.model ? ' ' + agent.adapterConfig.model : ''} (${agent.status}), urutan ${idxOf(name, agent) + 1}/${cfg.agents[name].length}`);
+    }
+    for (const t of ['codex_local', 'gemini_local', 'claude_local']) console.log(`- auth ${t}: ${JSON.stringify(await j(`/companies/${company.id}/adapters/${t}/auth-signal`))}`);
   } else if (a.includes('--use')) {
-    const e = cfg.chain.find((x) => x.id === arg('--use'));
-    if (!e) throw new Error(`id tidak dikenal: ${cfg.chain.map((x) => x.id).join('|')}`);
-    await apply(e, 'dipilih manual');
+    const name = arg('--agent', 'Manager');
+    const e = cfg.agents[name].find((x) => x.id === arg('--use'));
+    if (!e) throw new Error(`id tidak dikenal: ${cfg.agents[name].map((x) => x.id).join('|')}`);
+    await apply(name, e, 'dipilih manual');
   } else if (a.includes('--reset')) {
-    await apply(cfg.chain[0], 'reset ke prioritas utama');
+    for (const name of names) await apply(name, cfg.agents[name][0], 'reset ke prioritas utama');
   } else if (a.includes('--watch')) {
     const ms = Number(arg('--interval', 30)) * 1000;
     const lockFile = path.join(ROOT, 'workspace', 'failover.lock');
     if (existsSync(lockFile) && lockHeld(Number(readFileSync(lockFile, 'utf8')))) { console.error('watcher lain sudah berjalan; keluar'); process.exit(3); }
     mkdirSync(path.dirname(lockFile), { recursive: true });
     writeFileSync(lockFile, String(process.pid));
-    log('watch dimulai');
-    for (;;) { try { await once(); } catch (e) { log(`galat: ${e.message}`); } await new Promise((r) => setTimeout(r, ms)); }
-  } else await once();
+    log(`watch dimulai untuk: ${names.join(', ')}`);
+    for (;;) { for (const name of names) { try { await once(name); } catch (e) { log(`galat ${name}: ${e.message}`); } } await new Promise((r) => setTimeout(r, ms)); }
+  } else for (const name of names) await once(name);
 }

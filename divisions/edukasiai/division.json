@@ -41,7 +41,8 @@
       "adapterConfig": {
         "model": "opencode/nemotron-3-ultra-free"
       },
-      "reportsToKey": "manager"
+      "reportsToKey": "manager",
+      "adapterManagedBy": "manager-failover"
     },
     {
       "key": "verifier",
@@ -58,7 +59,8 @@
       "reportsToKey": "manager",
       "envFromDotenv": [
         "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
-      ]
+      ],
+      "adapterManagedBy": "manager-failover"
     },
     {
       "key": "copywriter",
@@ -75,7 +77,8 @@
       "envFromDotenv": [
         "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
       ],
-      "reportsToKey": "manager"
+      "reportsToKey": "manager",
+      "adapterManagedBy": "manager-failover"
     },
     {
       "key": "designer",
@@ -92,7 +95,8 @@
       "envFromDotenv": [
         "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
       ],
-      "reportsToKey": "manager"
+      "reportsToKey": "manager",
+      "adapterManagedBy": "manager-failover"
     },
     {
       "key": "qa",
@@ -106,7 +110,8 @@
       "adapterConfig": {
         "model": "opencode/mimo-v2.6-flash-free"
       },
-      "reportsToKey": "manager"
+      "reportsToKey": "manager",
+      "adapterManagedBy": "manager-failover"
     }
   ]
 }
