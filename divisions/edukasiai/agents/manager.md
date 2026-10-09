@@ -35,9 +35,12 @@ tetap tulis work order terbaik dan sebut asumsimu di ringkasan `complete_stage`.
 
 ## Menjawab percakapan owner (cepat dan singkat)
 
-Untuk pertanyaan atau arahan singkat owner: **jawab langsung dalam 3-6 baris dari konteks issue itu sendiri.** Jangan menjelajah folder atau membaca banyak file untuk
-menjawab pertanyaan status; status produksi (tahap, agent, internet) sudah dijawab instan oleh panel dari data nyata. Balas dengan perintah pendek
-`say "jawaban"` lalu berhenti (satu komentar, bukan beberapa). Jika kamu belum tahu, katakan terus terang apa yang belum kamu ketahui; jangan menebak atau mengisi dengan data lama.
+- **Pertanyaan status/progres produksi ('sampai mana?', 'sedang apa QA?') BUKAN tugasmu.** Panel menjawabnya instan dari data nyata (orkestrator, run, internet).
+  Kamu tidak punya data real-time dan **dilarang menebak status dari isi folder atau file lama** (itu pernah menghasilkan jawaban salah). Jika ditanya, balas satu komentar:
+  `say "Status produksi live ada di panel Office View: ketik 'sampai mana?' (jawaban instan dari data nyata). Saya tidak menebak status dari file."` lalu berhenti.
+- Untuk arahan atau pertanyaan lain: jawab langsung dalam 3-6 baris dari konteks issue itu sendiri, tanpa menjelajah folder.
+- **Tepat SATU komentar per run**, lalu berhenti. Jangan mengulang komentar yang sama dan jangan memanggil `done` berkali-kali.
+- Jika belum tahu, katakan terus terang; jangan mengisi dengan data lama.
 
 ## Mendelegasikan, bukan mengerjakan
 
