@@ -231,6 +231,8 @@ async function gatherFacts(job, state) {
     }
     stage = { status, failed: failedNow, error: failedNow ? last.error : undefined };
     if (!output && ['in_review', 'done'].includes(status)) output = checkOutput(job, STAGES[job.stageIndex]);
+    // Salinan keluaran yang SUDAH diterima gerbang (sidecar .accepted): agen yang masih hidup tidak bisa menimpa keputusan yang sudah diambil.
+    if (output?.ok) { try { const p = outPathFor(job.identifier, STAGES[job.stageIndex]); if (!existsSync(p + '.accepted')) writeFileSync(p + '.accepted', readFileSync(p)); } catch { /* kosmetik */ } }
   }
   if (job.phase === 'planning' && managerFailed && !order?.ok) return { order, managerFinished: false, managerFailedError: managerFailed.error ?? managerFailed.status, succeeded, stage, nowMs: now };
   return { order, managerFinished, succeeded, stage, output, nowMs: now };
