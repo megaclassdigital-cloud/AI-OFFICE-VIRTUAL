@@ -119,3 +119,23 @@ describe('tombol owner (HTTP)', () => {
     expect((await post('/api/owner/cancel-revision', { identifier: 'EDU-78', pin: PIN })).status).toBe(409);
   });
 });
+
+describe('atur PIN dari panel (sekali)', () => {
+  it('hanya selama belum ada PIN; terlalu pendek ditolak; origin asing ditolak; kedua kali 409', async () => {
+    const root = makeTmp('aao-setpin-'); const env = path.join(root, '.env');
+    const srv = http.createServer(); await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const handle = createOwner({ base: 'http://127.0.0.1:1', port, repoRoot: root, envFile: env });
+    const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
+    srv.on('request', async (req, res) => { if (!(await handle(req, res, new URL(req.url, 'http://x'), json))) json(res, 404, {}); });
+    const call = (body, headers = {}) => fetch(`http://127.0.0.1:${port}/api/owner/set-pin`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    expect((await call({ pin: '123' })).status).toBe(400);
+    expect((await call({ pin: 'pin-aman-1' }, { origin: 'http://evil.example' })).status).toBe(403);
+    expect(readPinHash(env)).toBeNull();
+    expect((await call({ pin: 'pin-aman-1' })).status).toBe(200);
+    expect(verifyPin('pin-aman-1', readPinHash(env))).toBe(true);
+    expect((await call({ pin: 'pin-lain-22' })).status).toBe(409);
+    expect(verifyPin('pin-aman-1', readPinHash(env))).toBe(true);
+    srv.close();
+  });
+});

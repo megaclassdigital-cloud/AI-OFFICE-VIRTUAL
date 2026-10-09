@@ -32,10 +32,26 @@ export function ownerDecisionPanel({ issueId, cmdFallback, wrapClass = 'owner-pa
     h('p', { class: 'sub' }, '✔ Setujui'), cmdFallback(`node scripts/owner-decide.mjs approve --issue ${issueId}`),
     h('p', { class: 'sub' }, '✖ Tolak (alasan wajib; Manager yang menentukan divisi revisi)'), cmdFallback(`node scripts/owner-decide.mjs reject --issue ${issueId} --note "alasan"`));
 
-  (async () => {
+  // Pengaturan PIN pertama kali (hanya selama belum ada PIN). PIN diketik di sini, tidak lewat agent mana pun.
+  const setupForm = () => {
+    const a = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'PIN baru (min. 6 karakter)', class: 'owner-pin', 'aria-label': 'PIN baru' });
+    const b = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Ulangi PIN', class: 'owner-pin', 'aria-label': 'Ulangi PIN' });
+    const m = h('div', { class: 'owner-msg', role: 'status' });
+    const save = h('button', { type: 'button', class: 'owner-approve', onclick: async () => {
+      if (a.value !== b.value) { m.textContent = 'PIN tidak sama.'; m.className = 'owner-msg bad'; return; }
+      const r = await post('/api/owner/set-pin', { pin: a.value });
+      if (!r.ok) { m.textContent = r.data?.error ?? `Gagal (${r.status})`; m.className = 'owner-msg bad'; return; }
+      build();
+    } }, 'Simpan PIN');
+    root.replaceChildren(
+      h('p', { class: 'sub' }, 'Atur PIN owner sekali. PIN melindungi tombol Setujui/Tolak; hanya hash-nya yang disimpan, dan hanya Anda yang mengetiknya.'),
+      a, b, h('div', { class: 'owner-actions' }, save), m);
+  };
+
+  const build = async () => {
     const info = await getJson('/api/owner/info');
     if (!info?.enabled) return fallback('Tombol keputusan belum aktif (jalankan Office View dengan --enable-owner). Sementara, jalankan di terminal:');
-    if (!info.pinSet) return fallback('PIN owner belum diatur: jalankan sekali "node scripts/owner-pin.mjs set" di terminal Anda, mulai ulang Office View, lalu tombol aktif. Sementara:');
+    if (!info.pinSet) return setupForm();
 
     const pin = h('input', { type: 'password', autocomplete: 'off', placeholder: 'PIN owner', class: 'owner-pin', 'aria-label': 'PIN owner' });
     const note = h('textarea', { rows: '3', placeholder: 'Alasan tolak (wajib bila menolak): sebut slide/bagian yang salah', class: 'owner-note', 'aria-label': 'Alasan tolak' });
@@ -84,6 +100,7 @@ export function ownerDecisionPanel({ issueId, cmdFallback, wrapClass = 'owner-pa
     root.replaceChildren(
       h('p', { class: 'sub' }, 'Paket sudah lolos QA dan diserahkan. Keputusan Anda dicatat dan terikat pada isi paket saat ini.'),
       pin, note, stage, h('div', { class: 'owner-actions' }, approve, reject), cancelBox, msg);
-  })();
+  };
+  build();
   return root;
 }

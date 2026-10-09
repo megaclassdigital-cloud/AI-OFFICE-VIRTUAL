@@ -4,7 +4,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { verifyPin, readPinHash, createLimiter } from '../../scripts/owner-pin.mjs';
+import { verifyPin, readPinHash, createLimiter, hashPin, writePinHash, MIN_PIN } from '../../scripts/owner-pin.mjs';
 import { decide, httpClient, DecideError } from '../../scripts/owner-decide.mjs';
 import { ApprovalError, readOwnerToken, defaultApprovalDir } from '../../scripts/owner-approval.mjs';
 import { routingDirFor, cancelFile, doneFile, ROUTE_STAGES } from '../../scripts/revision-router.mjs';
@@ -66,6 +66,16 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
       if (req.method !== 'POST') { json(res, 405, { error: 'metode tidak didukung' }); return true; }
       if (!sameOrigin(req)) { json(res, 403, { error: 'origin ditolak' }); return true; }
       const body = await readBody(req);
+
+      if (u.pathname === '/api/owner/set-pin') {
+        // Pengaturan PIN pertama kali dari panel; hanya selama belum ada PIN. Mengganti PIN = terminal (owner-pin.mjs set).
+        if (readPinHash(envFile)) { json(res, 409, { error: 'PIN sudah diatur; untuk menggantinya jalankan "node scripts/owner-pin.mjs set" di terminal Anda' }); return true; }
+        const pin = String(body.pin ?? '');
+        if (pin.length < MIN_PIN || pin.length > 64) { json(res, 400, { error: `PIN harus ${MIN_PIN}-64 karakter` }); return true; }
+        writePinHash(hashPin(pin), envFile);
+        json(res, 200, { ok: true });
+        return true;
+      }
 
       if (u.pathname === '/api/owner/decide') {
         const { issueId, decision, note, stage, pin } = body;
