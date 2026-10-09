@@ -250,7 +250,7 @@ async function createStage(job, stage) {
     description: stageDescription({
       order, stage, identifier: job.identifier, outputsDir: OUTPUTS, brief: job.brief, refs: standingRefs(stage),
       inputs: STAGES.slice(0, STAGES.indexOf(stage)).map((s) => artifactPathFor(job.identifier, s)),
-      output: { path: outPathFor(job.identifier, stage), schema: STAGE_OUTPUT[stage].schema, example: exampleFor(stage), note: stage === 'researcher' ? 'Isi: {"candidates":[{"title","summary","url","published_at","source_name"}]} saja, 5-10 kandidat; kode yang menambah id dan metadata.' : stage === 'qa' ? 'Isi: {"passed": true|false, "notes": ["..."]}; passed=true hanya bila render, teks, dan sumber sesuai brief tetap.' : stage === 'designer' ? 'Setelah menulis, jalankan render_carousel dan perbaiki bila passed=false.' : '' },
+      output: { path: outPathFor(job.identifier, stage), schema: STAGE_OUTPUT[stage].schema, example: exampleFor(stage), note: stage === 'researcher' ? 'Isi: {"candidates":[{"title","summary","url","published_at","source_name"}]} saja, 5-10 kandidat; kode yang menambah id dan metadata.' : stage === 'qa' ? 'Isi: {"passed": true|false, "llmReview": {"textOk": true|false, "designOk": true|false}, "notes": ["..."]}; passed=true hanya bila render, teks, dan sumber sesuai brief tetap. JANGAN memanggil qa_submit_result atau handoff_to_owner: orkestrator memanggilnya (di issue produksi) memakai penilaianmu di llmReview.' : stage === 'designer' ? 'Setelah menulis, jalankan render_carousel dan perbaiki bila passed=false.' : '' },
     }),
     status: 'todo', projectId: project.id, assigneeAgentId: ag.id,
   }));
@@ -284,8 +284,16 @@ async function applyActions(job, actions, facts) {
     }
     else if (act.type === 'finish') {
       // Manager bertanggung jawab sebagai pengelola: paket diserahkan ke Manager (satu run) untuk laporan akhir, lalu menunggu keputusan Owner.
-      const mgr = agentByName('Manager');
-      await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'in_review', ...(mgr ? { assigneeAgentId: mgr.id } : {}) }));
+      // Finalisasi deterministik: dokumen + catatan verify_candidate + segel render + qa_submit_result + handoff_to_owner pada SATU issue produksi (kode, bukan LLM).
+      const fin = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'finalize-production.mjs'), job.identifier], { encoding: 'utf8', timeout: 480_000 });
+      const lastLine = String(fin.stdout || '').trim().split(String.fromCharCode(10)).map((x) => x.trim()).filter(Boolean).pop() ?? '';
+      if (fin.status !== 0) {
+        log(`${job.identifier} finalisasi GAGAL: ${lastLine.slice(0, 300)}`);
+        await comment(job.masterIssueId, `DIBLOKIR pada finalisasi: ${lastLine.slice(0, 400)}`);
+        await parkMaster(job);
+        job.phase = 'blocked';
+        continue;
+      }
       await comment(job.masterIssueId, act.text + ` LAPORAN AKHIR untuk Manager: baca ${path.join(OUTPUTS, 'runs', job.identifier, 'qa-result.json')} dan ${artifactPathFor(job.identifier, 'copywriter')}, lalu tulis SATU komentar ringkas untuk Owner (judul, jumlah slide, sumber, vonis QA, catatan penting, lokasi contact-sheet ${path.join(OUTPUTS, 'runs', job.identifier, 'render', 'contact-sheet.png')}) dengan perintah say, lalu berhenti.`);
       log(`${job.identifier} selesai; diserahkan ke Manager untuk laporan akhir, menunggu owner`);
       await tidyStageIssues(job.identifier, null).catch(() => {});

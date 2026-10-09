@@ -93,7 +93,7 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
       status: 200,
       body: {
         job,
-        items: issues.map((i) => ({ id: i.id, identifier: i.identifier, title: i.title, updatedAt: i.updatedAt, assignee: names.get(i.assigneeAgentId) ?? null, ...(productionOf(i.title) ?? {}) })),
+        items: issues.map((i) => ({ id: i.id, identifier: i.identifier, title: i.title, updatedAt: i.updatedAt, assignee: names.get(i.assigneeAgentId) ?? null, package: /^Produksi:/.test(String(i.title ?? '')), ...(productionOf(i.title) ?? {}) })),
         agents: agents.map((a) => a.name),
       },
     };
@@ -103,7 +103,9 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
     const { names } = await ctx();
     const issue = await api(`/issues/${encodeURIComponent(id)}`);
     const comments = (await api(`/issues/${encodeURIComponent(id)}/comments`)).reverse().map((c) => ({ ...commentKind(c, names), at: c.createdAt, body: String(c.body ?? '').slice(0, 1500) }));
-    return { status: 200, body: { identifier: issue.identifier, title: issue.title, status: issue.status, description: String(issue.description ?? '').slice(0, 4000), assignee: names.get(issue.assigneeAgentId) ?? null, comments, ...(productionOf(issue.title) ?? {}) } };
+    let documents = [];
+    try { const dl = await api(`/issues/${encodeURIComponent(id)}/documents`); documents = (Array.isArray(dl) ? dl : dl.documents ?? []).map((x) => x.key); } catch { /* tanpa daftar dokumen */ }
+    return { status: 200, body: { id, identifier: issue.identifier, title: issue.title, status: issue.status, description: String(issue.description ?? '').slice(0, 4000), assignee: names.get(issue.assigneeAgentId) ?? null, documents, comments, ...(productionOf(issue.title) ?? {}) } };
   }
 
   async function filesView(prod) {

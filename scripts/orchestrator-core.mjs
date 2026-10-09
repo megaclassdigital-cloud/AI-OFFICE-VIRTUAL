@@ -31,6 +31,7 @@ export const artifactPath = (outputsDir, identifier, stage, sep = '/') => [outpu
 /** QA result gate (no schema): must be an object with boolean `passed`; passed=false is a fatal verdict, not a retry. */
 export function checkQaResult(data) {
   if (!data || typeof data !== 'object' || typeof data.passed !== 'boolean') return { ok: false, errors: ['qa-result.json harus objek dengan "passed": true/false dan "notes": [..]'] };
+  if (data.passed && !(data.llmReview && typeof data.llmReview.textOk === 'boolean' && typeof data.llmReview.designOk === 'boolean')) return { ok: false, errors: ['qa-result.json dengan passed=true wajib memuat "llmReview": {"textOk": true|false, "designOk": true|false}'] };
   if (!data.passed) return { ok: false, fatal: true, errors: [`QA menolak: ${(Array.isArray(data.notes) ? data.notes : [data.notes ?? 'tanpa catatan']).join('; ').slice(0, 300)}`] };
   return { ok: true, errors: [] };
 }

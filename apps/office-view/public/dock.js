@@ -181,7 +181,7 @@ async function loadAppr() {
   if (!d.items.length) blocks.push(h('p', { class: 'hint' }, 'Tidak ada yang menunggu approval.'));
   for (const [prod, items] of byProd) {
     blocks.push(h('h4', { class: 'grp' }, prod === '—' ? 'Lainnya' : `Produksi ${prod}`, prod !== '—' ? h('button', { type: 'button', class: 'ghost sm', onclick: () => openProd(prod) }, '📁 berkas') : null));
-    for (const it of items) blocks.push(h('button', { type: 'button', class: 'item', onclick: () => openIssue(it) }, h('b', {}, it.stage ?? it.identifier), ' ', h('span', { class: 'sub' }, `${it.identifier}${it.assignee ? ' · ' + it.assignee : ''}${it.updatedAt ? ' · ' + ago(Date.parse(it.updatedAt)) : ''}`)));
+    for (const it of items.slice().sort((p, q) => Number(q.package) - Number(p.package))) blocks.push(h('button', { type: 'button', class: 'item' + (it.package ? ' pkg' : ''), onclick: () => openIssue(it) }, it.package ? h('span', { class: 'pill ok' }, '📦 Paket final') : null, it.package ? ' ' : null, h('b', {}, it.stage ?? it.identifier), ' ', h('span', { class: 'sub' }, `${it.identifier}${it.assignee ? ' · ' + it.assignee : ''}${it.updatedAt ? ' · ' + ago(Date.parse(it.updatedAt)) : ''}`)));
   }
   apprTab.replaceChildren(...blocks);
 }
@@ -194,6 +194,7 @@ async function openIssue(it) {
   if (d.error) { apprTab.replaceChildren(back(), h('p', { class: 'hint' }, d.error)); return; }
   apprTab.replaceChildren(back(),
     h('div', { class: 'card' }, h('div', { class: 'title' }, `${d.identifier}`, h('span', { class: 'pill ok' }, d.status)), h('div', { class: 'sub' }, d.title), d.assignee ? h('div', { class: 'sub' }, `Penanggung jawab: ${d.assignee}`) : null),
+    (d.documents ?? []).includes('handoff') ? decisionCard(d) : null,
     h('details', { class: 'card' }, h('summary', {}, 'Instruksi yang diberikan (input)'), h('pre', { class: 'pre' }, d.description || '(kosong)')),
     h('div', { class: 'card' }, h('h4', {}, 'Percakapan'), d.comments.length ? d.comments.map((c) => h('div', { class: `cm ${c.kind}` }, h('div', { class: 'sub' }, `${c.from} · ${hhmm(Date.parse(c.at))}`), c.body)) : h('div', { class: 'sub' }, 'Belum ada.')),
     d.production ? h('button', { type: 'button', class: 'ghost', onclick: () => openProd(d.production) }, `📁 Berkas produksi ${d.production}`) : null);
@@ -207,6 +208,15 @@ async function openProd(prod) {
   apprTab.replaceChildren(back(), h('h4', { class: 'grp' }, `Paket produksi ${prod}`),
     imgs.length ? h('div', { class: 'gallery' }, imgs.map((f) => h('a', { href: `/api/inspect/image?path=${encodeURIComponent(f.path)}`, target: '_blank', rel: 'noopener', title: f.path }, h('img', { loading: 'lazy', src: `/api/inspect/image?path=${encodeURIComponent(f.path)}`, alt: f.path })))) : null,
     texts.length ? h('div', { class: 'files' }, texts.map((f) => fileRow(f))) : h('p', { class: 'hint' }, files.length ? '' : 'Belum ada berkas.'));
+}
+// Keputusan tetap dijalankan Owner di terminalnya (token owner di .env); UI hanya menyiapkan perintah, tidak pernah memutuskan.
+function decisionCard(d) {
+  const cmd = (t) => h('div', { class: 'cmd' }, h('code', {}, t), h('button', { type: 'button', class: 'ghost sm', onclick: async (e) => { try { await navigator.clipboard.writeText(t); e.target.textContent = 'tersalin ✔'; } catch { e.target.textContent = 'salin manual'; } } }, 'salin'));
+  return h('div', { class: 'card decide' }, h('h4', {}, 'Keputusan Owner'),
+    h('div', { class: 'sub' }, 'Paket sudah lolos QA dan diserahkan (ada dokumen handoff). Jalankan salah satu di terminal Anda, folder proyek:'),
+    h('div', { class: 'sub' }, '✔ Setujui'), cmd(`node scripts/owner-decide.mjs approve --issue ${d.id}`),
+    h('div', { class: 'sub' }, '✖ Tolak (catatan wajib; paket kembali ke Copywriter)'), cmd(`node scripts/owner-decide.mjs reject --issue ${d.id} --note "alasan"`),
+    h('div', { class: 'sub' }, 'Belum pernah menyetel token owner? Jalankan sekali: node scripts/owner-approval.mjs init'));
 }
 function fileRow(f) {
   const body = h('pre', { class: 'pre', hidden: true });
