@@ -57,10 +57,12 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
     if (!agent) return { status: 404, body: { error: 'agent tidak ada' } };
     const runs = (await api(`/companies/${companyId}/heartbeat-runs?limit=80`)).filter((r) => r.agentId === agent.id);
     const active = runs.find((r) => r.status === 'running') ?? null;
-    const lastReal = runs.find((r) => !['cancelled', 'scheduled_retry'].includes(r.status)) ?? null;
-    const logRun = active ?? lastReal;
-    let timeline = [];
-    if (logRun) { try { timeline = activityTimeline((await api(`/heartbeat-runs/${logRun.id}/log`))?.content, 30); } catch { /* log belum tersedia */ } }
+    // Jejak aktivitas: run yang sedang berjalan; bila tidak ada, run terbaru (apa pun statusnya) yang punya jejak (maks. 4 percobaan).
+    const candidates = active ? [active] : runs.filter((r) => r.status !== 'scheduled_retry').slice(0, 4);
+    let timeline = []; let logRun = null;
+    for (const r of candidates) {
+      try { const t = activityTimeline((await api(`/heartbeat-runs/${r.id}/log`))?.content, 30); if (t.length) { timeline = t; logRun = r; break; } } catch { /* log belum tersedia */ }
+    }
     const issues = await api(`/companies/${companyId}/issues`);
     const mine = issues.filter((i) => i.assigneeAgentId === agent.id).sort((x, y) => Date.parse(y.updatedAt ?? 0) - Date.parse(x.updatedAt ?? 0));
     const current = mine.find((i) => ['in_progress', 'todo'].includes(i.status)) ?? mine[0] ?? null;

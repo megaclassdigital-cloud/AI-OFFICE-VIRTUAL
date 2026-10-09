@@ -148,6 +148,21 @@ async function ingest() {
 // (menghemat kuota) dan Manager tidak tampak "butuh manusia" di Office View karena issue lama berstatus blocked.
 const parkMaster = (job) => j('/issues/' + job.masterIssueId, jb('PATCH', { assigneeAgentId: null, status: 'backlog' }));
 
+// Rapikan issue tahap milik orkestrator yang sudah tidak relevan (blocked/in_progress/todo) supaya agen tidak tampak "butuh manusia" di UI.
+// production = id produksi (mis. EDU-27) atau null = semua produksi KECUALI job aktif. Issue in_review/done/cancelled tidak disentuh.
+async function tidyStageIssues(production, activeJob) {
+  const issues = await j(`/companies/${company.id}/issues`);
+  let n = 0;
+  for (const i of issues) {
+    const m = String(i.title).match(/^(EDU-[0-9]+) · [A-Za-z]+/);
+    if (!m || ['in_review', 'done', 'cancelled'].includes(i.status)) continue;
+    if (production ? m[1] !== production : (activeJob && m[1] === activeJob.identifier && activeJob.phase === 'running' && i.id === activeJob.stageIssueId)) continue;
+    await j('/issues/' + i.id, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {});
+    n += 1;
+  }
+  if (n) log('rapi-rapi: ' + n + ' issue tahap basi dibatalkan' + (production ? ' (produksi ' + production + ')' : ''));
+}
+
 const comment = (issueId, text) => j(`/issues/${issueId}/comments`, jb('POST', { body: `[Orkestrator] ${text}` }));
 
 async function gatherFacts(job, state) {
@@ -242,7 +257,14 @@ async function applyActions(job, actions, facts) {
       job.stageStartedMs = Date.now();
       log(job.identifier + ' tahap ' + STAGE_AGENT[STAGES[job.stageIndex]] + ' ditolak gerbang: ' + act.errors.join('; ').slice(0, 160));
     }
-    else if (act.type === 'finish') { await comment(job.masterIssueId, act.text); await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'in_review' })); log(`${job.identifier} selesai, menunggu owner`); }
+    else if (act.type === 'finish') {
+      // Manager bertanggung jawab sebagai pengelola: paket diserahkan ke Manager (satu run) untuk laporan akhir, lalu menunggu keputusan Owner.
+      const mgr = agentByName('Manager');
+      await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'in_review', ...(mgr ? { assigneeAgentId: mgr.id } : {}) }));
+      await comment(job.masterIssueId, act.text + ` LAPORAN AKHIR untuk Manager: baca ${path.join(OUTPUTS, 'runs', job.identifier, 'qa-result.json')} dan ${artifactPathFor(job.identifier, 'copywriter')}, lalu tulis SATU komentar ringkas untuk Owner (judul, jumlah slide, sumber, vonis QA, catatan penting, lokasi contact-sheet ${path.join(OUTPUTS, 'runs', job.identifier, 'render', 'contact-sheet.png')}) dengan perintah say, lalu berhenti.`);
+      log(`${job.identifier} selesai; diserahkan ke Manager untuk laporan akhir, menunggu owner`);
+      await tidyStageIssues(job.identifier, null).catch(() => {});
+    }
     else if (act.type === 'block') { await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
   }
 }
@@ -267,7 +289,11 @@ async function once() {
   if (!DRY) writeState(state);
 }
 
-if (a.includes('--recheck')) {
+if (a.includes('--tidy')) {
+  const s = readState();
+  await tidyStageIssues(null, s.job);
+  console.log('rapi-rapi selesai');
+} else if (a.includes('--recheck')) {
   // Evaluasi ulang job terblokir TANPA mengulang tahap (mis. keluaran sudah ada tetapi status issue tidak berubah).
   const s = readState();
   const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked' && x.stageIndex >= 0);

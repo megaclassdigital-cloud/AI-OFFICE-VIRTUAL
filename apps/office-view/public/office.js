@@ -44,7 +44,8 @@ function drawStatic(layout, mode) {
   for (const d of layout.desks) drawDesk(c, d.desk, d);
   // meja owner + kotak approval
   drawDesk(c, layout.ownerDesk, null); label(c, 'OWNER', layout.ownerDesk.x + 12, layout.ownerDesk.y + 12, 16, '#2c1d10');
-  const b = layout.ownerBox; c.fillStyle = '#d6c7a1'; rr(c, b.x, b.y, b.w, b.h, 6); c.fill(); c.fillStyle = '#b8a673'; c.fillRect(b.x + 8, b.y + 8, b.w - 16, 12); label(c, 'approval', b.x + 12, b.y + b.h + 4, 14, '#ffe9b0');
+  const md = layout.desks.find((d) => d.key === 'manager'); if (md) label(c, 'MANAGER', md.desk.x + 12, md.desk.y + 12, 16, '#2c1d10');
+  const b = layout.ownerBox; c.fillStyle = '#d6c7a1'; rr(c, b.x, b.y, b.w, b.h, 6); c.fill(); c.fillStyle = '#b8a673'; c.fillRect(b.x + 8, b.y + 8, b.w - 16, 12); label(c, 'approval · Manager', b.x - 30, b.y + b.h + 4, 13, '#ffe9b0');
   // rapat (kaca)
   const m = layout.meetingTable; c.fillStyle = '#7e8da0'; rr(c, m.x, m.y, m.w, m.h, 18); c.fill(); c.fillStyle = '#93a3b8'; rr(c, m.x + 8, m.y + 8, m.w - 16, 14, 8); c.fill();
   // lounge
@@ -107,14 +108,19 @@ function wrap(c, text, maxW, maxLines) {
   return lines;
 }
 // Bubble "berbicara dalam hati": selalu tampil saat tidak ada bubble bicara; teks dari log, tanpa LLM.
-function drawThought(c, ch) {
+function drawThought(c, ch, placed = []) {
   if (ch.bubble) return;
   const txt = thoughtOf(ch, app.world.t);
   if (!txt) return;
-  const y = ch.y - FH * SC - 62;
+  const baseY = ch.y - FH * SC - 62;
   c.font = 'italic 600 13px "Segoe UI", sans-serif';
   const lines = wrap(c, txt, 250, 2); const lh = 16;
   const w = Math.max(...lines.map((l) => c.measureText(l).width)) + 22, h = lines.length * lh + 12, x = Math.max(8, Math.min(1920 - w - 8, ch.x - w / 2));
+  const rectAt = (yy) => ({ x, y: yy - h, w, h });
+  const hit = (r1, r2) => r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
+  let y = baseY;
+  for (let k = 0; k < 4 && placed.some((r) => hit(r, rectAt(y))); k++) y -= h + 8;
+  placed.push(rectAt(y));
   c.save(); c.globalAlpha = 0.92;
   c.fillStyle = '#e8eefc'; c.strokeStyle = '#7b8bb2'; c.lineWidth = 1.5; c.setLineDash([5, 3]);
   rr(c, x, y - h, w, h, 14); c.fill(); c.stroke(); c.setLineDash([]);
@@ -122,6 +128,10 @@ function drawThought(c, ch) {
   c.fillStyle = '#2b3550'; c.textBaseline = 'middle'; c.textAlign = 'left';
   lines.forEach((l, i) => c.fillText(l, x + 11, y - h + 6 + lh * i + lh / 2));
   c.restore();
+}
+function drawRing(c, ch) {
+  c.save(); c.strokeStyle = '#60a5fa'; c.lineWidth = 4; c.shadowColor = '#60a5fa'; c.shadowBlur = 14;
+  c.beginPath(); c.ellipse(ch.x, ch.y + 4, 36, 13, 0, 0, Math.PI * 2); c.stroke(); c.restore();
 }
 function drawBubble(c, ch) {
   if (!ch.bubble) return;
@@ -166,7 +176,9 @@ function render() {
   // karakter urut kedalaman
   const list = [...w.chars.values()].sort((p, q) => p.y - q.y);
   for (const ch of list) drawChar(ctx, ch, w);
-  for (const ch of list) { drawTag(ctx, ch); drawThought(ctx, ch); drawBubble(ctx, ch); }
+  const placed = [];
+  for (const ch of list) if (ch.id === app.selectedId) drawRing(ctx, ch);
+  for (const ch of list) { drawTag(ctx, ch); drawThought(ctx, ch, placed); drawBubble(ctx, ch); }
 }
 
 // ───────── log, banner, kontrol ─────────
@@ -279,8 +291,30 @@ addEventListener('keydown', (e) => {
   else if (['1', '2', '4'].includes(e.key) && app.mode === 'sim') document.querySelector(`#speed button[data-s="${e.key}"]`)?.click();
 });
 
+// ───────── interaksi: klik karakter / kotak approval ─────────
+const worldPoint = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) }; };
+function hitTest(p) {
+  if (!app.world || !app.layout) return null;
+  let best = null;
+  for (const ch of app.world.chars.values()) {
+    if (Math.abs(p.x - ch.x) <= FW * SC / 2 + 6 && p.y <= ch.y + 8 && p.y >= ch.y - FH * SC - 8 && (!best || ch.y > best.y)) best = ch;
+  }
+  if (best) return { type: 'agent', name: best.name, id: best.id, isOwner: !!best.isOwner };
+  const b = app.layout.ownerBox;
+  if (b && p.x >= b.x - 40 && p.x <= b.x + b.w + 30 && p.y >= b.y - 50 && p.y <= b.y + b.h + 24) return { type: 'approvals' };
+  return null;
+}
+cv.addEventListener('mousemove', (e) => { cv.style.cursor = hitTest(worldPoint(e)) ? 'pointer' : 'default'; });
+cv.addEventListener('click', (e) => {
+  const h = hitTest(worldPoint(e));
+  app.selectedId = h?.type === 'agent' ? h.id : null;
+  dispatchEvent(new CustomEvent('office:select', { detail: h ?? { type: 'none' } }));
+});
+
 // Untuk bukti/otomasi (read-only): keadaan karakter dan metrik jeda event→render
 window.__office = {
+  select: (name) => { const c = [...app.world.chars.values()].find((x) => x.name.toLowerCase() === String(name).toLowerCase()); app.selectedId = c ? c.id : null; return !!c; },
+  clickAt: (x, y) => { const h = hitTest({ x, y }); app.selectedId = h?.type === 'agent' ? h.id : null; dispatchEvent(new CustomEvent('office:select', { detail: h ?? { type: 'none' } })); return h; },
   mode: () => app.mode,
   chars: () => [...app.world.chars.values()].map((c) => ({ id: c.id, name: c.name, state: c.state, x: Math.round(c.x), y: Math.round(c.y), room: roomAt(app.layout, c)?.id ?? 'koridor', moving: c.moving, carry: c.carry, issue: c.issue?.identifier ?? null, bubble: c.bubble?.emoji ?? null })),
   metrics: () => app.metrics.slice(),

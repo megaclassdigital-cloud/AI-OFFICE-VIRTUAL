@@ -66,11 +66,12 @@
       "aisleY": 430,
       "floor": "#42525e",
       "glass": true,
-      "live": true
+      "live": false,
+      "dimLabel": "segera aktif"
     },
     {
       "id": "owner",
-      "name": "Meja Owner",
+      "name": "Ruang Owner & Manager",
       "x": 40,
       "y": 580,
       "w": 520,
@@ -224,20 +225,20 @@
     },
     {
       "key": "manager",
-      "room": "rapat",
+      "room": "owner",
       "desk": {
-        "x": 1620,
-        "y": 230,
-        "w": 160,
-        "h": 60
+        "x": 300,
+        "y": 740,
+        "w": 170,
+        "h": 66
       },
       "seat": {
-        "x": 1700,
-        "y": 322
+        "x": 380,
+        "y": 832
       },
       "stand": {
-        "x": 1810,
-        "y": 322
+        "x": 430,
+        "y": 885
       }
     }
   ],
@@ -249,24 +250,24 @@
     "pm": "manager"
   },
   "ownerSeat": {
-    "x": 230,
+    "x": 150,
     "y": 832
   },
   "ownerDesk": {
-    "x": 150,
+    "x": 70,
     "y": 740,
-    "w": 190,
+    "w": 170,
     "h": 66
   },
   "ownerBox": {
-    "x": 410,
-    "y": 760,
-    "w": 90,
-    "h": 60
+    "x": 482,
+    "y": 752,
+    "w": 66,
+    "h": 56
   },
   "ownerDrop": {
-    "x": 400,
-    "y": 860
+    "x": 470,
+    "y": 850
   },
   "board": {
     "x": 640,

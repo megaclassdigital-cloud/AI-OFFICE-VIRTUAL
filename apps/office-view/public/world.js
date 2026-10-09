@@ -115,6 +115,7 @@ export function thoughtOf(c, t) {
   const ref = c.issue?.identifier ? ` (${c.issue.identifier})` : '';
   const el = c.since !== undefined ? ` · ${fmtElapsed(t - c.since)}` : '';
   if (c.carry) return `Membawa dokumen${ref} ke rekan`;
+  if (c.deskKey === 'manager' && !c.moving && c.state === 'idle') return 'Mengelola produksi dan memantau approval';
   if (c.state === 'working') {
     if (c.moving) return `Menuju meja${ref}…`;
     return `${VERB[c.deskKey] ?? VERB[String(c.role ?? '').toLowerCase()] ?? 'Mengerjakan tugas'}${ref}${el}`;
@@ -177,7 +178,7 @@ export function applyEvent(world, ev, { instant = false } = {}) {
     case 'deliver': {
       const c = world.chars.get(ev.agentId);
       if (!c) break;
-      c.queue = [{ go: L.ownerDrop, carry: true }, { owner: ev.count ?? null }, { bubble: '✋', text: `Paket siap, menunggu keputusanmu: ${title(ev.issue)}`, s: 5 }, { wait: 1.5 }, { drop: true }];
+      c.queue = [{ go: L.ownerDrop, carry: true }, { owner: ev.count ?? null }, { bubble: '✋', text: `Paket siap untuk Manager: ${title(ev.issue)}`, s: 4 }, { bubbleOther: { name: 'Manager', emoji: '📥', text: `Diterima, saya kumpulkan untuk Owner: ${title(ev.issue)}` } }, { wait: 1.5 }, { drop: true }];
       c.path = [];
       break;
     }
@@ -213,6 +214,7 @@ function runStep(world, c, step) {
     return true;
   }
   if (step.bubble) { say(world, c, step.bubble, step.text, step.s ?? 2.5); return true; }
+  if (step.bubbleOther) { const o = [...world.chars.values()].find((x) => x.name === step.bubbleOther.name); if (o) say(world, o, step.bubbleOther.emoji, step.bubbleOther.text, step.bubbleOther.s ?? 4); return true; }
   if (step.owner !== undefined) { if (step.owner !== null) world.ownerCount = step.owner; return true; }
   if (step.wait) { c.wait = step.wait; return false; }
   if (step.drop) { c.carry = false; return true; }

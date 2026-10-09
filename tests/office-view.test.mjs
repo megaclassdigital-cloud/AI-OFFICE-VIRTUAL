@@ -39,7 +39,7 @@ describe('denah (layout.json)', () => {
     expect(roomAt(layout, layout.ownerDrop)?.id).toBe('owner');
   });
   it('ruang tanpa sumber data nyata ditandai tidak live (segera aktif)', () => {
-    expect(layout.rooms.filter((r) => !r.live).map((r) => r.id).sort()).toEqual(['papan']);
+    expect(layout.rooms.filter((r) => !r.live).map((r) => r.id).sort()).toEqual(['papan', 'rapat']);
   });
 });
 
