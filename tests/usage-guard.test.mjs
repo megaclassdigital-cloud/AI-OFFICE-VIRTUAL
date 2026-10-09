@@ -18,9 +18,11 @@ describe('limits', () => {
   it('default 6 run / 60 menit / WIB', () => {
     expect(DEFAULT_LIMITS).toMatchObject({ maxRunsPerAgentPerDay: 6, maxMinutesPerAgentPerDay: 60, timezoneOffsetMinutes: 420 });
   });
-  it('file limits.json EdukasiAI valid dan sama dengan default', () => {
+  it('file limits.json EdukasiAI valid (batas umum 12, Manager 40 lewat perAgent)', () => {
     const f = JSON.parse(readFileSync(path.join(repoRoot, 'divisions', 'edukasiai', 'limits.json'), 'utf8'));
-    expect(normalizeLimits(f)).toEqual(DEFAULT_LIMITS);
+    const l = normalizeLimits(f);
+    expect(l).toMatchObject({ maxRunsPerAgentPerDay: 12, maxMinutesPerAgentPerDay: 90, timezoneOffsetMinutes: 420 });
+    expect(l.perAgent.Manager).toEqual({ maxRunsPerAgentPerDay: 40, maxMinutesPerAgentPerDay: 240 });
   });
   it('nilai tidak valid ditolak, bukan diam-diam longgar', () => {
     expect(() => normalizeLimits({ maxRunsPerAgentPerDay: 0 })).toThrow();

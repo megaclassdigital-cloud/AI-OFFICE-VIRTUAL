@@ -17,3 +17,19 @@ describe('manager failover', () => {
     expect(shouldReset({ currentIdx: 0, lastSwitchMs: d1, nowMs: d2 })).toBe(false);
   });
 });
+
+import { isBusy, lockHeld } from '../scripts/manager-failover.mjs';
+describe('satu model aktif, tanpa bentrok', () => {
+  it('sibuk bila ada run queued/running', () => {
+    expect(isBusy([{ status: 'succeeded' }, { status: 'running' }])).toBe(true);
+    expect(isBusy([{ status: 'queued' }])).toBe(true);
+    expect(isBusy([{ status: 'succeeded' }, { status: 'failed' }, { status: 'cancelled' }])).toBe(false);
+    expect(isBusy([])).toBe(false);
+  });
+  it('kunci watcher: pid lain yang hidup menahan, pid mati/tidak valid/diri sendiri tidak', () => {
+    expect(lockHeld(4242, () => true)).toBe(true);
+    expect(lockHeld(4242, () => false)).toBe(false);
+    expect(lockHeld(NaN, () => true)).toBe(false);
+    expect(lockHeld(process.pid, () => true)).toBe(false);
+  });
+});

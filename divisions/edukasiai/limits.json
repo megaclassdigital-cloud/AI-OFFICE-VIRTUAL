@@ -1,5 +1,8 @@
 {
-  "maxRunsPerAgentPerDay": 6,
-  "maxMinutesPerAgentPerDay": 60,
-  "timezoneOffsetMinutes": 420
+  "maxRunsPerAgentPerDay": 12,
+  "maxMinutesPerAgentPerDay": 90,
+  "timezoneOffsetMinutes": 420,
+  "perAgent": {
+    "Manager": { "maxRunsPerAgentPerDay": 40, "maxMinutesPerAgentPerDay": 240 }
+  }
 }

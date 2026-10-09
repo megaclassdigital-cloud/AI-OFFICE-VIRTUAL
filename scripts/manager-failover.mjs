@@ -17,6 +17,14 @@ export const nextIndex = (chainLen, current) => (current + 1 < chainLen ? curren
 /** Local calendar day key; quotas reset daily, so a new day is a reason to try the priority model again. */
 export const dayKey = (ms, offsetMin = 420) => new Date(ms + offsetMin * 60_000).toISOString().slice(0, 10);
 
+/** Never switch adapters while the Manager has a live run: exactly one model works at a time. */
+export const isBusy = (runs) => runs.some((r) => ['queued', 'running'].includes(r.status));
+
+/** True when a lock holder with this pid is still alive (single watcher guarantee). */
+export function lockHeld(pid, alive = (p) => { try { process.kill(p, 0); return true; } catch { return false; } }) {
+  return Number.isInteger(pid) && pid > 0 && pid !== process.pid && alive(pid);
+}
+
 export function shouldReset({ currentIdx, lastSwitchMs, nowMs }) {
   return currentIdx > 0 && dayKey(nowMs) !== dayKey(lastSwitchMs);
 }
@@ -48,6 +56,8 @@ async function main() {
 
   async function apply(entry, why) {
     const agent = await agentOf();
+    const live = (await j(`/companies/${company.id}/heartbeat-runs?limit=30`)).filter((r) => r.agentId === agent.id);
+    if (isBusy(live) && !a.includes('--force')) { log(`ditunda: Manager sedang menjalankan run, tidak ganti model ke ${entry.label}`); return false; }
     const base = { cwd: path.join(ROOT, 'workspace', 'agent'), timeoutSec: 600, nonInteractivePermissions: 'deny' };
     const env = { ...(entry.adapterConfig.env ?? {}) };
     const de = dotenv();
@@ -58,6 +68,7 @@ async function main() {
     mkdirSync(path.dirname(stateFile), { recursive: true });
     writeFileSync(stateFile, JSON.stringify({ switchedAtMs: Date.now(), entry: entry.id }));
     log(`Manager -> ${entry.label} (${entry.adapterType}) — ${why}`);
+    return true;
   }
 
   async function once() {
@@ -87,6 +98,10 @@ async function main() {
     await apply(cfg.chain[0], 'reset ke prioritas utama');
   } else if (a.includes('--watch')) {
     const ms = Number(arg('--interval', 30)) * 1000;
+    const lockFile = path.join(ROOT, 'workspace', 'failover.lock');
+    if (existsSync(lockFile) && lockHeld(Number(readFileSync(lockFile, 'utf8')))) { console.error('watcher lain sudah berjalan; keluar'); process.exit(3); }
+    mkdirSync(path.dirname(lockFile), { recursive: true });
+    writeFileSync(lockFile, String(process.pid));
     log('watch dimulai');
     for (;;) { try { await once(); } catch (e) { log(`galat: ${e.message}`); } await new Promise((r) => setTimeout(r, ms)); }
   } else await once();

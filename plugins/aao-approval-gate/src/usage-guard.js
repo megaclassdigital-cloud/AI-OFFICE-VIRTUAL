@@ -16,6 +16,16 @@ export function normalizeLimits(raw = {}) {
   for (const k of ['maxRunsPerAgentPerDay', 'maxMinutesPerAgentPerDay']) {
     if (!Number.isFinite(l[k]) || l[k] <= 0) throw new Error(`limits.${k} harus angka > 0`);
   }
+  // perAgent: batas khusus per NAMA agent (mis. Manager lebih longgar). Divalidasi sama ketatnya.
+  if (l.perAgent !== undefined) {
+    if (!l.perAgent || typeof l.perAgent !== 'object' || Array.isArray(l.perAgent)) throw new Error('limits.perAgent harus objek');
+    for (const [name, o] of Object.entries(l.perAgent)) {
+      for (const [k, v] of Object.entries(o ?? {})) {
+        if (!['maxRunsPerAgentPerDay', 'maxMinutesPerAgentPerDay'].includes(k)) throw new Error(`limits.perAgent.${name}.${k} tidak dikenal`);
+        if (!Number.isFinite(v) || v <= 0) throw new Error(`limits.perAgent.${name}.${k} harus angka > 0`);
+      }
+    }
+  }
   if (!Number.isFinite(l.timezoneOffsetMinutes) || Math.abs(l.timezoneOffsetMinutes) > 14 * 60) {
     throw new Error('limits.timezoneOffsetMinutes tidak valid');
   }
@@ -50,13 +60,14 @@ export function summarizeRuns(runs, nowMs, limits) {
 }
 
 /** Agent yang melewati batas. Batas "tercapai" (>=) sudah cukup untuk pause: run berikutnya tidak boleh mulai. */
-export function evaluate(summary, limits) {
+export function evaluate(summary, limits, limitsFor = () => limits) {
   const violations = [];
   for (const [agentId, u] of summary) {
+    const lim = limitsFor(agentId);
     const reasons = [];
-    if (u.runs >= limits.maxRunsPerAgentPerDay) reasons.push(`run ${u.runs}/${limits.maxRunsPerAgentPerDay}`);
-    if (u.minutes >= limits.maxMinutesPerAgentPerDay) {
-      reasons.push(`durasi ${u.minutes.toFixed(1)}/${limits.maxMinutesPerAgentPerDay} menit`);
+    if (u.runs >= lim.maxRunsPerAgentPerDay) reasons.push(`run ${u.runs}/${lim.maxRunsPerAgentPerDay}`);
+    if (u.minutes >= lim.maxMinutesPerAgentPerDay) {
+      reasons.push(`durasi ${u.minutes.toFixed(1)}/${lim.maxMinutesPerAgentPerDay} menit`);
     }
     if (reasons.length) violations.push({ agentId, reasons, runs: u.runs, minutes: Number(u.minutes.toFixed(2)) });
   }
@@ -71,7 +82,14 @@ export function evaluate(summary, limits) {
 export async function enforce({ companyId, limitsRaw, nowMs = Date.now(), deps }) {
   const limits = normalizeLimits(limitsRaw);
   const runs = await deps.listRuns(companyId);
-  const violations = evaluate(summarizeRuns(runs, nowMs, limits), limits);
+  const summary = summarizeRuns(runs, nowMs, limits);
+  // Batas efektif per agent: default + override berdasarkan nama (perAgent).
+  const effective = new Map();
+  for (const agentId of summary.keys()) {
+    const ag = await deps.getAgent(agentId, companyId);
+    effective.set(agentId, { ...limits, ...(limits.perAgent?.[ag?.name] ?? {}) });
+  }
+  const violations = evaluate(summary, limits, (id) => effective.get(id) ?? limits);
   const paused = [];
   for (const v of violations) {
     const agent = await deps.getAgent(v.agentId, companyId);
