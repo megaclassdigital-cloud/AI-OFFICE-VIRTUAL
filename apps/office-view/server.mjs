@@ -25,7 +25,7 @@ const REPLAY_FILE = path.join(repoRoot, 'fixtures', 'office-events', 'demo-carou
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json; charset=utf-8' };
 
 const TALK = a.includes('--enable-talk');
-const talk = TALK ? createTalk({ base: PAPERCLIP, port: PORT, outputRoot: path.join(repoRoot, 'workspace', 'agent') }) : null;
+const talk = TALK ? createTalk({ base: PAPERCLIP, port: PORT, outputRoot: path.join(repoRoot, 'workspace', 'agent'), inboxRoot: path.join(repoRoot, 'workspace', 'inbox') }) : null;
 
 export const bridge = createBridge({ base: PAPERCLIP, log: (m) => console.error(m) });
 

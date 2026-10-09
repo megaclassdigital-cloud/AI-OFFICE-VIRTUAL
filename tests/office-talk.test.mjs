@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createTalk } from '../apps/office-view/talk.mjs';
@@ -88,5 +88,25 @@ describe('office talk: hasil kerja (read-only, terkurung di folder output)', () 
     expect((await call(h, 'GET', '/api/talk/file?path=../etc/passwd.txt')).res.code).toBe(403);
     expect((await call(h, 'GET', '/api/talk/file?path=rahasia.exe')).res.code).toBe(403);
     expect((await call(h, 'GET', '/api/talk/file?path=briefs/tidak-ada.md')).res.code).toBe(404);
+  });
+});
+
+describe('office talk: brief produksi ke inbox', () => {
+  const inbox = mkdtempSync(path.join(os.tmpdir(), 'aao-in-'));
+  const mk3 = () => createTalk({ base, port: 3190, inboxRoot: inbox });
+  it('menulis brief ke inbox sebagai .md dengan nama aman', async () => {
+    const r = (await call(mk3(), 'POST', '/api/talk/brief', { name: '../../evil name.md', text: '# Brief isi' })).res;
+    expect(r.code).toBe(200);
+    expect(r.body.file).toMatch(/^[0-9]+-evil-name[.]md$/);
+    expect(readFileSync(path.join(inbox, r.body.file), 'utf8')).toContain('isi');
+  });
+  it('menolak origin asing, kosong, dan terlalu besar', async () => {
+    const h = mk3();
+    expect((await call(h, 'POST', '/api/talk/brief', { text: 'x' }, 'evil.com')).res.code).toBe(403);
+    expect((await call(h, 'POST', '/api/talk/brief', { text: '  ' })).res.code).toBe(400);
+    expect((await call(h, 'POST', '/api/talk/brief', { text: 'x'.repeat(150_001) })).res.code).toBe(400);
+  });
+  it('tanpa inbox terkonfigurasi -> 503', async () => {
+    expect((await call(createTalk({ base, port: 3190 }), 'POST', '/api/talk/brief', { text: 'x' })).res.code).toBe(503);
   });
 });

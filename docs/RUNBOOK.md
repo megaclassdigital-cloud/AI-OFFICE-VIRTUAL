@@ -143,3 +143,16 @@ node scripts\loop-status.js        # status dan task berikutnya
 ```
 
 Item yang menunggu Anda ada di `loop\OWNER-QUEUE.md` (O-002 hapus sisa hook, O-004 izin run LLM nyata, O-005 pasang routine, O-006 sumber tanggal terbit).
+
+## Produksi lewat Manager (satu pintu)
+
+Anda hanya berbicara dengan Manager. Dua cara memberi brief:
+
+1. **Panel Office View** (`npm run office:talk`): ketik/unggah brief lalu klik **▶ Mulai produksi**, atau tulis arahan biasa lalu **Kirim** (percakapan).
+2. **Folder lokal:** taruh file `.md`/`.txt` di `workspace\inbox\`.
+
+Jalankan orkestrator (terminal terpisah, biarkan hidup): `npm run orchestrator`. Alurnya: brief -> Manager menulis work order JSON
+(`workspace\agent\orders\<ID>.json`) -> orkestrator menjalankan Researcher -> Verifier -> Copywriter -> Designer -> QA berurutan ->
+paket menunggu approval Anda. Satu job sekaligus; macet/gagal/lewat waktu membuat job `blocked` dengan alasan di komentar issue master.
+Failover model Manager (ChatGPT -> Gemini -> Claude): `npm run failover`. Status: `node scripts/orchestrator.mjs --status`, `node scripts/manager-failover.mjs --status`.
+Hasil kerja bisa dibuka di panel ("📁 Hasil kerja agent").

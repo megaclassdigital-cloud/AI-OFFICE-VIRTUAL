@@ -1,7 +1,7 @@
 // Talk panel backend (opt-in via --enable-talk). Lets the owner send a message to the division Manager from
 // Office View. This is the ONLY write path in Office View: it creates an issue assigned to the Manager (or adds an
 // owner comment to an issue created here). Loopback only, same-origin only, size and rate limited. No LLM here.
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const MAX_TEXT = 4000;
@@ -9,7 +9,7 @@ const OUT_EXT = new Set(['.md', '.json', '.txt']);
 const MAX_FILE = 200 * 1024;
 const MIN_GAP_MS = 5000;
 
-export function createTalk({ base, port, managerName = 'Manager', companyMatch = /edukasi/i, now = () => Date.now(), outputRoot = null }) {
+export function createTalk({ base, port, managerName = 'Manager', companyMatch = /edukasi/i, now = () => Date.now(), outputRoot = null, inboxRoot = null }) {
   const agentNames = new Map();
   const issues = new Set();
   let last = 0;
@@ -43,9 +43,9 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     return !o || o === `http://127.0.0.1:${port}`;
   };
 
-  async function readBody(req) {
+  async function readBody(req, limit = 32 * 1024) {
     const chunks = []; let n = 0;
-    for await (const c of req) { n += c.length; if (n > 32 * 1024) throw Object.assign(new Error('terlalu besar'), { code: 413 }); chunks.push(c); }
+    for await (const c of req) { n += c.length; if (n > limit) throw Object.assign(new Error('terlalu besar'), { code: 413 }); chunks.push(c); }
     return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
   }
 
@@ -89,6 +89,19 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
             body: String(c.body ?? ''), at: c.createdAt,
           })),
         });
+        return true;
+      }
+      if (u.pathname === '/api/talk/brief' && req.method === 'POST') {
+        if (!sameOrigin(req)) { json(res, 403, { error: 'origin ditolak' }); return true; }
+        if (!inboxRoot) { json(res, 503, { error: 'inbox tidak dikonfigurasi' }); return true; }
+        const { name, text } = await readBody(req, 200 * 1024);
+        const body = typeof text === 'string' ? text.trim() : '';
+        if (!body || body.length > 150_000) { json(res, 400, { error: 'brief 1-150000 karakter' }); return true; }
+        const safe = String(name ?? 'brief').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+/, '').slice(0, 60) || 'brief';
+        const file = `${now()}-${safe.replace(/\.(md|txt|json)$/i, '')}.md`;
+        await mkdir(inboxRoot, { recursive: true });
+        await writeFile(path.join(inboxRoot, file), body, 'utf8');
+        json(res, 200, { file, note: 'Brief masuk inbox; orkestrator akan menyerahkannya ke Manager.' });
         return true;
       }
       if (u.pathname === '/api/talk' && req.method === 'POST') {

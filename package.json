@@ -13,7 +13,9 @@
     "smoke": "node scripts/smoke-test.mjs",
     "loop-status": "node scripts/loop-status.js",
     "secret-scan": "node scripts/secret-scan.mjs",
-    "office:talk": "node apps/office-view/server.mjs --port 3190 --paperclip http://127.0.0.1:3177 --enable-talk --open"
+    "office:talk": "node apps/office-view/server.mjs --port 3190 --paperclip http://127.0.0.1:3177 --enable-talk --open",
+    "orchestrator": "node scripts/orchestrator.mjs --watch",
+    "failover": "node scripts/manager-failover.mjs --watch"
   },
   "devDependencies": {
     "ajv": "8.20.0",

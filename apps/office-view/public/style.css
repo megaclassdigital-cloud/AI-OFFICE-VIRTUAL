@@ -38,4 +38,7 @@ button:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
 #talkOut summary { cursor: pointer; font-size: 12px; }
 #talkFiles button { display: block; width: 100%; text-align: left; margin: 2px 0; padding: 3px 6px; border: 0; border-radius: 4px; background: #1e293b; color: inherit; font: 12px system-ui; cursor: pointer; }
 #talkFile { max-height: 180px; overflow: auto; margin: 4px 0 0; padding: 6px; background: #0b1220; border-radius: 6px; font: 11px/1.4 Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+#talkBrief { display: flex; gap: 6px; }
+#talkBrief .up, #talkProd { flex: 1; text-align: center; padding: 5px 8px; border-radius: 6px; border: 1px solid #64748b; background: #1e293b; color: inherit; font: 12px system-ui; cursor: pointer; }
+#talkProd { background: #1d4ed8; border-color: #1d4ed8; font-weight: 700; }
 #talkStatus { font-size: 11px; opacity: .8; min-height: 14px; }

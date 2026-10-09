@@ -44,6 +44,22 @@ if (info.enabled) {
       box.append(b);
     }
   };
+  const sendBrief = async (name, text) => {
+    $('talkStatus').textContent = 'Mengirim brief produksi…';
+    const r = await fetch('/api/talk/brief', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, text }) });
+    const j = await r.json().catch(() => ({}));
+    $('talkStatus').textContent = r.ok ? `✔ ${j.note} (${j.file})` : `Gagal: ${j.error ?? r.status}`;
+    return r.ok;
+  };
+  $('talkProd').addEventListener('click', async () => {
+    const text = $('talkText').value.trim(); if (!text) { $('talkStatus').textContent = 'Tulis brief di kotak dulu.'; return; }
+    if (await sendBrief('brief-panel', text)) $('talkText').value = '';
+  });
+  $('talkFileIn').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    if (f.size > 150000) { $('talkStatus').textContent = 'File terlalu besar (maks 150 KB).'; return; }
+    await sendBrief(f.name, await f.text());
+  });
   $('talkOut').addEventListener('toggle', () => { if ($('talkOut').open) loadFiles(); });
   $('talkForm').addEventListener('submit', (e) => { e.preventDefault(); send(); });
   $('talkText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } e.stopPropagation(); });
