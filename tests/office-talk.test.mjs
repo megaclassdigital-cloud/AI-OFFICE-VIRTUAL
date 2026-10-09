@@ -110,3 +110,65 @@ describe('office talk: brief produksi ke inbox', () => {
     expect((await call(createTalk({ base, port: 3190 }), 'POST', '/api/talk/brief', { text: 'x' })).res.code).toBe(503);
   });
 });
+
+// ── balasan owner untuk rencana ditahan lewat chat (tanpa membangkitkan Manager) + kotak keluar
+import { mkdtempSync as mkd, mkdirSync as mkdirS, writeFileSync as wf, readdirSync as rd, readFileSync as rf } from 'node:fs';
+import { tmpdir as td } from 'node:os';
+import pathMod from 'node:path';
+import { createTalk as mkTalk } from '../apps/office-view/talk.mjs';
+import { appendOutbox as appOut } from '../scripts/manager-outbox.mjs';
+
+describe('chat: rencana Manager yang ditahan', () => {
+  const setup = (planOver = {}, orderOver = {}) => {
+    const root = mkd(pathMod.join(td(), 'aao-chat-'));
+    const outputRoot = pathMod.join(root, 'agent'); mkdirS(pathMod.join(outputRoot, 'orders'), { recursive: true });
+    const stateFile = pathMod.join(root, 'state.json');
+    wf(stateFile, JSON.stringify({ job: null, history: [], pending: [{ identifier: 'EDU-61', hold: true, ready: true, readyMs: 5, ...planOver }] }));
+    wf(pathMod.join(outputRoot, 'orders', 'EDU-61.json'), JSON.stringify({ title: 't', ownerQuestions: ['Produk OpenAI atau Google?'], stages: {}, ...orderOver }));
+    const talk = mkTalk({ base: 'http://127.0.0.1:1', port: 3190, outputRoot, inboxRoot: pathMod.join(root, 'inbox'), stateFile });
+    const call = async (path, body) => {
+      const chunks = []; const req = { headers: { host: '127.0.0.1:3190' }, method: body ? 'POST' : 'GET', async *[Symbol.asyncIterator]() { if (body) yield Buffer.from(JSON.stringify(body)); } };
+      let out = null; const json = (res, code, b) => { out = { code, b }; };
+      await talk(req, {}, new URL('http://x' + path), json);
+      return out;
+    };
+    return { outputRoot, call, holds: () => { try { return rd(pathMod.join(outputRoot, 'holds')); } catch { return []; } }, read: (f) => rf(pathMod.join(outputRoot, 'holds', f), 'utf8') };
+  };
+
+  it('"setuju" melepas rencana lewat berkas, tanpa membuat issue/Manager', async () => {
+    const t = setup();
+    const r = await t.call('/api/talk', { text: 'setuju' });
+    expect(r.code).toBe(200); expect(r.b.kind).toBe('plan'); expect(r.b.answer).toMatch(/EDU-61 disetujui/);
+    expect(t.holds()).toEqual(['EDU-61.release']);
+  });
+  it('"setuju, ..." menulis catatan lebih dulu lalu melepas; "batal" menulis berkas batal', async () => {
+    const t = setup();
+    const r = await t.call('/api/talk', { text: 'setuju, maksudnya produk resmi OpenAI' });
+    expect(r.b.answer).toMatch(/dengan catatan Anda/);
+    const files = t.holds(); expect(files.some((f) => f.endsWith('.note'))).toBe(true); expect(files).toContain('EDU-61.release');
+    expect(JSON.parse(t.read(files.find((f) => f.endsWith('.note')))).text).toBe('maksudnya produk resmi OpenAI');
+    const t2 = setup(); const c = await t2.call('/api/talk', { text: 'batal' });
+    expect(c.b.answer).toMatch(/dibatalkan/); expect(t2.holds()).toEqual(['EDU-61.cancel']);
+  });
+  it('jawaban bebas atas pertanyaan Manager dicatat sebagai catatan; pertanyaan/umum tidak dicegat', async () => {
+    const t = setup();
+    const r = await t.call('/api/talk', { text: 'produk resmi OpenAI' });
+    expect(r.b.kind).toBe('plan'); expect(r.b.answer).toMatch(/dicatat ke rencana EDU-61/);
+    expect(t.holds().every((f) => f.endsWith('.note'))).toBe(true);
+  });
+  it('tanpa rencana ditahan, pesan "setuju" tidak dicegat sebagai keputusan rencana', async () => {
+    const t = setup({ hold: false });
+    // jatuh ke jalur chat biasa (Paperclip tidak terjangkau di tes => galat 502), bukan kind:plan
+    const r = await t.call('/api/talk', { text: 'setuju' });
+    expect(r.b.kind).not.toBe('plan'); expect(t.holds()).toEqual([]);
+  });
+  it('endpoint kotak keluar: pesan baru muncul, after menyaring yang sudah dilihat', async () => {
+    const t = setup();
+    appOut(pathMod.join(t.outputRoot, 'chat'), { kind: 'plan', identifier: 'EDU-61', text: 'rencana A', from: 'Manager (Claude)' }, 1000);
+    appOut(pathMod.join(t.outputRoot, 'chat'), { kind: 'plan', identifier: 'EDU-63', text: 'rencana B' }, 2000);
+    const all = await t.call('/api/talk/outbox?after=0');
+    expect(all.b.messages.map((m) => m.text)).toEqual(['rencana A', 'rencana B']); expect(all.b.messages[0].from).toBe('Manager (Claude)');
+    const after = await t.call('/api/talk/outbox?after=1');
+    expect(after.b.messages.map((m) => m.text)).toEqual(['rencana B']);
+  });
+});

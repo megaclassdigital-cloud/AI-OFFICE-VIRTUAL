@@ -106,6 +106,7 @@ async function send() {
   const j = r ? await r.json().catch(() => ({})) : {};
   if (!r || !r.ok) { status.textContent = `Gagal: ${j.error ?? 'tidak terhubung'}`; sendBtn.disabled = false; return; }
   msg('me', 'Anda', text, Date.now()); ta.value = ''; ta.style.height = 'auto';
+  if (j.kind === 'plan') { msg('system', 'Manager (kode)', j.answer, Date.now()); status.textContent = 'Keputusan diproses kode; Manager tidak dibangunkan.'; sendBtn.disabled = false; return; }
   if (j.kind === 'status') { msg('system', 'Status (instan)', j.answer, Date.now()); status.textContent = 'Jawaban instan dari data nyata, tanpa kuota.'; sendBtn.disabled = false; return; }
   issueId = j.issueId; status.textContent = 'Terkirim. Manager dibangunkan; balasan muncul di sini.';
   clearInterval(pollTimer); pollTimer = setInterval(pollThread, 4000); setTimeout(pollThread, 1500);
@@ -138,6 +139,15 @@ async function pollPipe() {
   pipe.dataset.phase = p.job?.phase ?? 'idle';
 }
 pollPipe(); setInterval(pollPipe, 5000);
+
+// Pesan Manager untuk owner (rencana, analisis, pertanyaan) muncul di chat; id terakhir diingat agar tidak berulang.
+let outboxLast = Number(ls.get('outboxLast', 0)) || 0;
+async function pollOutbox() {
+  const d = await jget('/api/talk/outbox?after=' + outboxLast).catch(() => null);
+  for (const m of d?.messages ?? []) { msg('agent', m.from ?? 'Manager', m.text, m.at); outboxLast = Math.max(outboxLast, m.id); }
+  if (d?.messages?.length) ls.set('outboxLast', outboxLast);
+}
+pollOutbox(); setInterval(pollOutbox, 4000);
 
 // ───────── Agent "memory" inspector ─────────
 const agentTab = $('tab-agent');

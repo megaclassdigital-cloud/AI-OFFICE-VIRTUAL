@@ -5,6 +5,8 @@ import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isStatusQuestion, buildStatusText, lastActivityFromLog, isResearchQuestion, buildResearchText, buildBriefAck } from './status.mjs';
 import { STAGES, STAGE_AGENT } from '../../scripts/orchestrator-core.mjs';
+import { decidePlanAction, planReplyText } from '../../scripts/owner-reply.mjs';
+import { readOutbox } from '../../scripts/manager-outbox.mjs';
 
 const MAX_TEXT = 4000;
 const OUT_EXT = new Set(['.md', '.json', '.txt']);
@@ -80,6 +82,30 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     return { identifier: null, research: null, verification: null, carousel: null };
   }
 
+  /**
+   * Balasan owner terhadap rencana Manager yang ditahan (mode tinjau): "setuju" / "batal" / jawaban, diproses KODE tanpa membangkitkan Manager.
+   * Mengembalikan teks balasan, atau null bila pesan bukan urusan rencana (lanjut ke chat biasa).
+   */
+  async function handlePlanReply(msg) {
+    if (!stateFile || !outputRoot) return null;
+    let st = null; try { st = JSON.parse((await readFile(stateFile, 'utf8')).replace(/^\uFEFF/, '')); } catch { return null; }
+    const plans = (st?.pending ?? []).filter((p) => p.hold && p.ready).map((p) => ({ identifier: p.identifier, readyMs: p.readyMs }));
+    if (!plans.length) return null;
+    const qs = new Map();
+    for (const p of plans) {
+      try { const o = JSON.parse((await readFile(path.join(outputRoot, 'orders', p.identifier + '.json'), 'utf8')).replace(/^\uFEFF/, '')); qs.set(p.identifier, (o.ownerQuestions ?? []).length > 0); } catch { qs.set(p.identifier, false); }
+    }
+    const d = decidePlanAction({ text: msg, plans, hasQuestions: (id) => qs.get(id) === true });
+    if (!d) return null;
+    const dir = path.join(outputRoot, 'holds');
+    await mkdir(dir, { recursive: true });
+    const stamp = Date.now();
+    if (d.note) await writeFile(path.join(dir, d.identifier + '.' + stamp + '.note'), JSON.stringify({ text: d.note, at: stamp }), 'utf8');
+    if (d.action === 'approve') await writeFile(path.join(dir, d.identifier + '.release'), JSON.stringify({ at: stamp }), 'utf8');
+    if (d.action === 'cancel') await writeFile(path.join(dir, d.identifier + '.cancel'), JSON.stringify({ at: stamp }), 'utf8');
+    return planReplyText(d);
+  }
+
   const sameOrigin = (req) => {
     const host = req.headers.host;
     if (host !== `127.0.0.1:${port}`) return false;
@@ -99,6 +125,11 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     try {
       if (u.pathname === '/api/talk/info' && req.method === 'GET') { json(res, 200, { enabled: true, to: managerName }); return true; }
       if (u.pathname === '/api/talk/status' && req.method === 'GET') { json(res, 200, { text: buildStatusText(await gatherStatus()) }); return true; }
+      if (u.pathname === '/api/talk/outbox' && req.method === 'GET') {
+        const after = Number(u.searchParams.get('after') ?? 0) || 0;
+        json(res, 200, { messages: outputRoot ? readOutbox(path.join(outputRoot, 'chat'), after) : [] });
+        return true;
+      }
       if (u.pathname === '/api/talk/pipeline' && req.method === 'GET') {
         let job = null; let history = 0; let queue = 0;
         try { const s = JSON.parse((await readFile(stateFile, 'utf8')).replace(/^\uFEFF/, '')); job = s.job ? { identifier: s.job.identifier, phase: s.job.phase, stageIndex: s.job.stageIndex } : null; history = (s.history ?? []).length; } catch { /* belum ada state */ }
@@ -167,6 +198,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         let msg = typeof text === 'string' ? text.trim() : '';
         // Pertanyaan progres dijawab instan dari data nyata (tanpa membangunkan Manager). "manager:" memaksa ke Manager.
         if (!issueId && isStatusQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildStatusText(await gatherStatus()) }); return true; }
+        if (!issueId && !/^manager\s*:/i.test(msg)) { const reply = await handlePlanReply(msg); if (reply) { json(res, 200, { kind: 'plan', answer: reply }); return true; } }
         // Pertanyaan tentang hasil riset (kandidat, untuk berapa konten) juga dijawab dari berkas nyata, bukan oleh LLM Manager.
         if (!issueId && outputRoot && isResearchQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildResearchText(await gatherResearch()) }); return true; }
         msg = msg.replace(/^manager\s*:\s*/i, '');

@@ -7,13 +7,14 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
 import { validate } from '../schemas/validate.mjs';
 import { contentOf, revisionOf, runDirOf, nextRunKey, writeRunMeta, runKeyForMaster, labelOf, latestRunKey, CONTENT_RE } from './run-registry.mjs';
 import { renderManagerContext, startOfDayWib } from './manager-context.mjs';
+import { appendOutbox, buildPlanMessage, speakerName } from './manager-outbox.mjs';
 import { buildManagerInstruction } from './manager-instruction.mjs';
 import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelFile, doneFile } from './revision-router.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
@@ -162,6 +163,53 @@ const orderPathFor = (identifier) => path.join(ORDERS, `${identifier}.json`);
 const CONTEXT_FILE = path.join(OUTPUTS, 'context', 'manager-context.md');
 const SETTINGS_FILE = path.join(ROOT, 'workspace', 'orchestrator-settings.json');
 const HOLDS_DIR = path.join(OUTPUTS, 'holds');
+const OUTBOX_DIR = path.join(OUTPUTS, 'chat');
+
+/** Komentar Manager terbaru di issue master (ringkasan yang ia tulis saat menyerahkan rencana). */
+async function managerSummaryOf(masterIssueId) {
+  try {
+    const manager = agentByName('Manager');
+    const cm = await j('/issues/' + masterIssueId + '/comments');
+    const c = (Array.isArray(cm) ? cm : []).find((x) => x.authorAgentId === manager.id);
+    return c ? String(c.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 600) : '';
+  } catch { return ''; }
+}
+
+/** Rencana + analisis + pertanyaan Manager untuk owner MUNCUL DI CHAT (sekali per rencana). Tanpa membangkitkan Manager. */
+async function postPlanToChat(p, needsApproval) {
+  if (p.outboxPosted) return;
+  try {
+    const order = JSON.parse(readFileSync(orderPathFor(p.identifier), 'utf8').replace(/^\uFEFF/, ''));
+    const manager = agentByName('Manager');
+    const ag = manager ? await j('/agents/' + manager.id).catch(() => null) : null;
+    appendOutbox(OUTBOX_DIR, buildPlanMessage({ identifier: p.identifier, order, managerSummary: await managerSummaryOf(p.masterIssueId), needsApproval, from: speakerName(ag?.adapterType) }));
+    p.outboxPosted = true;
+    log(p.identifier + ' rencana Manager ditampilkan di chat owner');
+  } catch (e) { log(p.identifier + ' gagal menampilkan rencana di chat: ' + String(e?.message ?? e).slice(0, 120)); }
+}
+
+/** Jawaban/catatan owner dari chat dimasukkan ke instruksi tiap tahap konten utama (tanpa membangkitkan Manager). */
+async function applyOwnerNote(p, text) {
+  try {
+    const op = orderPathFor(p.identifier);
+    const order = JSON.parse(readFileSync(op, 'utf8').replace(/^\uFEFF/, ''));
+    const clean = String(text).replace(/\s+/g, ' ').trim().slice(0, 500);
+    const line = 'Catatan owner (jawaban untuk rencana ini, ikuti): ' + clean;
+    order.ownerNotes = [...(order.ownerNotes ?? []), clean];
+    for (const k of Object.keys(order.stages ?? {})) order.stages[k] = String(order.stages[k]).slice(0, LIMITS.maxText - 600) + String.fromCharCode(10) + line;
+    writeFileSync(op, JSON.stringify(order, null, 2) + '\n', 'utf8');
+    await comment(p.masterIssueId, 'Catatan owner dicatat ke rencana: ' + clean).catch(() => {});
+    log(p.identifier + ' catatan owner dari chat dimasukkan ke rencana');
+  } catch (e) { log(p.identifier + ' gagal menerapkan catatan owner: ' + String(e?.message ?? e).slice(0, 120)); }
+}
+
+/** Owner membatalkan rencana yang ditahan: issue master dibatalkan, rencana keluar dari antrean, tidak ada kuota agent yang terpakai. */
+async function cancelPlan(state, p) {
+  await j('/issues/' + p.masterIssueId, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {});
+  state.pending = (state.pending ?? []).filter((x) => x !== p);
+  state.history.push({ ...p, phase: 'blocked', endedMs: Date.now(), note: 'rencana dibatalkan owner' });
+  log(p.identifier + ' rencana dibatalkan owner (dari chat)');
+}
 let extraBuffer = [];
 
 /** Paket konteks untuk Manager (antrean, konten terbaru, pemakaian agent, keluhan owner), dibuat KODE sebelum perencanaan. */
@@ -211,6 +259,7 @@ async function onPlanAccepted(job, runningJob = null, review = false) {
   try { order = JSON.parse(readFileSync(orderPathFor(job.identifier), 'utf8').replace(/^\uFEFF/, '')); } catch { return; }
   const tail = review ? ' Menunggu persetujuan Anda sebelum agent lain bekerja (jalankan: node scripts/plan-release.mjs ' + job.identifier + ').' : runningJob ? ` Menunggu giliran: ${runningJob.identifier} sedang berjalan.` : '';
   await comment(job.masterIssueId, renderAnalysisComment(order) + tail).catch(() => {});
+  await postPlanToChat(job, review);
   if (!review && !job.extrasSpawned) { job.extrasSpawned = true; await spawnExtras(job, order); }
 }
 
@@ -511,7 +560,19 @@ async function planAhead(state, offline, review = false) {
   state.pending ??= [];
   if (DRY) return;
   // Pelepasan rencana yang ditahan (mode tinjau): berkas holds/<ID>.release dibuat owner (plan-release.mjs / tombol).
-  for (const p of state.pending) {
+  for (const p of [...state.pending]) {
+    if (p.ready && !p.outboxPosted) await postPlanToChat(p, !!p.hold);
+    if (p.hold && existsSync(HOLDS_DIR)) {
+      // urutan: catatan owner, lalu pembatalan, lalu persetujuan
+      for (const n of readdirSync(HOLDS_DIR).filter((x) => x.startsWith(p.identifier + '.') && x.endsWith('.note')).sort()) {
+        const nf = path.join(HOLDS_DIR, n);
+        const text = readJsonLoose(nf)?.text;
+        try { unlinkSync(nf); } catch { /* sudah hilang */ }
+        if (text) await applyOwnerNote(p, String(text));
+      }
+      const cf = path.join(HOLDS_DIR, p.identifier + '.cancel');
+      if (existsSync(cf)) { try { unlinkSync(cf); } catch { /* sudah hilang */ } await cancelPlan(state, p); continue; }
+    }
     const rel = path.join(HOLDS_DIR, p.identifier + '.release');
     if (p.hold && existsSync(rel)) {
       try { unlinkSync(rel); } catch { /* sudah hilang */ }
