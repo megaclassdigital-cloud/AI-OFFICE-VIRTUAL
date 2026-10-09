@@ -101,6 +101,49 @@ export function renderAnalysisComment(order) {
   return lines.join(' ');
 }
 
+/** Nama berkas keluaran baku tiap tahap (di folder run). Manager wajib memakai nama ini; kode memperbaiki alias umum dan menolak nama karangan. */
+export const CANONICAL_FILES = ['research-raw.json', 'research-output.json', 'verification-result.json', 'carousel.json', 'carousel-design.json', 'asset-requests.json', 'assets-manifest.json', 'qa-result.json'];
+const OTHER_KNOWN_JSON = new Set(['templates.json', 'brand.json', 'limits.json', 'agent-models.json']);
+const FILE_ALIASES = {
+  'verify-result.json': 'verification-result.json', 'verification-results.json': 'verification-result.json', 'verification.json': 'verification-result.json', 'verify.json': 'verification-result.json',
+  'carousel-copy.json': 'carousel.json', 'carousel-draft.json': 'carousel.json', 'carousel-text.json': 'carousel.json', 'copy.json': 'carousel.json',
+  'design.json': 'carousel-design.json', 'carousel-design-spec.json': 'carousel-design.json', 'design-spec.json': 'carousel-design.json',
+  'qa-report.json': 'qa-result.json', 'qa-results.json': 'qa-result.json', 'qa.json': 'qa-result.json',
+  'research.json': 'research-raw.json', 'research-results.json': 'research-raw.json', 'research-result.json': 'research-raw.json',
+};
+const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+const aliasRe = (alias) => new RegExp('(?<![A-Za-z0-9_-])' + escapeRe(alias) + '(?![A-Za-z0-9_-])', 'g');
+/**
+ * Perbaiki alias nama berkas (mis. verify-result.json -> verification-result.json) di semua instruksi tahap (konten utama dan tambahan).
+ * Mengembalikan { order (salinan), changed, replaced:[{from,to}] }.
+ */
+export function normalizeOrderFileNames(order) {
+  const replaced = [];
+  const fix = (text) => {
+    let out = String(text ?? '');
+    for (const [alias, canon] of Object.entries(FILE_ALIASES)) {
+      const re = aliasRe(alias);
+      if (re.test(out)) { out = out.replace(aliasRe(alias), canon); if (!replaced.some((r) => r.from === alias)) replaced.push({ from: alias, to: canon }); }
+    }
+    return out;
+  };
+  const fixStages = (stages) => (stages && typeof stages === 'object' ? Object.fromEntries(Object.entries(stages).map(([k, v]) => [k, fix(v)])) : stages);
+  const copy = { ...order, stages: fixStages(order?.stages) };
+  if (Array.isArray(order?.extraContents)) copy.extraContents = order.extraContents.map((c) => ({ ...c, stages: fixStages(c?.stages) }));
+  return { order: copy, changed: replaced.length > 0, replaced };
+}
+/** Nama berkas .json di instruksi yang bukan keluaran baku dan bukan berkas konfigurasi yang dikenal (kemungkinan karangan Manager). */
+export function findUnknownFileNames(order) {
+  const texts = [...Object.values(order?.stages ?? {}), ...extraContentsOf(order).flatMap((c) => Object.values(c.stages ?? {}))].map(String);
+  const found = new Set();
+  for (const t of texts) for (const m of t.matchAll(/[A-Za-z0-9_-]+[.]json/g)) {
+    const n = m[0];
+    if (CANONICAL_FILES.includes(n) || OTHER_KNOWN_JSON.has(n) || /^EDU-[0-9]+[.]json$/.test(n)) continue;
+    found.add(n);
+  }
+  return [...found];
+}
+
 export const ORDER_LABELS = ['Tujuan', 'Masukan', 'Batasan', 'Keluaran'];
 /**
  * Struktur wajib instruksi tahap dari Manager (template di divisions/edukasiai/sop/work-order-templates.md): minimal 3 dari 4 label
@@ -119,6 +162,8 @@ export function checkOrderStructure(order) {
   };
   checkStages(order?.stages, '');
   extraContentsOf(order).forEach((c, i) => checkStages(c.stages, `extraContents[${i}].`));
+  const unknown = findUnknownFileNames(order);
+  if (unknown.length) errors.push('instruksi menyebut berkas yang bukan keluaran baku: ' + unknown.join(', ') + '. Pakai nama baku persis: ' + CANONICAL_FILES.join(', '));
   // analisis wajib: Manager harus menghitung topik dan menandai nama/produk yang tidak dikenal SEBELUM merencanakan
   const topics = order?.analysis?.topics;
   if (!Array.isArray(topics) || !topics.length || topics.some((t) => typeof t !== 'string' || t.trim().length < 3)) errors.push('analysis.topics wajib: daftar topik yang kamu temukan di brief (1 bila satu topik); isi juga analysis.assumptions, analysis.risks, analysis.unknownEntities (daftar, boleh kosong)');

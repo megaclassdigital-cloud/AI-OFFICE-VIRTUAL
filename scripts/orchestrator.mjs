@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
@@ -396,7 +396,7 @@ async function gatherFacts(job, state) {
   const managerFailed = !live && !managerFinished && mgrRuns.find((r) => ['failed', 'error', 'timed_out'].includes(r.status));
   let order = null;
   const op = orderPathFor(job.identifier);
-  if (existsSync(op)) { try { const raw = JSON.parse(readFileSync(op, 'utf8')); order = validateOrder(raw); if (order.ok && job.phase === 'planning') { const sc = checkOrderStructure(raw); if (!sc.ok) order = sc; } } catch (e) { order = { ok: false, errors: [`JSON tidak bisa dibaca: ${e.message}`] }; } }
+  if (existsSync(op)) { try { let raw = JSON.parse(readFileSync(op, 'utf8')); if (job.phase === 'planning') { const norm = normalizeOrderFileNames(raw); if (norm.changed) { raw = norm.order; writeFileSync(op, JSON.stringify(raw, null, 2) + '\n', 'utf8'); log(job.identifier + ' nama berkas di work order diperbaiki ke nama baku: ' + norm.replaced.map((r) => r.from + ' -> ' + r.to).join(', ')); } } order = validateOrder(raw); if (order.ok && job.phase === 'planning') { const sc = checkOrderStructure(raw); if (!sc.ok) order = sc; } } catch (e) { order = { ok: false, errors: [`JSON tidak bisa dibaca: ${e.message}`] }; } }
   let stage = null; let output;
   if (job.phase === 'running' && job.stageIssueId) {
     const issue = await j(`/issues/${job.stageIssueId}`);

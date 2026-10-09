@@ -1,6 +1,6 @@
 // manager-instruction.mjs — instruksi perencanaan untuk Manager (Manager 2.0). Dibuat KODE; Manager (ChatGPT/Claude) mengikuti langkah berpikir ini.
 // Tujuan: rencana yang benar-benar menjawab brief (hitung topik, tandai yang tak dikenal, hindari duplikat) dalam bentuk yang bisa diperiksa kode.
-import { STAGES, STAGE_AGENT, MAX_EXTRA_CONTENTS } from './orchestrator-core.mjs';
+import { STAGES, STAGE_AGENT, MAX_EXTRA_CONTENTS, CANONICAL_FILES } from './orchestrator-core.mjs';
 
 const NL = String.fromCharCode(10);
 
@@ -56,6 +56,7 @@ export function buildManagerInstruction({ identifier, brief, contextFile, orderP
     JSON.stringify(exampleOrder(), null, 2),
     templates,
     designBriefPath ? `Jika brief meminta arahan desain, tulis brief desain .md di ${designBriefPath} (diawali front matter, ikuti templat) dan sebut path-nya di instruksi tahap designer.` : '',
+    `NAMA BERKAS BAKU (pakai PERSIS ini bila menyebut berkas; nama lain ditolak kode): Researcher menulis research-raw.json (kode membuat research-output.json); Verifier menulis verification-result.json; Copywriter menulis carousel.json; Designer menulis carousel-design.json dan asset-requests.json; QA menulis qa-result.json. Daftar lengkap: ${CANONICAL_FILES.join(', ')}.`,
     TOKEN_RULES,
     'Setelah file ada: panggil complete_stage (awaiting_approval) lewat aao-tool.mjs dengan ringkasan satu paragraf untuk owner (topik yang kamu pahami, jumlah konten, asumsi utama), lalu berhenti.',
   ].filter(Boolean).join(NL + NL);

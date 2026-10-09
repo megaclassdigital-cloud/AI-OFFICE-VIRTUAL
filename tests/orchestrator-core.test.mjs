@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, isManagerRetryable, checkOrderStructure, extraContentsOf, analysisOf, renderAnalysisComment, MAX_EXTRA_CONTENTS } from '../scripts/orchestrator-core.mjs';
+import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, isManagerRetryable, normalizeOrderFileNames, findUnknownFileNames, CANONICAL_FILES, checkOrderStructure, extraContentsOf, analysisOf, renderAnalysisComment, MAX_EXTRA_CONTENTS } from '../scripts/orchestrator-core.mjs';
 
 const goodOrder = { title: 'Carousel tren AI', stages: Object.fromEntries(STAGES.map((s) => [s, `kerjakan ${s}`])) };
 const T0 = 1_000_000;
@@ -220,5 +220,37 @@ describe('isManagerRetryable (galat Manager yang pulih sendiri tidak memblokir p
   });
   it('galat tugas biasa tidak', () => {
     for (const t of ['schema validation failed', 'JSON tidak bisa dibaca', '', null]) expect(isManagerRetryable(t), String(t)).toBe(false);
+  });
+});
+
+describe('nama berkas baku di work order (kasus EDU-61: verify-result.json, carousel-copy.json)', () => {
+  const good = 'Tujuan: a.\nMasukan: b.\nBatasan: c.\nKeluaran: d.';
+  const order = (stages = {}, extra = {}) => ({ title: 't', analysis: { topics: ['satu topik'] }, stages: { ...Object.fromEntries(STAGES.map((s) => [s, good])), ...stages }, ...extra });
+
+  it('alias umum diperbaiki ke nama baku di semua tahap dan konten tambahan, tanpa menyentuh nama baku', () => {
+    const o = order({ verifier: 'Keluaran: verify-result.json lalu baca research-output.json.', copywriter: 'Masukan: verify-result.json dan carousel-copy.json.' },
+      { extraContents: [{ title: 'Konten dua', stages: { ...Object.fromEntries(STAGES.map((s) => [s, good])), qa: 'Keluaran: qa-report.json' } }] });
+    const r = normalizeOrderFileNames(o);
+    expect(r.changed).toBe(true);
+    expect(r.order.stages.verifier).toBe('Keluaran: verification-result.json lalu baca research-output.json.');
+    expect(r.order.stages.copywriter).toBe('Masukan: verification-result.json dan carousel.json.');
+    expect(r.order.extraContents[0].stages.qa).toBe('Keluaran: qa-result.json');
+    expect(r.replaced.map((x) => x.from).sort()).toEqual(['carousel-copy.json', 'qa-report.json', 'verify-result.json']);
+    expect(o.stages.verifier).toMatch(/verify-result/); // masukan asli tidak diubah
+  });
+  it('nama yang mengandung alias sebagai potongan tidak diubah', () => {
+    const r = normalizeOrderFileNames(order({ designer: 'tulis my-design.json dan carousel-design.json' }));
+    expect(r.order.stages.designer).toBe('tulis my-design.json dan carousel-design.json');
+    expect(r.changed).toBe(false);
+  });
+  it('nama karangan (bukan baku, bukan konfigurasi) ditolak dengan daftar nama baku', () => {
+    expect(findUnknownFileNames(order({ qa: 'Keluaran: laporan-akhir.json' }))).toEqual(['laporan-akhir.json']);
+    const r = checkOrderStructure(order({ qa: 'Tujuan: a.\nMasukan: b.\nBatasan: c.\nKeluaran: laporan-akhir.json' }));
+    expect(r.ok).toBe(false); expect(r.errors.join()).toMatch(/laporan-akhir\.json/); expect(r.errors.join()).toMatch(/verification-result\.json/);
+  });
+  it('nama baku, konfigurasi dikenal, dan berkas order EDU-n.json tidak dianggap karangan', () => {
+    const t = 'Masukan: carousel.json, asset-requests.json, templates.json, brand.json, D:/x/orders/EDU-61.json';
+    expect(findUnknownFileNames(order({ designer: t }))).toEqual([]);
+    expect(CANONICAL_FILES).toContain('verification-result.json');
   });
 });

@@ -32,3 +32,10 @@ describe('aturan hemat token untuk ChatGPT dan Claude', () => {
     expect(TOKEN_RULES).toMatch(/model apa pun/);
   });
 });
+
+describe('nama berkas baku di instruksi Manager', () => {
+  it('menyebut nama baku tiap tahap supaya Manager tidak mengarang', () => {
+    const t = buildManagerInstruction({ identifier: 'EDU-1', brief: 'x', contextFile: 'c', orderPath: 'o' });
+    expect(t).toMatch(/NAMA BERKAS BAKU/); for (const n of ['research-raw.json', 'verification-result.json', 'carousel.json', 'carousel-design.json', 'qa-result.json']) expect(t).toContain(n);
+  });
+});
