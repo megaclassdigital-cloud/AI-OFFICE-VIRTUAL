@@ -142,7 +142,20 @@ async function once() {
   if (!DRY) writeState(state);
 }
 
-if (a.includes('--status')) {
+if (a.includes('--resume')) {
+  // Lanjutkan job terblokir (terakhir) bila work order-nya kini valid: kembali ke fase planning, orkestrator memulai tahap 1.
+  const s = readState();
+  const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked');
+  if (!blocked) { console.log('Tidak ada job terblokir.'); process.exit(0); }
+  const ord = existsSync(orderPathFor(blocked.identifier)) ? validateOrder(JSON.parse(readFileSync(orderPathFor(blocked.identifier), 'utf8').replace(/^﻿/, ''))) : null;
+  if (!ord?.ok) { console.log('Work order belum valid: ' + (ord ? ord.errors.join('; ') : 'file tidak ada')); process.exit(1); }
+  s.history = s.history.filter((x) => x !== blocked && x.masterIssueId !== blocked.masterIssueId);
+  s.job = { ...blocked, phase: 'planning', stageIndex: -1, stageIssueId: null, createdMs: Date.now(), planRetries: 0, handledRuns: 0 };
+  delete s.job.endedMs; delete s.job.abandoned;
+  await j('/issues/' + s.job.masterIssueId, jb('PATCH', { status: 'in_progress' }));
+  writeState(s);
+  log('job ' + s.job.identifier + ' dilanjutkan dari work order yang valid');
+} else if (a.includes('--status')) {
   const s = readState();
   console.log(s.job ? `Job aktif: ${s.job.identifier} fase=${s.job.phase} tahap=${s.job.stageIndex >= 0 ? STAGE_AGENT[STAGES[s.job.stageIndex]] : '-'}` : 'Tidak ada job aktif.');
   console.log(`Selesai/terblokir sebelumnya: ${s.history.length}`);

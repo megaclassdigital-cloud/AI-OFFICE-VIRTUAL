@@ -183,6 +183,8 @@ async function main() {
     };
 
     const existing = existingAgents.find((x) => x.name === a.name);
+    // Adapter dikelola skrip lain (mis. manager-failover): jangan menimpanya saat memperbarui agent yang sudah ada.
+    if (existing && a.adapterManagedBy) { delete payload.adapterType; delete payload.adapterConfig; }
 
     if (existing) {
       if (args.dryRun) {

@@ -33,3 +33,11 @@ describe('satu model aktif, tanpa bentrok', () => {
     expect(lockHeld(process.pid, () => true)).toBe(false);
   });
 });
+
+describe('galat model/ACP juga memicu pindah', () => {
+  it('terminal service failure dan model tidak tersedia', () => {
+    expect(isFailoverError('ACP agent reported a terminal service failure.')).toBe(true);
+    expect(isFailoverError('acpx_turn_failed')).toBe(true);
+    expect(isFailoverError('The model gpt-5.4 is not available for this account')).toBe(true);
+  });
+});

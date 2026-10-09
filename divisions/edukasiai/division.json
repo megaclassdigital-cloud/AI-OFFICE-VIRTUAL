@@ -26,7 +26,8 @@
       },
       "envFromDotenv": [
         "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
-      ]
+      ],
+      "adapterManagedBy": "manager-failover"
     },
     {
       "key": "researcher",

@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FAIL_RE = /quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|capacity/i;
+const FAIL_RE = /quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|capacity|terminal service failure|acpx_turn_failed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
 
 export const isFailoverError = (text) => FAIL_RE.test(String(text ?? ''));
 
@@ -62,7 +62,8 @@ async function main() {
     const env = { ...(entry.adapterConfig.env ?? {}) };
     const de = dotenv();
     for (const k of entry.envFromDotenv ?? []) { if (!de.has(k)) throw new Error(`${k} tidak ada di .env`); env[k] = de.get(k); }
-    const adapterConfig = { ...base, ...entry.adapterConfig, ...(Object.keys(env).length ? { env } : {}) };
+    // PATCH menggabungkan config lama; kunci model dari adapter sebelumnya harus dikosongkan bila entri tidak menyebut model.
+    const adapterConfig = { ...base, ...(entry.adapterConfig.model ? {} : { model: null }), ...entry.adapterConfig, ...(Object.keys(env).length ? { env } : {}) };
     await j(`/agents/${agent.id}`, jb('PATCH', { adapterType: entry.adapterType, adapterConfig }));
     await j(`/agents/${agent.id}/resume`, jb('POST', {}));
     mkdirSync(path.dirname(stateFile), { recursive: true });
