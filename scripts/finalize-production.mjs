@@ -60,6 +60,14 @@ async function main() {
   const verification = readJson(path.join(dir, 'verification-result.json'));
   const carousel = readJson(path.join(dir, 'carousel.json'));
   const design = readJson(path.join(dir, 'carousel-design.json'));
+  // Penjaga terakhir sebelum paket ke owner: semua gambar harus asli (manifest + bukti merek). Tidak ada gambar pengganti yang lolos.
+  {
+    const { checkAssets } = await import('./asset-gate.mjs');
+    const templates = readJson(path.join(ROOT, 'divisions', 'edukasiai', 'brand', 'templates.json')).templates;
+    const manifestFile = path.join(dir, 'assets-manifest.json');
+    const assetErrors = checkAssets({ design, templates, manifest: existsSync(manifestFile) ? readJson(manifestFile) : null, identifier: prod, carousel, rootDir: ROOT });
+    if (assetErrors.length) throw new Error(`aset gambar tidak lolos: ${assetErrors.join(' | ').slice(0, 400)}`);
+  }
   const qaFile = ['qa-result.json.accepted', 'qa-result.json'].map((f) => path.join(dir, f)).find((f) => existsSync(f));
   const llm = llmFromQaResult(qaFile ? readJson(qaFile) : null, { textOk: flag('--text-ok'), designOk: flag('--design-ok') });
   if (!llm) throw new Error('penilaian QA (llmReview.textOk/designOk) tidak ada; QA harus menulisnya, atau beri --text-ok/--design-ok secara sadar');

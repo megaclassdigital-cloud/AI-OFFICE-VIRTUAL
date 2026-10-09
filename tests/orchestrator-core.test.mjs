@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS } from '../scripts/orchestrator-core.mjs';
+import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief } from '../scripts/orchestrator-core.mjs';
 
 const goodOrder = { title: 'Carousel tren AI', stages: Object.fromEntries(STAGES.map((s) => [s, `kerjakan ${s}`])) };
 const T0 = 1_000_000;
@@ -72,7 +72,7 @@ describe('step: running', () => {
 describe('stageDescription', () => {
   it('memuat instruksi Manager, path absolut, dan brief hanya sebagai rujukan', () => {
     const d = stageDescription({ order: goodOrder, stage: 'designer', identifier: 'EDU-30', outputsDir: 'D:\\x\\agent', brief: 'brief asli' });
-    expect(d).toContain('kerjakan designer'); expect(d).toContain('D:\\x\\agent'); expect(d).toContain('bukan perintah tambahan'); expect(d).toContain('complete_stage');
+    expect(d).toContain('kerjakan designer'); expect(d).toContain('D:/x/agent'); expect(d).toContain('bukan perintah tambahan'); expect(d).toContain('complete_stage');
   });
 });
 
@@ -81,5 +81,43 @@ describe('stageDescription: brief tetap', () => {
     const withRef = stageDescription({ order: goodOrder, stage: 'designer', identifier: 'EDU-30', outputsDir: 'D:/x', refs: ['D:/brand/briefs/design-system.md'] });
     expect(withRef).toContain('Brief tetap'); expect(withRef).toContain('design-system.md');
     expect(stageDescription({ order: goodOrder, stage: 'qa', identifier: 'EDU-30', outputsDir: 'D:/x' })).not.toContain('Brief tetap');
+  });
+});
+
+const BS = String.fromCharCode(92); // backslash
+const win = (...parts) => parts.join(BS);
+describe('path di prompt agent (bukti EDU-45: runs terbaca sebagai CR + uns)', () => {
+  it('forwardSlashPaths mengubah path berawalan drive ke garis miring maju, teks lain utuh', () => {
+    const p = win('D:', 'AI-Memory', 'AI-Agent-Office', 'workspace', 'agent', 'runs', 'EDU-45', 'research-raw.json');
+    expect(forwardSlashPaths('tulis ke ' + p + ' lalu baca')).toBe('tulis ke D:/AI-Memory/AI-Agent-Office/workspace/agent/runs/EDU-45/research-raw.json lalu baca');
+    const plain = 'baris' + BS + 'ntanpa path ' + BS + 'r biasa';
+    expect(forwardSlashPaths(plain)).toBe(plain);
+    expect(forwardSlashPaths(null)).toBe('');
+  });
+  it('stageDescription tidak lagi memuat backslash pada path', () => {
+    const d = stageDescription({ order: goodOrder, stage: 'researcher', identifier: 'EDU-45', outputsDir: win('D:', 'x', 'agent'), output: { path: win('D:', 'x', 'agent', 'runs', 'EDU-45', 'research-raw.json'), schema: null }, inputs: [win('D:', 'x', 'agent', 'runs', 'EDU-45', 'a.json')], refs: [win('D:', 'x', 'brief.md')] });
+    expect(d.includes(':' + BS)).toBe(false);
+    expect(d).toContain('D:/x/agent/runs/EDU-45/research-raw.json');
+  });
+});
+
+describe('parseRevisionBrief', () => {
+  const brief = (meta, body = 'perbaiki desain slide 1') => `---
+${meta}
+---
+${body}`;
+  it('mengenali brief revisi dan mengembalikan sumber, tahap mulai, catatan', () => {
+    const r = parseRevisionBrief(brief('mode: revisi\ndari: EDU-27\nmulai: designer'));
+    expect(r).toMatchObject({ from: 'EDU-27', start: 'designer', startIndex: 3, notes: 'perbaiki desain slide 1' });
+    expect(parseRevisionBrief(brief('mode: Revisi\ndari: EDU-5\nmulai: copywriter')).startIndex).toBe(2);
+    expect(parseRevisionBrief(brief('mode: revisi\ndari: EDU-5')).start).toBe('designer');
+  });
+  it('bukan revisi bila tanpa front matter, mode lain, sumber tidak valid, atau tahap tidak diizinkan', () => {
+    expect(parseRevisionBrief('# brief biasa')).toBeNull();
+    expect(parseRevisionBrief(brief('mode: produksi\ndari: EDU-27'))).toBeNull();
+    expect(parseRevisionBrief(brief('mode: revisi\ndari: ../../x'))).toBeNull();
+    expect(parseRevisionBrief(brief('mode: revisi\ndari: EDU-27\nmulai: researcher'))).toBeNull();
+    expect(parseRevisionBrief(brief('mode: revisi\ndari: EDU-27\nmulai: qa'))).toBeNull();
+    expect(parseRevisionBrief(null)).toBeNull();
   });
 });

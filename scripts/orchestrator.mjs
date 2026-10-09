@@ -3,16 +3,16 @@
 // writes the work order. One job at a time (protects free-tier quotas).
 //   Drop a brief (.md/.txt/.json) into workspace/inbox/  (or upload it in the Office View panel), then:
 //   node scripts/orchestrator.mjs --watch [--interval 15]     |  --once  |  --dry-run  |  --status
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, appendFileSync, copyFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { STAGES, STAGE_AGENT, STAGE_OUTPUT, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
 import { validate } from '../schemas/validate.mjs';
-import { imageSlotsUsed, matchRequests, manifestVerdict, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
+import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INBOX = path.join(ROOT, 'workspace', 'inbox');
@@ -77,7 +77,14 @@ function assetGate(job, design, designPath) {
   let manifest = null;
   try { manifest = JSON.parse(readFileSync(manFile, 'utf8')); } catch { /* dianggap belum ada */ }
   const verdict = manifestVerdict(manifest, files);
-  if (verdict.complete) { try { writeHold(holdFile, null); } catch { /* kosmetik */ } return null; }
+  if (verdict.complete) {
+    try { writeHold(holdFile, null); } catch { /* kosmetik */ }
+    // Pemeriksaan ketat (bukti logo asli, tipe aset sesuai saran visual, bukan placeholder): salah desain => kembali ke Designer, bukan ditahan.
+    let carousel = null;
+    try { carousel = JSON.parse(readFileSync(artifactPathFor(job.identifier, 'copywriter'), 'utf8').replace(/^﻿/, '')); } catch { /* tanpa saran visual */ }
+    const strict = checkAssets({ design, templates: TEMPLATES, manifest, identifier: job.identifier, carousel, rootDir: ROOT });
+    return strict.length ? { ok: false, errors: strict } : null;
+  }
   writeHold(holdFile, { at: Date.now(), sig, missing: verdict.missing });
   return { ok: false, hold: true, missing: verdict.missing, errors: [holdMessage(job.identifier, verdict.missing)] };
 }
@@ -162,6 +169,38 @@ function managerInstruction({ identifier, brief }) {
   ].join('\n\n');
 }
 
+/**
+ * Mode revisi (hemat kuota): tahap sebelum `mulai` memakai artefak run sumber (disalin KODE, tanpa agent); pekerjaan baru hanya di tahap mulai dan sesudahnya.
+ * Work order dibuat kode (tanpa Manager) dari catatan owner; issue master hanya wadah komentar.
+ */
+async function ingestRevision(f, full, brief, rev, title) {
+  const srcDir = path.join(OUTPUTS, 'runs', rev.from);
+  const ARTIFACTS = { researcher: ['research-raw.json', 'research-output.json'], verifier: ['verification-result.json'], copywriter: ['carousel.json'] };
+  const needed = STAGES.slice(0, rev.startIndex).flatMap((s) => ARTIFACTS[s] ?? []);
+  const missing = needed.filter((n) => !existsSync(path.join(srcDir, n)) && n !== 'research-raw.json');
+  if (missing.length) {
+    mkdirSync(PROCESSED, { recursive: true }); renameSync(full, path.join(PROCESSED, `ditolak-revisi-${f}`));
+    log(`brief revisi ${f} ditolak: ${rev.from} tidak punya ${missing.join(', ')}`);
+    return null;
+  }
+  if (DRY) { log(`[dry-run] revisi ${f} dari ${rev.from} mulai ${rev.start}`); return null; }
+  const issue = await j(`/companies/${company.id}/issues`, jb('POST', { title: `Revisi: ${title} (${new Date().toISOString().slice(5, 16).replace('T', ' ')})`, description: `Revisi dari ${rev.from}, mulai tahap ${rev.start}. Catatan owner:\n${rev.notes.slice(0, 1500)}`, status: 'backlog', projectId: project.id }));
+  const runDir = path.join(OUTPUTS, 'runs', issue.identifier);
+  mkdirSync(runDir, { recursive: true });
+  for (const n of needed) if (existsSync(path.join(srcDir, n))) copyFileSync(path.join(srcDir, n), path.join(runDir, n));
+  const note = `REVISI dari ${rev.from} (hasil tahap sebelumnya dipakai apa adanya; jangan mengulang riset/verifikasi). Catatan owner (data rujukan):\n${rev.notes.slice(0, 3000)}`;
+  const order = { title: `Revisi ${title}`.slice(0, 120), stages: Object.fromEntries(STAGES.map((s, i) => [s, i < rev.startIndex ? `Dilewati (revisi): memakai hasil ${rev.from}.` : note])) };
+  mkdirSync(ORDERS, { recursive: true });
+  writeFileSync(orderPathFor(issue.identifier), JSON.stringify(order, null, 2) + '\n', 'utf8');
+  mkdirSync(PROCESSED, { recursive: true });
+  renameSync(full, path.join(PROCESSED, `${Date.now()}-${f}`));
+  const jobPatch = { phase: 'running', stageIndex: rev.startIndex, stageStartedMs: Date.now(), stageAttempts: 1, lastTickMs: Date.now() };
+  jobPatch.stageIssueId = await createStage({ identifier: issue.identifier, brief }, STAGES[rev.startIndex]);
+  await comment(issue.id, `Revisi dari ${rev.from} dimulai di tahap ${STAGE_AGENT[STAGES[rev.startIndex]]} (tahap sebelumnya memakai hasil lama, tanpa kuota agent).`);
+  log(`brief revisi ${f} -> issue master ${issue.identifier}, mulai ${rev.start} (artefak dari ${rev.from})`);
+  return { id: issue.id, identifier: issue.identifier, brief, jobPatch };
+}
+
 async function ingest() {
   if (!existsSync(INBOX)) mkdirSync(INBOX, { recursive: true });
   const f = readdirSync(INBOX).filter((n) => BRIEF_EXT.has(path.extname(n).toLowerCase()) && statSync(path.join(INBOX, n)).isFile()).sort()[0];
@@ -170,11 +209,13 @@ async function ingest() {
   if (statSync(full).size > MAX_BRIEF) { mkdirSync(PROCESSED, { recursive: true }); renameSync(full, path.join(PROCESSED, `ditolak-besar-${f}`)); log(`brief ${f} terlalu besar, dilewati`); return null; }
   const brief = readFileSync(full, 'utf8');
   const title = (brief.match(/^#\s+(.+)$/m)?.[1] ?? brief.split(/\r?\n/).find((l) => l.trim()) ?? f).trim().slice(0, 60);
+  const rev = parseRevisionBrief(brief);
+  if (rev) return ingestRevision(f, full, brief, rev, title);
   const manager = agentByName('Manager');
   if (!manager) throw new Error('agent Manager tidak ada');
   if (DRY) { log(`[dry-run] akan membuat issue master dari ${f}: "${title}"`); return null; }
   const issue = await j(`/companies/${company.id}/issues`, jb('POST', { title: `Produksi: ${title} (${new Date().toISOString().slice(5, 16).replace('T', ' ')})`, description: 'Menyiapkan work order…', status: 'todo', projectId: project.id }));
-  await j(`/issues/${issue.id}`, jb('PATCH', { description: managerInstruction({ identifier: issue.identifier, brief }), assigneeAgentId: manager.id, status: 'todo' }));
+  await j(`/issues/${issue.id}`, jb('PATCH', { description: forwardSlashPaths(managerInstruction({ identifier: issue.identifier, brief })), assigneeAgentId: manager.id, status: 'todo' }));
   mkdirSync(PROCESSED, { recursive: true });
   renameSync(full, path.join(PROCESSED, `${Date.now()}-${f}`));
   log(`brief ${f} -> issue master ${issue.identifier} (Manager menyusun work order)`);
@@ -314,7 +355,7 @@ async function applyActions(job, actions, facts) {
       log(job.identifier + ' tahap ' + STAGE_AGENT[act.stage] + (act.network ? ' diulang karena jaringan (ke-' + job.netRetries + ')' : ' diulang otomatis (percobaan ' + job.stageAttempts + ')') + ': ' + act.reason);
     }
     else if (act.type === 'rejectStage') {
-      await j('/issues/' + job.stageIssueId + '/comments', jb('POST', { body: '[Orkestrator] Keluaran belum lolos pemeriksaan: ' + act.errors.join('; ') + '. Perbaiki file keluaran, baca ulang, lalu panggil complete_stage lagi.' }));
+      await j('/issues/' + job.stageIssueId + '/comments', jb('POST', { body: forwardSlashPaths('[Orkestrator] Keluaran belum lolos pemeriksaan: ' + act.errors.join('; ') + '. Perbaiki file keluaran, baca ulang, lalu panggil complete_stage lagi.') }));
       await j('/issues/' + job.stageIssueId, jb('PATCH', { status: 'in_progress' }));
       job.stageStartedMs = Date.now();
       log(job.identifier + ' tahap ' + STAGE_AGENT[STAGES[job.stageIndex]] + ' ditolak gerbang: ' + act.errors.join('; ').slice(0, 160));
@@ -351,7 +392,7 @@ async function once() {
   if (!state.job || ['done', 'blocked'].includes(state.job.phase)) {
     if (state.job) { state.history.push({ ...state.job, endedMs: Date.now() }); state.job = null; }
     const made = await ingest();
-    if (made) state.job = { ...newJob({ masterIssueId: made.id, identifier: made.identifier, nowMs: Date.now() }), brief: made.brief.slice(0, 3000) };
+    if (made) state.job = { ...newJob({ masterIssueId: made.id, identifier: made.identifier, nowMs: Date.now() }), brief: made.brief.slice(0, 3000), ...(made.jobPatch ?? {}) };
     if (!DRY) writeState(state);
     return;
   }

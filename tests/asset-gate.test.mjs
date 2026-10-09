@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { imageSlotsUsed, matchRequests, manifestVerdict, holdMessage, inboxSignature, shouldRetryCapture, HOLD_RETRY_MS } from '../scripts/asset-gate.mjs';
+import { imageSlotsUsed, matchRequests, manifestVerdict, holdMessage, inboxSignature, shouldRetryCapture, HOLD_RETRY_MS, checkAssets } from '../scripts/asset-gate.mjs';
 import { step, newJob } from '../scripts/orchestrator-core.mjs';
 
 const templates = { 'hero-cover': { slots: { hero: { type: 'image' }, title: { type: 'text' } } }, cover: { slots: { title: { type: 'text' } } } };
@@ -80,5 +80,40 @@ describe('step: hold aset', () => {
     r = step(r.job, { stage: hold, output: { ok: true, errors: [] }, nowMs: T0 + 2000 });
     expect(r.job.stageIndex).toBe(4); expect(r.job.assetHoldNotified).toBe(false);
     expect(r.actions.at(-1)).toEqual({ type: 'createStage', stage: 'qa' });
+  });
+});
+
+describe('checkAssets (pemeriksaan ketat aset)', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'chk-'));
+  mkdirSync(path.join(dir, 'workspace', 'agent', 'runs', 'EDU-9', 'assets'), { recursive: true });
+  writeFileSync(path.join(dir, 'workspace', 'agent', 'runs', 'EDU-9', 'assets', 'claude-logo.png'), Buffer.alloc(5000, 1));
+  const run = (manifest, carousel = null, d = design) => checkAssets({ design: d, templates, manifest, identifier: 'EDU-9', carousel, rootDir: dir });
+  const goodLogo = { file: 'claude-logo.png', kind: 'brand', brand: 'Claude', query: 'Claude Anthropic', status: 'captured', title: 'File:Claude AI symbol.svg - Wikimedia Commons', imageUrl: 'https://x/a.png' };
+
+  it('logo asli dengan bukti judul lolos', () => { expect(run({ assets: [goodLogo] })).toEqual([]); });
+  it('aset tidak tercatat, blocked, atau berkas hilang ditolak', () => {
+    expect(run({ assets: [] }).join()).toMatch(/slide 1: gambar "claude-logo.png" belum asli \(status tidak tercatat\)/);
+    expect(run({ assets: [{ ...goodLogo, status: 'blocked' }] }).join()).toMatch(/status blocked/);
+    const noFile = checkAssets({ design, templates, manifest: { assets: [goodLogo] }, identifier: 'EDU-9', rootDir: mkdtempSync(path.join(tmpdir(), 'chk2-')) });
+    expect(noFile.join()).toMatch(/tidak ada atau terlalu kecil/);
+  });
+  it('logo tanpa bukti merek ditolak (judul tidak memuat merek, atau tanpa judul)', () => {
+    expect(run({ assets: [{ ...goodLogo, title: 'Gemini logo official' }] }).join()).toMatch(/tidak terbukti milik merek "Claude"/);
+    expect(run({ assets: [{ ...goodLogo, title: undefined }] }).join()).toMatch(/tanpa bukti judul/);
+    expect(run({ assets: [{ ...goodLogo, status: 'owner-supplied', title: undefined }] })).toEqual([]);
+  });
+  it('saran visual menyebut logo tetapi aset bertipe foto ditolak', () => {
+    const car = { slides: [{ index: 1, visualIdea: 'logo Claude' }] };
+    expect(run({ assets: [{ ...goodLogo, kind: 'photo', status: 'owner-supplied' }] }, car).join()).toMatch(/minta kind "brand"/);
+  });
+  it('placeholder tata letak di brand/ ditolak', () => {
+    const d = { slides: [{ index: 2, template: 'hero-cover', slots: { hero: 'brand/hero-1.png', title: 'y' } }] };
+    expect(run({ assets: [] }, null, d).join()).toMatch(/placeholder/);
+  });
+});
+
+describe('status kept tidak diterima tanpa bukti', () => {
+  it('manifestVerdict menolak kept', () => {
+    expect(manifestVerdict({ assets: [{ file: 'a.png', status: 'kept' }] }, ['a.png']).complete).toBe(false);
   });
 });

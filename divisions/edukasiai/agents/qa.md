@@ -26,6 +26,17 @@ Sebagian cek sudah dilakukan kode. Jangan ulangi dengan perkiraan — baca hasil
 
 Jika `visual-qa.json` memuat satu saja kegagalan → gagal. Tidak ada pengecualian.
 
+**Cek aset gambar (diperketat; baca `assets-manifest.json` di folder run, jangan menilai dari ingatan):**
+
+| Cek | Aturan |
+| --- | --- |
+| Asal gambar | Tiap gambar `runs/<ID>/assets/*` bertatus `captured` (screenshot pencarian), `owner-supplied`, atau `kept`. `blocked`/`missing`/tak tercatat = gagal |
+| Merek asli | Slide yang menyebut merek/produk memakai logo atau tampilan resmi yang asli (`kind: brand`/`product`), judul hasil di manifest memuat nama merek. Gambar abstrak, ilustrasi buatan, atau logo merek lain = `designOk: false` |
+| Relevansi foto | Foto topik cocok dengan isi slide; foto yang tidak berhubungan = `designOk: false` dan sebut slidenya |
+| Lisensi | Catatan hak cipta di manifest tetap ada; jangan menghapusnya |
+
+Kode (`check-design`, gerbang aset, finalisasi) sudah menolak yang bisa dihitung; tugasmu menilai **relevansi dan keaslian visual** dengan membuka PNG hasil render slide yang memakai gambar, bukan hanya membaca laporan.
+
 **Cek LLM (bagianmu):**
 
 - Nada sesuai audiens, kalimat jelas

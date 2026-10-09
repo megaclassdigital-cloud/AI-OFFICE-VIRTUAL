@@ -141,6 +141,16 @@ function resolveAsset(value) {
   return { file: abs, mime };
 }
 
+/** Jenis aset ("brand" | "photo" | "product" | null) dari assets-manifest.json milik run, untuk path runs/<ID>/assets/<file>. */
+function assetKind(value) {
+  const m = String(value ?? '').match(/^runs\/([A-Za-z0-9-]+)\/assets\/([^/]+)$/);
+  if (!m) return null;
+  try {
+    const man = JSON.parse(readFileSync(path.join(repoRoot, 'workspace', 'agent', 'runs', m[1], 'assets-manifest.json'), 'utf8').replace(/^﻿/, ''));
+    return man.assets?.find((a) => a.file === m[2])?.kind ?? null;
+  } catch { return null; }
+}
+
 // ── Validasi SEBELUM render (gagal cepat, pesan jelas) ───────────────────────
 // AC1.6: teks terlalu panjang ditolak di sini, tidak dipotong diam-diam.
 
@@ -278,7 +288,7 @@ try {
     for (const [name, value] of Object.entries(slide.slots ?? {})) {
       const def = tpl.slots[name];
       if (def?.type === 'icon') icons[name] = iconSvg(value);
-      if (def?.type === 'image') { const r = resolveAsset(value); images[name] = `data:${r.mime};base64,${readFileSync(r.file).toString('base64')}`; }
+      if (def?.type === 'image') { const r = resolveAsset(value); images[name] = { src: `data:${r.mime};base64,${readFileSync(r.file).toString('base64')}`, fit: assetKind(value) === 'brand' ? 'contain' : 'cover' }; }
     }
     const staticIcons = {};
     for (const m of rawHtml.matchAll(/data-icon="([a-z0-9-]+)"/g)) staticIcons[m[1]] = iconSvg(m[1]) ?? '';
@@ -291,7 +301,8 @@ try {
           if (Object.prototype.hasOwnProperty.call(icons, name)) {
             el.innerHTML = icons[name] ?? '';
           } else if (Object.prototype.hasOwnProperty.call(images, name)) {
-            el.setAttribute('src', images[name]);
+            el.setAttribute('src', images[name].src);
+            el.setAttribute('data-fit', images[name].fit); // logo/merek ditampilkan utuh (contain), foto memenuhi area (cover)
           } else if (Object.prototype.hasOwnProperty.call(emphasisHtml, name)) {
             el.innerHTML = emphasisHtml[name];
           } else if (Object.prototype.hasOwnProperty.call(slots, name)) {

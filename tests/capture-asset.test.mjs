@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { buildQuery, inboxPath, keywords, scoreResult, MIN_SCORE, captureOne, ENGINES } from '../scripts/capture-asset.mjs';
+import { buildQuery, inboxPath, keywords, scoreResult, MIN_SCORE, captureOne, ENGINES, isBlankStats } from '../scripts/capture-asset.mjs';
 
 describe('capture-asset', () => {
   it('buildQuery memperkuat merek dan produk', () => {
@@ -57,5 +57,15 @@ describe('capture-asset', () => {
     const r3 = await captureOne(null, { kind: 'photo', query: 'robot arm' }, 'x.png', ['bing'], { blocked: new Set() });
     expect(r3.status).toBe('missing');
     Object.assign(ENGINES, orig);
+  });
+});
+
+describe('gambar kosong dan status kept', () => {
+  it('isBlankStats: persegi seragam atau sedikit warna ditolak, foto/logo wajar lolos', () => {
+    expect(isBlankStats({ colors: 1, std: 0 })).toBe(true);
+    expect(isBlankStats({ colors: 3, std: 40 })).toBe(true);
+    expect(isBlankStats({ colors: 40, std: 2 })).toBe(true);
+    expect(isBlankStats({ colors: 12, std: 60 })).toBe(false);
+    expect(isBlankStats({ colors: 400, std: 55 })).toBe(false);
   });
 });

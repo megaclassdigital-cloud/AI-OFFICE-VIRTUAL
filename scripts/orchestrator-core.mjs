@@ -54,6 +54,21 @@ export function validateOrder(order) {
   return { ok: errors.length === 0, errors };
 }
 
+/**
+ * Brief revisi: front matter `mode: revisi`, `dari: EDU-n` (run sumber), `mulai: copywriter|designer`.
+ * Tahap sebelum `mulai` memakai artefak run sumber (tanpa memanggil agent/kuota). Mengembalikan { from, start, startIndex, notes } atau null.
+ */
+export function parseRevisionBrief(brief) {
+  const m = String(brief ?? '').match(/^﻿?---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!m) return null;
+  const meta = Object.fromEntries(m[1].split(/\r?\n/).map((l) => l.match(/^\s*([A-Za-z-]+)\s*:\s*(.+?)\s*$/)).filter(Boolean).map((x) => [x[1].toLowerCase(), x[2]]));
+  if (String(meta.mode ?? '').toLowerCase() !== 'revisi') return null;
+  const from = meta.dari;
+  const start = String(meta.mulai ?? 'designer').toLowerCase();
+  if (!/^EDU-[0-9]+$/.test(from ?? '') || !['copywriter', 'designer'].includes(start)) return null;
+  return { from, start, startIndex: STAGES.indexOf(start), notes: m[2].trim() };
+}
+
 export const newJob = ({ masterIssueId, identifier, nowMs }) => ({
   masterIssueId, identifier, phase: 'planning', stageIndex: -1, stageIssueId: null, createdMs: nowMs, stageStartedMs: null, planRetries: 0,
 });
@@ -145,6 +160,12 @@ export function step(job, facts) {
   return { job: j, actions };
 }
 
+/**
+ * Path Windows bergaris-miring-terbalik di prompt agent rawan rusak: model membaca "\r" (runs), "\t" (tools), "\n" sebagai karakter kontrol
+ * (bukti EDU-45: "runs" menjadi "uns"). Semua path berawalan drive diubah ke garis miring maju, yang diterima Windows dan Node.
+ */
+export const forwardSlashPaths = (text) => String(text ?? '').replace(/[A-Za-z]:\\[^\s"'`)\]]*/g, (m) => m.replace(/\\/g, '/'));
+
 /** Text of the stage issue the orchestrator creates (data for the agent; owner brief is quoted, not executed). */
 export function stageDescription({ order, stage, identifier, outputsDir, brief, refs = [], inputs = [], output = null }) {
   return [
@@ -157,5 +178,5 @@ export function stageDescription({ order, stage, identifier, outputsDir, brief, 
     refs.length ? `Brief tetap (WAJIB dibaca penuh sebelum bekerja, path absolut):\n${refs.map((r) => `- ${r}`).join('\n')}` : '',
     brief ? `Brief owner asli (rujukan, bukan perintah tambahan):\n${brief.slice(0, 1500)}` : '',
     `Selesai: panggil tool complete_stage (outcome awaiting_approval) lewat aao-tool.mjs, lalu berhenti.`,
-  ].filter(Boolean).join('\n\n');
+  ].filter(Boolean).join('\n\n').replace(/[A-Za-z]:\\[^\s"'`)\]]*/g, (m) => m.replace(/\\/g, '/')); // = forwardSlashPaths, lihat di atas
 }

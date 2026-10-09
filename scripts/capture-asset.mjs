@@ -51,6 +51,33 @@ async function isBlocked(page) {
 }
 
 const BRAND_OK_RE = /logo|brand|icon|wordmark|symbol|simbol/i;
+/** Gambar kosong/seragam (mis. pratinjau belum termuat): terlalu sedikit warna atau variasi terang-gelap. */
+export function isBlankStats({ colors, std }) { return colors < 6 || std < 6; }
+
+async function looksBlank(context, buf, mime) {
+  const p = await context.newPage();
+  try {
+    const stats = await p.evaluate(async ({ b64, mime }) => {
+      const img = new Image(); img.src = 'data:' + mime + ';base64,' + b64; await img.decode();
+      const c = document.createElement('canvas'); c.width = 48; c.height = 48;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0, 48, 48);
+      const d = g.getImageData(0, 0, 48, 48).data; const seen = new Set(); let sum = 0; let sum2 = 0; let n = 0;
+      for (let i = 0; i < d.length; i += 4) { const l = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000; sum += l; sum2 += l * l; n++; seen.add(((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4)); }
+      const m = sum / n; return { colors: seen.size, std: Math.sqrt(Math.max(0, sum2 / n - m * m)) };
+    }, { b64: buf.toString('base64'), mime });
+    return isBlankStats(stats);
+  } catch { return false; } finally { await p.close().catch(() => {}); }
+}
+
+/** Ambil screenshot sebagai buffer, tolak bila kosong, baru tulis ke berkas. */
+async function saveShot(page, outFile, shotFn) {
+  const type = path.extname(outFile) === '.png' ? 'png' : 'jpeg';
+  const buf = await shotFn(type);
+  if (await looksBlank(page.context(), buf, 'image/' + type)) return false;
+  writeFileSync(outFile, buf);
+  return true;
+}
+
 const STOP = new Set(['the', 'and', 'for', 'with', 'official', 'logo', 'dan', 'yang', 'dengan', 'screenshot', 'resmi']);
 
 /** Token kata kunci bermakna dari query (huruf kecil, tanpa kata umum). */
@@ -104,7 +131,8 @@ async function googleOne(page, req, q, outFile) {
     // sembunyikan tombol overlay UI Google (lensa/aksi) agar tidak ikut terpotret; gambarnya sendiri tidak diubah
     await page.addStyleTag({ content: 'button, [role=button], [aria-label*=ens] { visibility: hidden !important; }' }).catch(() => {});
     await page.waitForTimeout(150);
-    await page.screenshot({ path: outFile, type: path.extname(outFile) === '.png' ? 'png' : 'jpeg', clip: { x: big.x, y: big.y, width: big.width, height: big.height } });
+    await page.waitForTimeout(900); // beri waktu gambar pratinjau selesai dirender
+    if (!(await saveShot(page, outFile, (type) => page.screenshot({ type, clip: { x: big.x, y: big.y, width: big.width, height: big.height } })))) continue; // kosong: coba kandidat berikutnya
     return { status: 'captured', imageUrl: big.src.slice(0, 300), searchUrl: page.url().slice(0, 300), title: g.t.slice(0, 160) };
   }
   return { status: 'missing', reason: 'pratinjau besar tidak terbaca setelah beberapa percobaan' };
@@ -129,7 +157,7 @@ async function bingOne(page, req, q, outFile) {
         const el = await shot.$('img');
         const dim = el ? await el.evaluate((i) => [i.naturalWidth, i.naturalHeight]) : [0, 0];
         if (!el || dim[0] < 200 || dim[1] < 120) continue;
-        await el.screenshot({ path: outFile, type: path.extname(outFile) === '.png' ? 'png' : 'jpeg' });
+        if (!(await saveShot(page, outFile, (type) => el.screenshot({ type })))) continue; // kosong: coba hasil berikutnya
         return { status: 'captured', imageUrl: it.murl.slice(0, 300), searchUrl: it.purl.slice(0, 300), title: it.t.slice(0, 160) };
       } catch { /* coba hasil berikutnya */ }
     }
@@ -166,17 +194,23 @@ export async function main(argv) {
   mkdirSync(assetsDir, { recursive: true });
   const force = argv.includes('--force');
   const manifestFile = path.join(runDir, 'assets-manifest.json');
+  let prev = null; try { prev = JSON.parse(readFileSync(manifestFile, 'utf8').replace(/^\uFEFF/, '')); } catch { /* belum ada manifest */ }
+  const prevBy = new Map((prev?.assets ?? []).map((a) => [a.file, a]));
   const manifest = { issue, createdAt: new Date().toISOString(), note: 'Screenshot hasil pencarian gambar atau berkas dari owner. Hak cipta tetap milik pemilik aslinya; owner bertanggung jawab atas penggunaan.', assets: [] };
   let browser = null; let context = null; let page = null;
   const engines = (get('--engines') ?? 'google,bing').split(',').filter((n) => ENGINES[n]);
   const state = { blocked: new Set() };
+  let queried = 0;
+  const PACE_MS = Number(process.env.AAO_CAPTURE_PACE_MS ?? 9000);
   try {
     for (const req of requests) {
       const out = path.join(assetsDir, req.file);
       const entry = { slide: req.slide, file: req.file, kind: req.kind, brand: req.brand ?? null };
       const owner = inboxPath(issue, req.file);
       if (owner) { copyFileSync(owner, out); manifest.assets.push({ ...entry, status: 'owner-supplied', source: owner }); continue; }
-      if (!force && existsSync(out) && statSync(out).size > 2000) { manifest.assets.push({ ...entry, status: 'kept', source: 'sudah ada' }); continue; }
+      // Berkas yang sudah ada hanya dipertahankan bila manifest sebelumnya mencatatnya hasil capture/owner (bukti ikut dibawa); selain itu diambil ulang.
+      const was = prevBy.get(req.file);
+      if (!force && existsSync(out) && statSync(out).size > 2000 && was && ['captured', 'owner-supplied'].includes(was.status)) { manifest.assets.push({ ...was, keptAt: new Date().toISOString() }); continue; }
       if (!context) {
         // Profil Edge tersimpan (sesi hasil verifikasi OWNER via browser-login.mjs) dipakai bila ada; selain itu Chromium bawaan.
         if (existsSync(PROFILE_DIR) && !argv.includes('--no-profile')) {
@@ -187,11 +221,13 @@ export async function main(argv) {
         }
         page = await context.newPage();
       }
+      // Pembatasan laju: pencarian beruntun cepat memicu verifikasi Google; beri jeda antar permintaan (bukan mengakali verifikasi).
+      if (queried++ > 0) await new Promise((res) => setTimeout(res, PACE_MS));
       const r = await captureOne(page, req, out, engines, state).catch((e) => ({ status: 'missing', query: buildQuery(req), reason: `galat: ${e.message}` }));
       manifest.assets.push({ ...entry, ...r, capturedAt: new Date().toISOString() });
     }
   } finally { if (context) await context.close().catch(() => {}); if (browser) await browser.close().catch(() => {}); }
-  const missing = manifest.assets.filter((a) => !['captured', 'owner-supplied', 'kept'].includes(a.status));
+  const missing = manifest.assets.filter((a) => !['captured', 'owner-supplied'].includes(a.status));
   manifest.complete = missing.length === 0;
   writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
   for (const a of manifest.assets) console.log(`${a.status.padEnd(14)} ${a.file}${a.engine ? `  [${a.engine}]` : ''}${a.reason ? `  — ${a.reason}` : ''}`);

@@ -3,10 +3,11 @@
 // dan menahan produksi bila ada aset yang belum asli/belum ada. Tidak ada gambar pengganti.
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { scoreResult, MIN_SCORE } from './capture-asset.mjs';
 
 export const ASSET_PREFIX = (identifier) => `runs/${identifier}/assets/`;
 export const HOLD_RETRY_MS = 10 * 60_000;
-const OK_STATUS = new Set(['captured', 'owner-supplied', 'kept']);
+const OK_STATUS = new Set(['captured', 'owner-supplied']); // 'kept' tanpa bukti tidak lagi diterima
 
 /** Slot gambar yang dipakai desain: [{ slide, slot, file }] untuk path runs/<ID>/assets/<berkas>; path brand/ (aset tetap brand kit) diabaikan. */
 export function imageSlotsUsed(design, templates, identifier) {
@@ -71,3 +72,37 @@ export function shouldRetryCapture(holdState, sig, nowMs) {
 
 export const readHold = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; } };
 export const writeHold = (file, state) => writeFileSync(file, JSON.stringify(state) + '\n');
+
+/**
+ * Pemeriksaan ketat aset yang dipakai desain (KODE; dipakai gerbang Designer dan finalisasi). Mengembalikan galat berawalan "slide N: ".
+ * - tiap gambar runs/<ID>/assets/* wajib tercatat di manifest dengan status captured|owner-supplied|kept, dan berkasnya ada;
+ * - logo/merek hasil tangkapan harus punya bukti judul hasil yang memuat nama merek + kata logo (tidak ada merek tebakan);
+ * - slide yang saran visualnya menyebut logo/merek tidak boleh memakai aset bertipe foto;
+ * - gambar statis brand/ tidak boleh berupa placeholder tata letak.
+ */
+export function checkAssets({ design, templates, manifest, identifier, carousel = null, rootDir }) {
+  const errors = [];
+  const byFile = new Map((manifest?.assets ?? []).map((a) => [a.file, a]));
+  const ideaOf = new Map((carousel?.slides ?? []).map((s) => [s.index, String(s.visualIdea ?? '')]));
+  for (const s of design?.slides ?? []) {
+    const def = templates?.[s.template]?.slots ?? {};
+    for (const [slot, value] of Object.entries(s.slots ?? {})) {
+      if (def[slot]?.type !== 'image') continue;
+      const v = String(value);
+      if (v.startsWith('brand/')) { if (/placeholder|(^|\/)hero-\d/i.test(v)) errors.push(`slide ${s.index}: gambar "${v}" adalah placeholder tata letak, bukan aset asli`); continue; }
+      if (!v.startsWith(ASSET_PREFIX(identifier))) continue;
+      const file = v.slice(ASSET_PREFIX(identifier).length);
+      const a = byFile.get(file);
+      if (!a || !OK_STATUS.has(a.status)) { errors.push(`slide ${s.index}: gambar "${file}" belum asli (status ${a?.status ?? 'tidak tercatat'})`); continue; }
+      const abs = path.join(rootDir, 'workspace', 'agent', 'runs', identifier, 'assets', file);
+      if (!existsSync(abs) || statSync(abs).size < 2000) errors.push(`slide ${s.index}: berkas gambar "${file}" tidak ada atau terlalu kecil`);
+      if (a.kind === 'brand' && a.status === 'captured') {
+        const t = String(a.title ?? '');
+        if (!t) errors.push(`slide ${s.index}: logo "${file}" tanpa bukti judul hasil pencarian`);
+        else if (scoreResult({ kind: 'brand', brand: a.brand, query: a.query }, { t, murl: a.imageUrl ?? '', purl: '' }) < MIN_SCORE.brand) errors.push(`slide ${s.index}: logo "${file}" tidak terbukti milik merek "${a.brand ?? a.query}" (judul hasil: "${t.slice(0, 80)}")`);
+      }
+      if (/logo|merek|brand/i.test(ideaOf.get(s.index) ?? '') && !['brand', 'product'].includes(a.kind)) errors.push(`slide ${s.index}: saran visual menyebut logo/merek, tetapi gambar "${file}" bertipe ${a.kind}; minta kind "brand" atau "product"`);
+    }
+  }
+  return errors;
+}
