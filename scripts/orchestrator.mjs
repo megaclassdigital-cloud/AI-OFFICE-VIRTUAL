@@ -6,7 +6,10 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STAGES, STAGE_AGENT, validateOrder, newJob, step, stageDescription } from './orchestrator-core.mjs';
+import { spawnSync } from 'node:child_process';
+import { STAGES, STAGE_AGENT, STAGE_OUTPUT, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult } from './orchestrator-core.mjs';
+import { normalizeResearch } from './normalize-research.mjs';
+import { validate } from '../schemas/validate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INBOX = path.join(ROOT, 'workspace', 'inbox');
@@ -38,6 +41,38 @@ const project = (await j(`/companies/${company.id}/projects`))[0];
 // Brief tetap per tahap (mis. design system untuk Designer): dilampirkan otomatis pada setiap produksi.
 const STANDING_REFS = { designer: [path.join(ROOT, 'divisions', 'edukasiai', 'brand', 'briefs', 'design-system.md')] };
 const standingRefs = (stage) => (STANDING_REFS[stage] ?? []).filter((p) => existsSync(p));
+
+const outPathFor = (identifier, stage) => outputPath(OUTPUTS, identifier, stage, path.sep);
+const artifactPathFor = (identifier, stage) => artifactPath(OUTPUTS, identifier, stage, path.sep);
+
+/** Deterministic gate for a finished stage: file exists, JSON parses, schema passes; designer also renders (visual QA). */
+function checkOutput(job, stageName) {
+  const p = outPathFor(job.identifier, stageName);
+  if (!existsSync(p)) return { ok: false, errors: [`file keluaran belum ada: ${p}`] };
+  let data;
+  try { data = JSON.parse(readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); } catch (e) { return { ok: false, errors: [`bukan JSON valid: ${e.message}`] }; }
+  const spec = STAGE_OUTPUT[stageName];
+  if (stageName === 'qa') return checkQaResult(data);
+  if (stageName === 'researcher') {
+    try {
+      const norm = normalizeResearch(data);
+      writeFileSync(artifactPathFor(job.identifier, 'researcher'), JSON.stringify(norm, null, 2) + '\n', 'utf8');
+    } catch (e) { return { ok: false, errors: [(e.errors ? e.errors.slice(0, 6).map((x) => `${x.path || '(root)'}: ${x.message}`) : [e.message]).join('; ')] }; }
+    return { ok: true, errors: [] };
+  }
+  if (spec.schema) {
+    const r = validate(spec.schema, data);
+    if (!r.ok) return { ok: false, errors: r.errors.slice(0, 8).map((e) => `${e.path || '(root)'}: ${e.message}`) };
+  }
+  if (stageName === 'designer') {
+    const outDir = path.join(path.dirname(p), 'render');
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'render.mjs'), '--design', p, '--out', outDir], { encoding: 'utf8', timeout: 180_000 });
+    let qa = null;
+    try { qa = JSON.parse(readFileSync(path.join(outDir, 'visual-qa.json'), 'utf8')); } catch { /* handled below */ }
+    if (r.status !== 0 || !qa?.passed) return { ok: false, errors: [`render gagal: ${String(r.stderr || r.stdout || 'tanpa keluaran').trim().split(/\r?\n/).slice(-6).join(' | ').slice(0, 600)}`] };
+  }
+  return { ok: true, errors: [] };
+}
 
 const orderPathFor = (identifier) => path.join(ORDERS, `${identifier}.json`);
 
@@ -89,16 +124,17 @@ async function gatherFacts(job, state) {
   let order = null;
   const op = orderPathFor(job.identifier);
   if (existsSync(op)) { try { order = validateOrder(JSON.parse(readFileSync(op, 'utf8'))); } catch (e) { order = { ok: false, errors: [`JSON tidak bisa dibaca: ${e.message}`] }; } }
-  let stage = null;
+  let stage = null; let output;
   if (job.phase === 'running' && job.stageIssueId) {
     const issue = await j(`/issues/${job.stageIssueId}`);
     const agentId = issue.assigneeAgentId;
     const last = runs.filter((r) => r.agentId === agentId && Date.parse(r.startedAt ?? 0) >= job.stageStartedMs - 5000)[0];
     const failed = !!last && ['failed', 'error', 'timed_out'].includes(last.status) && !['in_review', 'done'].includes(issue.status);
     stage = { status: issue.status, failed, error: failed ? last.error : undefined };
+    if (['in_review', 'done'].includes(issue.status)) output = checkOutput(job, STAGES[job.stageIndex]);
   }
   if (job.phase === 'planning' && managerFailed && !order?.ok) return { order, managerFinished: false, managerFailedError: managerFailed.error ?? managerFailed.status, succeeded, stage, nowMs: now };
-  return { order, managerFinished, succeeded, stage, nowMs: now };
+  return { order, managerFinished, succeeded, stage, output, nowMs: now };
 }
 
 async function createStage(job, stage) {
@@ -106,7 +142,11 @@ async function createStage(job, stage) {
   const ag = agentByName(STAGE_AGENT[stage]);
   const issue = await j(`/companies/${company.id}/issues`, jb('POST', {
     title: `${job.identifier} · ${STAGE_AGENT[stage]}: ${order.title}`,
-    description: stageDescription({ order, stage, identifier: job.identifier, outputsDir: OUTPUTS, brief: job.brief, refs: standingRefs(stage) }),
+    description: stageDescription({
+      order, stage, identifier: job.identifier, outputsDir: OUTPUTS, brief: job.brief, refs: standingRefs(stage),
+      inputs: STAGES.slice(0, STAGES.indexOf(stage)).map((s) => artifactPathFor(job.identifier, s)),
+      output: { path: outPathFor(job.identifier, stage), schema: STAGE_OUTPUT[stage].schema, note: stage === 'researcher' ? 'Isi: {"candidates":[{"title","summary","url","published_at","source_name"}]} saja, 5-10 kandidat; kode yang menambah id dan metadata.' : stage === 'qa' ? 'Isi: {"passed": true|false, "notes": ["..."]}; passed=true hanya bila render, teks, dan sumber sesuai brief tetap.' : stage === 'designer' ? 'Setelah menulis, jalankan render_carousel dan perbaiki bila passed=false.' : '' },
+    }),
     status: 'todo', projectId: project.id, assigneeAgentId: ag.id,
   }));
   log(`tahap ${STAGE_AGENT[stage]} -> issue ${issue.identifier}`);
@@ -119,6 +159,12 @@ async function applyActions(job, actions, facts) {
     if (act.type === 'comment') await comment(job.masterIssueId, act.text);
     else if (act.type === 'createStage') job.stageIssueId = await createStage(job, act.stage);
     else if (act.type === 'rewakeManager') { job.handledRuns = facts.succeeded; await comment(job.masterIssueId, `Work order belum valid: ${act.errors.join('; ')}. Perbaiki file ${orderPathFor(job.identifier)}, baca ulang, lalu complete_stage lagi.`); }
+    else if (act.type === 'rejectStage') {
+      await j('/issues/' + job.stageIssueId + '/comments', jb('POST', { body: '[Orkestrator] Keluaran belum lolos pemeriksaan: ' + act.errors.join('; ') + '. Perbaiki file keluaran, baca ulang, lalu panggil complete_stage lagi.' }));
+      await j('/issues/' + job.stageIssueId, jb('PATCH', { status: 'in_progress' }));
+      job.stageStartedMs = Date.now();
+      log(job.identifier + ' tahap ' + STAGE_AGENT[STAGES[job.stageIndex]] + ' ditolak gerbang: ' + act.errors.join('; ').slice(0, 160));
+    }
     else if (act.type === 'finish') { await comment(job.masterIssueId, act.text); await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'in_review' })); log(`${job.identifier} selesai, menunggu owner`); }
     else if (act.type === 'block') { await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'blocked' })); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
   }
@@ -142,7 +188,18 @@ async function once() {
   if (!DRY) writeState(state);
 }
 
-if (a.includes('--resume')) {
+if (a.includes('--retry')) {
+  // Ulangi tahap yang terblokir (mis. gangguan penyedia model): buat ulang issue tahap itu dan lanjutkan.
+  const s = readState();
+  const blocked = s.job?.phase === 'blocked' ? s.job : null;
+  if (!blocked || blocked.stageIndex < 0) { console.log('Tidak ada job terblokir pada suatu tahap.'); process.exit(1); }
+  const stageName = STAGES[blocked.stageIndex];
+  blocked.phase = 'running'; blocked.stageStartedMs = Date.now(); blocked.stageRetries = 0;
+  blocked.stageIssueId = await createStage(blocked, stageName);
+  await j('/issues/' + blocked.masterIssueId, jb('PATCH', { status: 'in_progress' }));
+  writeState(s);
+  log('tahap ' + STAGE_AGENT[stageName] + ' diulang untuk ' + blocked.identifier);
+} else if (a.includes('--resume')) {
   // Lanjutkan job terblokir (terakhir) bila work order-nya kini valid: kembali ke fase planning, orkestrator memulai tahap 1.
   const s = readState();
   const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked');

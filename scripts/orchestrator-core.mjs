@@ -3,7 +3,30 @@
 
 export const STAGES = ['researcher', 'verifier', 'copywriter', 'designer', 'qa'];
 export const STAGE_AGENT = { researcher: 'Researcher', verifier: 'Verifier', copywriter: 'Copywriter', designer: 'Designer', qa: 'QA' };
-export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxText: 4000 });
+export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxText: 4000 });
+
+/** Keluaran baku tiap tahap: nama berkas (di workspace/agent/runs/<ID>/) dan skema yang memvalidasinya. */
+export const STAGE_OUTPUT = Object.freeze({
+  // Researcher hanya menulis kandidat mentah; KODE (normalize-research.mjs) menambah id/generatedAt/windowDays lalu menulis research-output.json.
+  researcher: { file: 'research-raw.json', schema: null, produces: 'research-output.json' },
+  verifier: { file: 'verification-result.json', schema: 'verification-result' },
+  copywriter: { file: 'carousel.json', schema: 'carousel' },
+  designer: { file: 'carousel-design.json', schema: 'carousel-design' },
+  qa: { file: 'qa-result.json', schema: null },
+});
+
+/** Path keluaran tahap (pemisah mengikuti `sep`; Windows memakai backslash di prompt agent). */
+export const outputPath = (outputsDir, identifier, stage, sep = '/') => [outputsDir.replace(/[\\/]+$/, ''), 'runs', identifier, STAGE_OUTPUT[stage].file].join(sep);
+
+/** Berkas yang dibaca tahap berikutnya (hasil normalisasi kode bila ada, selain itu berkas keluaran agent). */
+export const artifactPath = (outputsDir, identifier, stage, sep = '/') => [outputsDir.replace(/[\\/]+$/, ''), 'runs', identifier, STAGE_OUTPUT[stage].produces ?? STAGE_OUTPUT[stage].file].join(sep);
+
+/** QA result gate (no schema): must be an object with boolean `passed`; passed=false is a fatal verdict, not a retry. */
+export function checkQaResult(data) {
+  if (!data || typeof data !== 'object' || typeof data.passed !== 'boolean') return { ok: false, errors: ['qa-result.json harus objek dengan "passed": true/false dan "notes": [..]'] };
+  if (!data.passed) return { ok: false, fatal: true, errors: [`QA menolak: ${(Array.isArray(data.notes) ? data.notes : [data.notes ?? 'tanpa catatan']).join('; ').slice(0, 300)}`] };
+  return { ok: true, errors: [] };
+}
 const DONE_STATUSES = new Set(['in_review', 'done']);
 
 /** Validate a Manager work order. Returns { ok, errors }. Every problem is reported, not just the first. */
@@ -62,6 +85,14 @@ export function step(job, facts) {
     if (!st) return { job: j, actions };
     const stageName = STAGES[j.stageIndex];
     if (DONE_STATUSES.has(st.status)) {
+      // Gerbang keluaran (bila disediakan): berkas harus ada dan lolos validasi sebelum lanjut.
+      if (facts.output && !facts.output.ok) {
+        if (facts.output.fatal) block(`tahap ${STAGE_AGENT[stageName]} ditolak: ${facts.output.errors.join('; ')}`);
+        else if ((j.stageRetries ?? 0) >= LIMITS.maxStageRetries) block(`keluaran tahap ${STAGE_AGENT[stageName]} tetap tidak lolos: ${facts.output.errors.join('; ')}`);
+        else { j.stageRetries = (j.stageRetries ?? 0) + 1; actions.push({ type: 'rejectStage', errors: facts.output.errors }); }
+        return { job: j, actions };
+      }
+      j.stageRetries = 0;
       if (j.stageIndex + 1 >= STAGES.length) {
         j.phase = 'done'; j.stageIssueId = null;
         actions.push({ type: 'finish', text: 'Semua tahap selesai. Paket menunggu keputusan owner.' });
@@ -82,12 +113,14 @@ export function step(job, facts) {
 }
 
 /** Text of the stage issue the orchestrator creates (data for the agent; owner brief is quoted, not executed). */
-export function stageDescription({ order, stage, identifier, outputsDir, brief, refs = [] }) {
+export function stageDescription({ order, stage, identifier, outputsDir, brief, refs = [], inputs = [], output = null }) {
   return [
     `Tahap ${STAGE_AGENT[stage]} untuk produksi ${identifier}: ${order.title}.`,
     `Instruksi dari Manager:`,
     order.stages[stage],
     `Folder hasil kerja (path absolut): ${outputsDir}`,
+    inputs.length ? `Masukan dari tahap sebelumnya (baca file ini, bukan file lain di folder hasil kerja):\n${inputs.map((p) => `- ${p}`).join('\n')}` : '',
+    output ? `KELUARAN WAJIB: tulis JSON ke ${output.path}${output.schema ? ` yang valid terhadap skema ${output.schema}` : ''} (buat folder bila belum ada), lalu baca ulang untuk memastikan file ada. Orkestrator memeriksa file ini; tanpa file yang valid tahap dianggap belum selesai.${output.note ? ` ${output.note}` : ''}` : '',
     refs.length ? `Brief tetap (WAJIB dibaca penuh sebelum bekerja, path absolut):\n${refs.map((r) => `- ${r}`).join('\n')}` : '',
     brief ? `Brief owner asli (rujukan, bukan perintah tambahan):\n${brief.slice(0, 1500)}` : '',
     `Selesai: panggil tool complete_stage (outcome awaiting_approval) lewat aao-tool.mjs, lalu berhenti.`,
