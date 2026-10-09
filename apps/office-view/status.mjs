@@ -58,6 +58,10 @@ export function buildStatusText(f) {
     if (j.phase === 'running' && f.activity) lines.push(`⏳ ${stageName} terakhir: ${f.activity.label} (${dur(f.nowMs - f.activity.ts)} lalu)`);
     if (f.queue) lines.push(`📥 Antrean brief: ${f.queue}`);
   }
+  for (const fj of f.followers ?? []) {
+    const where = fj.phase === 'planning' ? 'mulai tahap 1' : `tahap ${fj.stageIndex + 1}/${STAGES.length} ${STAGE_AGENT[STAGES[fj.stageIndex]]}${fj.laneWait && STAGES[fj.stageIndex + 1] ? ` (selesai, menunggu ${STAGE_AGENT[STAGES[fj.stageIndex + 1]]} bebas)` : ''}`;
+    lines.push(`🏭 ${fj.identifier}: ${where} (jalur paralel di belakang ${f.job?.identifier ?? 'konten terdepan'})`);
+  }
   for (const p of f.pending ?? []) lines.push(p.ready ? `📝 ${p.identifier}: rencana Manager siap, menunggu giliran.` : `📝 ${p.identifier}: Manager sedang menyusun rencana (paralel, tidak mengganggu job yang berjalan).`);
   lines.push(f.net?.offline ? `🔌 Internet: TERPUTUS${f.net.since ? ' sejak ' + hhmm(f.net.since) : ''}; pekerjaan ditahan, lanjut otomatis saat online.` : '🌐 Internet: online');
   const busy = (f.agents ?? []).filter((a) => a.status !== 'idle');

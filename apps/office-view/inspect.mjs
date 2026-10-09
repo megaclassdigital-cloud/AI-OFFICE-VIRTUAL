@@ -137,6 +137,12 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
     const s = await readJsonSafe(stateFile);
     return s?.job ?? null;
   }
+  /** Job aktif (terdepan atau di jalur paralel) untuk sebuah issue master. */
+  async function activeJobFor(masterIdentifier) {
+    if (!stateFile) return null;
+    const s = await readJsonSafe(stateFile);
+    return [s?.job, ...(s?.followers ?? [])].find((j) => j && j.identifier === masterIdentifier) ?? null;
+  }
   async function productionView(prod, rev) {
     const run = resolveRun(prod, rev);
     if (!run) return { status: 400, body: { error: 'id produksi tidak valid' } };
@@ -151,8 +157,8 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
     try { ({ master, handoff } = await masterOf(masterIdentifier)); } catch { paperclipOk = false; }
     const mt = async (f) => (await stat(path.join(dir, f)).catch(() => null))?.mtimeMs ?? null;
     const mtimes = { manager: (await stat(path.join(outputRoot, 'orders', `${masterIdentifier}.json`)).catch(() => null))?.mtimeMs ?? null, researcher: await mt('research-output.json'), verifier: await mt('verification-result.json'), copywriter: await mt('carousel.json'), designer: await mt('carousel-design.json'), qa: await mt('qa-result.json.accepted') ?? await mt('qa-result.json') };
-    const aj = await activeJob();
-    const job = aj && aj.identifier === masterIdentifier ? { ...aj, identifier: run.contentId } : null; // summarizeProduction mencocokkan job dengan kode konten
+    const aj = await activeJobFor(masterIdentifier);
+    const job = aj ? { ...aj, identifier: run.contentId } : null; // summarizeProduction mencocokkan job dengan kode konten
     const view = summarizeProduction({ prod: run.contentId, order, research, verification, carousel, design, qa: qaAcc ?? qaMain, visualQa, master, handoff, job, renderFiles: await listRender(runKey), mtimes, paperclipOk });
     return { status: 200, body: { ...view, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
   }
@@ -164,7 +170,6 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
       return { prod: e.name, runKey: key, t: (await stat(runDirOf(outputRoot, key)).catch(() => ({ mtimeMs: 0 }))).mtimeMs };
     }));
     const items = [];
-    const job = await activeJob();
     for (const { prod, runKey } of withTime.sort((a, b) => b.t - a.t).slice(0, 3)) {
       const masterIdentifier = masterIdentifierOf(outputRoot, runKey);
       const render = await listRender(runKey);
@@ -173,7 +178,7 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
       const order = await readJsonSafe(path.join(outputRoot, 'orders', `${masterIdentifier}.json`));
       let master = null; let handoff = null; let unknown = false;
       try { ({ master, handoff } = await masterOf(masterIdentifier)); } catch { unknown = true; }
-      items.push({ prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: job?.identifier === masterIdentifier ? job : null, unknown }) });
+      items.push({ prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown }) });
     }
     return { status: 200, body: { items } };
   }

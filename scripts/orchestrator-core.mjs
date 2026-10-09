@@ -188,6 +188,28 @@ export function parseRevisionBrief(brief) {
 /** Kunci folder run sebuah job: revisi memakai EDU-49/revision-N; job lama tanpa runKey memakai identifier-nya. */
 export const runKeyOf = (job) => job?.runKey ?? job?.identifier;
 
+// ── Jalur perakitan (pipeline): beberapa konten berjalan bersamaan, tetapi tiap agent hanya memegang SATU konten pada satu waktu ──
+/** Jumlah konten aktif maksimal di jalur (menjaga kuota dan antrean approval). */
+export const MAX_ACTIVE_JOBS = 3;
+/**
+ * Jalur (indeks tahap) yang sedang dipakai sebuah job, atau null. Job yang baru dipromosikan (planning) memakai jalur 0 (Researcher);
+ * job running memakai jalur tahapnya SAMPAI tahap itu selesai (laneWait = tahap sudah selesai, menunggu jalur berikutnya bebas, jalur lama sudah dilepas).
+ */
+export const laneOf = (job) => {
+  if (!job || ['done', 'blocked'].includes(job.phase)) return null;
+  if (job.phase === 'planning') return 0;
+  if (job.phase === 'running' && !job.laneWait && job.stageIssueId) return job.stageIndex;
+  return null;
+};
+export const occupiedLanes = (jobs = []) => new Set(jobs.map(laneOf).filter((x) => x !== null));
+/** Job yang akan maju ke tahap berikutnya harus menunggu bila jalur itu masih dipegang job di depannya (urutan konten tidak pernah saling mendahului). */
+export const mustWaitForLane = (before, after, occupied) => Boolean(before?.phase === 'running' && after?.phase === 'running' && after.stageIndex > before.stageIndex && after.stageIndex < STAGES.length && occupied.has(after.stageIndex));
+/** Rencana siap boleh dipromosikan bila jalur Researcher (0) bebas dan konten aktif belum mencapai batas. */
+export const canPromote = (jobs = [], max = MAX_ACTIVE_JOBS) => {
+  const live = jobs.filter((j) => j && !['done', 'blocked'].includes(j.phase));
+  return live.length < max && !occupiedLanes(live).has(0);
+};
+
 /** Berapa brief yang boleh direncanakan Manager di muka selagi job lain berjalan (menjaga kuota Manager). */
 export const MAX_PENDING_PLANS = 1;
 /** Boleh merencanakan brief berikutnya di muka? Hanya selama ada job aktif dan slot rencana belum penuh. */

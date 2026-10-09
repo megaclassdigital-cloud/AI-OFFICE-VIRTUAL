@@ -36,3 +36,10 @@ describe('renderManagerContext', () => {
     expect(new Date(startOfDayWib(Date.parse('2026-10-09T10:00:00Z'))).toISOString()).toBe('2026-10-08T17:00:00.000Z');
   });
 });
+
+describe('konteks Manager memuat konten paralel', () => {
+  it('menyebut konten yang berjalan di jalur paralel', () => {
+    const t = renderManagerContext({ nowMs: T, active: { identifier: 'EDU-61', phase: 'running', stageName: 'Verifier' }, followers: [{ identifier: 'EDU-62', stageName: 'Researcher' }] });
+    expect(t).toMatch(/Paralel: EDU-62 \(Researcher\)/);
+  });
+});

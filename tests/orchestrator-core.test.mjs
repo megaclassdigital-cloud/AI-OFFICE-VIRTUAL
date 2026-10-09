@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, isManagerRetryable, normalizeOrderFileNames, findUnknownFileNames, CANONICAL_FILES, checkOrderStructure, extraContentsOf, analysisOf, renderAnalysisComment, MAX_EXTRA_CONTENTS } from '../scripts/orchestrator-core.mjs';
+import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, laneOf, occupiedLanes, mustWaitForLane, canPromote, MAX_ACTIVE_JOBS, isManagerRetryable, normalizeOrderFileNames, findUnknownFileNames, CANONICAL_FILES, checkOrderStructure, extraContentsOf, analysisOf, renderAnalysisComment, MAX_EXTRA_CONTENTS } from '../scripts/orchestrator-core.mjs';
 
 const goodOrder = { title: 'Carousel tren AI', stages: Object.fromEntries(STAGES.map((s) => [s, `kerjakan ${s}`])) };
 const T0 = 1_000_000;
@@ -252,5 +252,50 @@ describe('nama berkas baku di work order (kasus EDU-61: verify-result.json, caro
     const t = 'Masukan: carousel.json, asset-requests.json, templates.json, brand.json, D:/x/orders/EDU-61.json';
     expect(findUnknownFileNames(order({ designer: t }))).toEqual([]);
     expect(CANONICAL_FILES).toContain('verification-result.json');
+  });
+});
+
+describe('jalur perakitan: banyak konten, satu agent satu konten', () => {
+  const run = (stageIndex, over = {}) => ({ identifier: 'EDU-' + stageIndex, phase: 'running', stageIndex, stageIssueId: 'i' + stageIndex, ...over });
+  it('laneOf: planning = jalur 0; running = tahapnya sampai selesai; laneWait/done/blocked = tidak memegang jalur', () => {
+    expect(laneOf({ phase: 'planning' })).toBe(0);
+    expect(laneOf(run(2))).toBe(2);
+    expect(laneOf(run(2, { laneWait: true }))).toBeNull();
+    expect(laneOf(run(2, { stageIssueId: null }))).toBeNull();
+    for (const phase of ['done', 'blocked']) expect(laneOf(run(1, { phase }))).toBeNull();
+    expect(laneOf(null)).toBeNull();
+  });
+  it('mustWaitForLane: maju ke jalur yang dipegang job di depan harus menunggu; jalur bebas atau tahap yang sama tidak', () => {
+    const occupied = occupiedLanes([run(1)]);
+    expect([...occupied]).toEqual([1]);
+    expect(mustWaitForLane(run(0), run(1), occupied)).toBe(true);
+    expect(mustWaitForLane(run(0), run(1), new Set())).toBe(false);
+    expect(mustWaitForLane(run(1), run(1), occupied)).toBe(false); // tahap sama (percobaan ulang), bukan maju
+    expect(mustWaitForLane(run(4), { phase: 'done', stageIndex: 4 }, occupied)).toBe(false); // selesai bukan jalur baru
+  });
+  it('skenario perakitan: Researcher langsung mengambil konten kedua begitu konten pertama pindah ke Verifier', () => {
+    // t0: A di Researcher (jalur 0). B belum boleh dipromosikan.
+    let A = run(0); let B = null;
+    expect(canPromote([A])).toBe(false);
+    // t1: A selesai Researcher dan pindah ke Verifier (jalur 0 dilepas): B dipromosikan.
+    A = run(1);
+    expect(canPromote([A])).toBe(true);
+    B = { identifier: 'EDU-B', phase: 'planning' };
+    expect(canPromote([A, B])).toBe(false); // B memegang jalur 0 sejak promosi
+    // t2: B (jalur 0) selesai dan ingin ke Verifier, tetapi A masih di Verifier -> menunggu
+    B = run(0, { identifier: 'EDU-B' });
+    const next = run(1, { identifier: 'EDU-B' });
+    expect(mustWaitForLane(B, next, occupiedLanes([A]))).toBe(true);
+    B = { ...B, laneWait: true }; // B menunggu; jalur 0 bebas lagi
+    expect(canPromote([A, B])).toBe(true);
+    // t3: A pindah ke Copywriter (jalur 2); jalur 1 bebas, B boleh maju
+    A = run(2);
+    expect(mustWaitForLane(B, next, occupiedLanes([A]))).toBe(false);
+  });
+  it('batas konten aktif', () => {
+    expect(MAX_ACTIVE_JOBS).toBe(3);
+    expect(canPromote([run(1), run(2), run(3)])).toBe(false);
+    expect(canPromote([run(1), run(2)])).toBe(true);
+    expect(canPromote([run(1), { phase: 'done' }, { phase: 'blocked' }])).toBe(true);
   });
 });

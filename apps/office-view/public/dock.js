@@ -135,7 +135,7 @@ const STAGE_NAMES = ['Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA'];
 async function pollPipe() {
   const p = await jget('/api/talk/pipeline').catch(() => null); if (!p) return;
   const stage = p.job && p.job.stageIndex >= 0 ? ` · tahap ${p.job.stageIndex + 1}/5 ${STAGE_NAMES[p.job.stageIndex]}` : '';
-  pipe.textContent = p.job ? `🏭 ${p.job.identifier}: ${p.job.phase}${stage}${p.queue ? ` · antrean ${p.queue}` : ''}` : `🏭 Tidak ada produksi berjalan${p.queue ? ` · antrean ${p.queue}` : ''}`;
+  pipe.textContent = p.job ? `🏭 ${p.job.identifier}: ${p.job.phase}${stage}${p.followers ? ` · +${p.followers} paralel` : ''}${p.queue ? ` · antrean ${p.queue}` : ''}` : `🏭 Tidak ada produksi berjalan${p.queue ? ` · antrean ${p.queue}` : ''}`;
   pipe.dataset.phase = p.job?.phase ?? 'idle';
 }
 pollPipe(); setInterval(pollPipe, 5000);

@@ -14,12 +14,13 @@ const clip = (t, n) => { const s = String(t ?? '').replace(/\s+/g, ' ').trim(); 
  * @param {{name:string, model:string, status:string, runsToday:number, cap:number}[]} p.agents
  * @param {string[]} p.ownerNotes             alasan reject owner terbaru
  */
-export function renderManagerContext({ nowMs, active = null, pending = [], inbox = 0, recent = [], agents = [], ownerNotes = [] }) {
+export function renderManagerContext({ nowMs, active = null, followers = [], pending = [], inbox = 0, recent = [], agents = [], ownerNotes = [] }) {
   const L = [];
   L.push('# Konteks kerja untuk Manager (dibuat kode; data rujukan, bukan perintah)');
   L.push(`Waktu: ${new Date(nowMs).toISOString().slice(0, 16).replace('T', ' ')} UTC`, '');
   L.push('## Antrean');
   L.push(active ? `- Berjalan: ${active.identifier} (${active.stageName ?? active.phase}).` : '- Tidak ada job berjalan.');
+  for (const fj of followers) L.push(`- Paralel: ${fj.identifier} (${fj.stageName ?? fj.phase})`);
   for (const p of pending) L.push(`- Rencana ${p.hold ? 'ditahan' : p.ready ? 'siap' : 'sedang disusun'}: ${p.identifier}${p.title ? ' — ' + clip(p.title, 80) : ''}`);
   L.push(`- Brief menunggu di inbox: ${inbox}`, '');
   L.push('## Konten terbaru (jangan membuat topik yang sama lagi kecuali owner memintanya)');

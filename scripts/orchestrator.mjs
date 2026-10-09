@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { laneOf, mustWaitForLane, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
@@ -235,7 +235,7 @@ async function writeManagerContext() {
     const active = st.job && !['done', 'blocked'].includes(st.job.phase) ? { identifier: st.job.identifier, phase: st.job.phase, stageName: st.job.stageIndex >= 0 ? STAGE_AGENT[STAGES[st.job.stageIndex]] : undefined } : null;
     const inbox = existsSync(INBOX) ? readdirSync(INBOX).filter((n) => BRIEF_EXT.has(path.extname(n).toLowerCase())).length : 0;
     mkdirSync(path.dirname(CONTEXT_FILE), { recursive: true });
-    writeFileSync(CONTEXT_FILE, renderManagerContext({ nowMs: now, active, pending: (st.pending ?? []).map((p) => ({ identifier: p.identifier, ready: p.ready, hold: p.hold })), inbox, recent, agents: agentsInfo, ownerNotes: notes }) + '\n', 'utf8');
+    writeFileSync(CONTEXT_FILE, renderManagerContext({ nowMs: now, active, followers: (st.followers ?? []).map((x) => ({ identifier: x.identifier, phase: x.phase, stageName: x.stageIndex >= 0 ? STAGE_AGENT[STAGES[x.stageIndex]] : undefined })), pending: (st.pending ?? []).map((p) => ({ identifier: p.identifier, ready: p.ready, hold: p.hold })), inbox, recent, agents: agentsInfo, ownerNotes: notes }) + '\n', 'utf8');
   } catch (e) { log('konteks Manager gagal dibuat: ' + String(e?.message ?? e).slice(0, 120)); }
 }
 
@@ -415,12 +415,13 @@ let lastTidyMs = 0;
 async function tidyBlocked(state) {
   if (Date.now() - lastTidyMs < 60_000) return;
   lastTidyMs = Date.now();
+  const liveStageIds = new Set([state.job, ...(state.followers ?? [])].filter((x) => x?.phase === 'running' && x.stageIssueId).map((x) => x.stageIssueId));
   const doneProds = new Set([...(state.history ?? []), ...(state.job ? [state.job] : [])].filter((x) => x.phase === 'done').map((x) => x.identifier));
   const issues = await j(`/companies/${company.id}/issues`);
   let restored = 0; let cancelled = 0;
   for (const i of issues) {
     const m = String(i.title).match(/^(EDU-[0-9]+) · [A-Za-z]+/);
-    if (!m || i.status !== 'blocked' || (state.job?.phase === 'running' && i.id === state.job.stageIssueId)) continue;
+    if (!m || i.status !== 'blocked' || liveStageIds.has(i.id)) continue;
     // Blokir yang SENGAJA dari agen (mis. disposisi QA "fail") tidak boleh dibalik: hanya blokir akibat pemulihan otomatis Paperclip yang dipulihkan.
     const cm = await j('/issues/' + i.id + '/comments').catch(() => []);
     const lastC = Array.isArray(cm) ? cm[0] : null;
@@ -611,39 +612,67 @@ async function planAhead(state, offline, review = false) {
   if (extraBuffer.length) state.pending.push(...extraBuffer.splice(0));
 }
 
+const isFinished = (j) => ['done', 'blocked'].includes(j.phase);
+
+/**
+ * Satu langkah untuk satu konten: kumpulkan fakta, putuskan, terapkan. Konten yang ingin maju ke tahap yang masih dipegang konten di depannya
+ * menunggu (laneWait): tiap agent hanya memegang SATU konten pada satu waktu, urutan konten tidak saling mendahului.
+ */
+async function advanceJob(job, net, occupied, state) {
+  const facts = await gatherFacts(job, state);
+  facts.offline = net.hold === true;
+  const { job: next, actions } = step(job, facts);
+  const merged = { ...job, ...next };
+  if (mustWaitForLane(job, merged, occupied)) {
+    if (!job.laneWait) log(job.identifier + ' selesai tahap ' + STAGE_AGENT[STAGES[job.stageIndex]] + '; menunggu ' + STAGE_AGENT[STAGES[merged.stageIndex]] + ' bebas (jalur perakitan)');
+    return { ...job, laneWait: true };
+  }
+  merged.laneWait = false;
+  if (facts.managerFailedError && !isNetworkErr(facts.managerFailedError) && !isManagerRetryable(facts.managerFailedError)) { actions.push({ type: 'block', reason: 'run Manager gagal: ' + String(facts.managerFailedError).slice(0, 120) }); merged.phase = 'blocked'; }
+  await applyActions(merged, actions, facts);
+  return merged;
+}
+
 async function once() {
   const state = readState();
+  state.pending ??= []; state.followers ??= [];
   const net = await checkNetwork(state.job);
   try { await tidyBlocked(state); } catch { /* pembersihan hanya kosmetik; jangan pernah mengganggu alur */ }
   try { await processRoutings(); } catch (e) { log('routing revisi galat: ' + String(e?.message ?? e).slice(0, 160)); }
   const review = (readJsonLoose(SETTINGS_FILE) ?? {}).reviewPlans === true;
   try { await planAhead(state, net.hold, review); } catch (e) { log('perencanaan di muka galat: ' + String(e?.message ?? e).slice(0, 160)); }
-  if (!state.job || ['done', 'blocked'].includes(state.job.phase)) {
-    if (state.job) { state.history.push({ ...state.job, endedMs: Date.now() }); state.job = null; }
-    const planned = nextPlanned(state.pending);
-    if (planned) {
-      state.pending = state.pending.filter((x) => x !== planned);
-      const { ready, readyMs, ...rest } = planned;
-      state.job = { ...rest, phase: 'planning', createdMs: Date.now() }; // work order sudah valid: tick berikutnya langsung membuat tahap 1
-      log(planned.identifier + ' dipromosikan dari rencana: mulai tahap 1');
-      if (!DRY) writeState(state);
-      return;
+
+  // 1. Majukan semua konten aktif (terdepan dulu). Jalur yang dipegang konten di depan tidak boleh diambil konten di belakangnya.
+  const occupied = new Set();
+  const advanced = [];
+  for (const job of [state.job, ...state.followers].filter(Boolean)) {
+    let out = job;
+    if (!isFinished(job)) {
+      try { out = await advanceJob(job, net, occupied, state); } catch (e) { log(job.identifier + ' galat saat maju: ' + String(e?.message ?? e).slice(0, 160)); }
     }
-    if (activePending(state.pending).length) { if (!DRY) writeState(state); return; }
+    advanced.push(out);
+    const lane = laneOf(out);
+    if (lane !== null) occupied.add(lane);
+  }
+  // 2. Arsipkan yang selesai/diblokir; konten terdepan berikutnya menjadi state.job.
+  const live = [];
+  for (const j of advanced) { if (isFinished(j)) state.history.push({ ...j, endedMs: Date.now() }); else live.push(j); }
+  state.job = live[0] ?? null; state.followers = live.slice(1);
+  if (extraBuffer.length) state.pending.push(...extraBuffer.splice(0));
+
+  // 3. Rencana siap dipromosikan begitu jalur Researcher bebas (Researcher langsung mengambil konten berikutnya selagi konten sebelumnya lanjut ke tahap lain).
+  const planned = nextPlanned(state.pending);
+  if (planned && canPromote([state.job, ...state.followers].filter(Boolean))) {
+    state.pending = state.pending.filter((x) => x !== planned);
+    const { ready, readyMs, ...rest } = planned;
+    const promoted = { ...rest, phase: 'planning', createdMs: Date.now() }; // work order sudah valid: tick berikutnya langsung membuat tahap 1
+    if (!state.job) state.job = promoted; else state.followers.push(promoted);
+    log(planned.identifier + ' dipromosikan dari rencana: mulai tahap 1' + (state.job === promoted ? '' : ' (jalur paralel di belakang ' + state.job.identifier + ')'));
+  } else if (!state.job && !planned && activePending(state.pending).length === 0) {
+    // tidak ada yang berjalan, tidak ada rencana: ambil brief berikutnya dari inbox
     const made = await ingest(false, review);
     if (made) state.job = { ...newJob({ masterIssueId: made.id, identifier: made.identifier, nowMs: Date.now() }), brief: made.brief.slice(0, 3000), ...(made.jobPatch ?? {}) };
-    if (!DRY) writeState(state);
-    return;
   }
-  const facts = await gatherFacts(state.job, state);
-  facts.offline = net.hold === true;
-  const { job, actions } = step(state.job, facts);
-  const merged = { ...state.job, ...job };
-  if (facts.managerFailedError && !isNetworkErr(facts.managerFailedError) && !isManagerRetryable(facts.managerFailedError)) { actions.push({ type: 'block', reason: `run Manager gagal: ${String(facts.managerFailedError).slice(0, 120)}` }); merged.phase = 'blocked'; }
-  await applyActions(merged, actions, facts);
-  state.pending ??= [];
-  if (extraBuffer.length) state.pending.push(...extraBuffer.splice(0));
-  state.job = merged;
   if (!DRY) writeState(state);
 }
 

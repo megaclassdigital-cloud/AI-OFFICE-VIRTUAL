@@ -87,3 +87,16 @@ describe('buildBriefAck (balasan instan saat brief masuk antrean)', () => {
     expect(buildStatusText(f)).toMatch(/EDU-58: rencana Manager siap, menunggu giliran/);
   });
 });
+
+describe('jalur paralel di status', () => {
+  const base = { nowMs: 1_000_000, job: { identifier: 'EDU-61', phase: 'running', stageIndex: 1, stageStartedMs: 900_000 }, agents: [], net: null, activity: null, queue: 0 };
+  it('konten di belakang ditampilkan lengkap dengan tahap dan keterangan menunggu', () => {
+    const t = buildStatusText({ ...base, followers: [{ identifier: 'EDU-62', phase: 'running', stageIndex: 0 }, { identifier: 'EDU-64', phase: 'running', stageIndex: 1, laneWait: true }] });
+    expect(t).toMatch(/EDU-62: tahap 1\/5 Researcher \(jalur paralel di belakang EDU-61\)/);
+    expect(t).toMatch(/EDU-64: tahap 2\/5 Verifier \(selesai, menunggu Copywriter bebas\)/);
+  });
+  it('baru dipromosikan = mulai tahap 1; tanpa followers tidak ada baris paralel', () => {
+    expect(buildStatusText({ ...base, followers: [{ identifier: 'EDU-62', phase: 'planning', stageIndex: -1 }] })).toMatch(/EDU-62: mulai tahap 1/);
+    expect(buildStatusText(base)).not.toMatch(/jalur paralel/);
+  });
+});

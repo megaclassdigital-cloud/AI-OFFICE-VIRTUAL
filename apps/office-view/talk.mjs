@@ -47,6 +47,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     const st = stateFile ? await readJson(stateFile) : null;
     const job = st?.job ? { identifier: st.job.identifier, phase: st.job.phase, stageIndex: st.job.stageIndex, stageStartedMs: st.job.stageStartedMs } : null;
     const lastJob = !job && st?.history?.length ? { identifier: st.history[st.history.length - 1].identifier, phase: st.history[st.history.length - 1].phase } : null;
+    const followers = (st?.followers ?? []).map((x) => ({ identifier: x.identifier, phase: x.phase, stageIndex: x.stageIndex, laneWait: !!x.laneWait }));
     const pending = (st?.pending ?? []).map((p) => ({ identifier: p.identifier, ready: !!p.ready }));
     let queue = 0; try { queue = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* tanpa inbox */ }
     const ns = netFile ? await readJson(netFile) : null;
@@ -66,7 +67,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     if (job?.phase === 'blocked' && orchLogFile) {
       try { const l = (await readFile(orchLogFile, 'utf8')).split(/\r?\n/).reverse().find((x) => x.includes('DIBLOKIR')); lastBlockLine = l ? l.replace(/^\S+\s+/, '').slice(0, 200) : null; } catch { /* tanpa log */ }
     }
-    return { nowMs, job, lastJob, agents, net, activity, lastBlockLine, queue, pending };
+    return { nowMs, job, lastJob, agents, net, activity, lastBlockLine, queue, pending, followers };
   }
 
   // Berkas run terbaru (job berjalan atau terakhir) untuk menjawab pertanyaan hasil riset.
@@ -131,10 +132,10 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         return true;
       }
       if (u.pathname === '/api/talk/pipeline' && req.method === 'GET') {
-        let job = null; let history = 0; let queue = 0;
-        try { const s = JSON.parse((await readFile(stateFile, 'utf8')).replace(/^\uFEFF/, '')); job = s.job ? { identifier: s.job.identifier, phase: s.job.phase, stageIndex: s.job.stageIndex } : null; history = (s.history ?? []).length; } catch { /* belum ada state */ }
+        let job = null; let history = 0; let queue = 0; let followers = 0;
+        try { const s = JSON.parse((await readFile(stateFile, 'utf8')).replace(/^\uFEFF/, '')); job = s.job ? { identifier: s.job.identifier, phase: s.job.phase, stageIndex: s.job.stageIndex } : null; history = (s.history ?? []).length; followers = (s.followers ?? []).length; } catch { /* belum ada state */ }
         try { queue = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* inbox belum ada */ }
-        json(res, 200, { job, history, queue, pending: 0 });
+        json(res, 200, { job, history, queue, pending: 0, followers: followers });
         return true;
       }
       if (u.pathname === '/api/talk/outputs' && req.method === 'GET') {
