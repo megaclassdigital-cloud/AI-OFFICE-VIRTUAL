@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FAIL_RE = /quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|capacity|terminal service failure|acpx_turn_failed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
+const FAIL_RE = /quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|capacity|terminal service failure|acpx_turn_failed|cannot connect to api|unable to connect|socket connection was closed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
 
 export const isFailoverError = (text) => FAIL_RE.test(String(text ?? ''));
 
@@ -87,7 +87,8 @@ async function main() {
     const idx = idxOf(name, agent);
     const st = readState(name);
     if (shouldReset({ currentIdx: idx, lastSwitchMs: st.switchedAtMs, nowMs: Date.now() })) return apply(name, chain[0], 'hari baru, kembali ke prioritas utama');
-    const runs = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id);
+    // Run yang dibatalkan (mis. agent sedang di-pause) bukan bukti kuota/model; yang dinilai adalah run terakhir yang benar-benar berjalan.
+    const runs = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id && r.status !== 'cancelled');
     const last = runs[0];
     if (!last || Date.parse(last.startedAt ?? 0) <= st.switchedAtMs) return;
     if (!['failed', 'error', 'timed_out'].includes(last.status)) return;

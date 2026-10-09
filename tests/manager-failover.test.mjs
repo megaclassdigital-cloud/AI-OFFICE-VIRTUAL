@@ -41,3 +41,10 @@ describe('galat model/ACP juga memicu pindah', () => {
     expect(isFailoverError('The model gpt-5.4 is not available for this account')).toBe(true);
   });
 });
+
+describe('galat koneksi API juga memicu pindah', () => {
+  it('Cannot connect to API / socket ditutup', () => {
+    expect(isFailoverError('Cannot connect to API: Unable to connect. Is the computer able to access the url?')).toBe(true);
+    expect(isFailoverError('Cannot connect to API: The socket connection was closed unexpectedly.')).toBe(true);
+  });
+});
