@@ -149,3 +149,11 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Dampak: riwayat memuat modifikasi owner atas dua berkas itu atas nama commit implementer. Bila owner tidak menghendaki, owner dapat memisahkannya sendiri (mis. `git revert`/rebase lokal) karena belum ada push.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-018 — codex_local berjalan tanpa sandbox di Windows; hook security-guidance dinonaktifkan
+- Task: O-007 (FIX-G2-01b / FIX-G3-02), lintas sesi 2026-10-09
+- Konteks: pembacaan kode adapter `@paperclipai/adapter-codex-local` (npx cache, `dist/server/execute.js`): adapter selalu memberi flag bypass approvals (Codex mencetak "YOLO mode is enabled"). Pembatasan filesystem adapter (`filesystemScope: "workspace"`) memakai `bwrap` (Linux saja), jadi tidak berlaku di Windows ini. BELUM dibuktikan dengan run nyata (belum ada probe).
+- Pilihan: opsi (b) O-007 (bukti sandbox lalu pindahkan token) hampir pasti tidak tercapai; sisa (a) akun Windows terpisah atau (c) terima risiko. Probe yang disarankan: file canary di luar `workspace/agent` yang diminta dibaca agent, dan penulisan ke folder canary, BUKAN token asli.
+- Lain-lain: Paperclip dinyalakan ulang (plugin ikut dimuat ulang dengan kode terbaru, smoke 37 PASS). `loop/OWNER-QUEUE.md` sempat terhapus di working tree (bukan oleh implementer), dipulihkan dengan `git restore`. Hook plugin `security-guidance` dinonaktifkan atas permintaan owner (`hooks.json` dikosongkan, cadangan `hooks.json.bak-disabled`; `disableAllHooks: true` di settings.json). Owner memilih mengerjakan O-007 lalu O-004; belum dimulai. Pemindahan sesi ke cloud tertunda: belum ada remote GitHub, `CLAUDE.md`/`README.md` milik owner belum di-commit; Paperclip dan `.env` hanya ada di mesin lokal.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER
