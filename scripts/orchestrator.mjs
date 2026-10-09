@@ -149,7 +149,7 @@ async function createStage(job, stage) {
   const order = JSON.parse(readFileSync(orderPathFor(job.identifier), 'utf8'));
   const ag = agentByName(STAGE_AGENT[stage]);
   const issue = await j(`/companies/${company.id}/issues`, jb('POST', {
-    title: `${job.identifier} · ${STAGE_AGENT[stage]}: ${order.title}`,
+    title: `${job.identifier} · ${STAGE_AGENT[stage]} (${new Date().toISOString().slice(11, 19)}): ${order.title}`,
     description: stageDescription({
       order, stage, identifier: job.identifier, outputsDir: OUTPUTS, brief: job.brief, refs: standingRefs(stage),
       inputs: STAGES.slice(0, STAGES.indexOf(stage)).map((s) => artifactPathFor(job.identifier, s)),
