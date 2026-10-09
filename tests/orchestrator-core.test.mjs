@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS } from '../scripts/orchestrator-core.mjs';
+import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, checkOrderStructure } from '../scripts/orchestrator-core.mjs';
 
 const goodOrder = { title: 'Carousel tren AI', stages: Object.fromEntries(STAGES.map((s) => [s, `kerjakan ${s}`])) };
 const T0 = 1_000_000;
@@ -147,5 +147,22 @@ describe('rencana yang ditahan owner (hold)', () => {
     expect(canPlanAhead(running, [held])).toBe(true);
     expect(activePending([held])).toEqual([]);
     expect(nextPlanned([held, { identifier: 'EDU-60', ready: true }]).identifier).toBe('EDU-60');
+  });
+});
+
+describe('checkOrderStructure (template perintah Manager)', () => {
+  const good = 'Tujuan: cari berita.\nMasukan: brief owner.\nBatasan: jangan karang.\nKeluaran: research-raw.json.\nSelesai bila: 5 kandidat.';
+  const mk = (over = {}) => ({ title: 't', stages: { ...Object.fromEntries(STAGES.map((s) => [s, good])), ...over } });
+  it('struktur lengkap lolos; 3 dari 4 label masih lolos', () => {
+    expect(checkOrderStructure(mk())).toEqual({ ok: true, errors: [] });
+    expect(checkOrderStructure(mk({ qa: 'Tujuan: a\nMasukan: b\nKeluaran: c' })).ok).toBe(true);
+  });
+  it('tanpa label ditolak dengan pesan yang menyebut tahap dan label kurang; huruf besar/kecil tidak masalah', () => {
+    const r = checkOrderStructure(mk({ researcher: 'cari berita AI terbaru saja' }));
+    expect(r.ok).toBe(false); expect(r.errors[0]).toMatch(/stages\.researcher harus berstruktur/); expect(r.errors[0]).toMatch(/Tujuan/);
+    expect(checkOrderStructure(mk({ verifier: 'TUJUAN: a\nmasukan: b\nBATASAN: c' })).ok).toBe(true);
+  });
+  it('tahap Dilewati (revisi) tidak diperiksa', () => {
+    expect(checkOrderStructure(mk({ researcher: 'Dilewati (revisi): memakai hasil EDU-49.', verifier: 'Dilewati (revisi): memakai hasil EDU-49.' })).ok).toBe(true);
   });
 });

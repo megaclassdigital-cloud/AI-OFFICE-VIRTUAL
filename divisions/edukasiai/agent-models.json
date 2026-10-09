@@ -1,10 +1,11 @@
 {
   "_catatan": "Rantai model per agent, urut prioritas. scripts/manager-failover.mjs (nama lama, kini untuk semua agent) berpindah ke entri berikutnya HANYA saat run gagal karena kuota/autentikasi/model tidak tersedia, dan tidak pernah saat agent sedang menjalankan run. Hari baru (WIB) kembali ke prioritas utama. Kuota gratis Gemini 20 request/hari per MODEL, jadi model berbeda dipakai berurutan.",
+  "exclusiveProviders": ["chatgpt", "claude"],
   "agents": {
     "Manager": [
-      { "id": "chatgpt", "label": "ChatGPT (OAuth)", "adapterType": "codex_local", "adapterConfig": {} },
-      { "id": "gemini", "label": "Gemini", "adapterType": "gemini_local", "adapterConfig": { "model": "auto", "env": { "GEMINI_MODEL": "gemini-3.7-flash", "GEMINI_CLI_TRUST_WORKSPACE": "true", "ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS": "120000" } }, "envFromDotenv": ["GEMINI_API_KEY"] },
-      { "id": "claude", "label": "Claude (OAuth)", "adapterType": "claude_local", "adapterConfig": { "model": "claude-sonnet-5" } }
+      { "id": "chatgpt", "provider": "chatgpt", "label": "ChatGPT (OAuth)", "adapterType": "codex_local", "adapterConfig": {} },
+      { "id": "claude", "provider": "claude", "label": "Claude (OAuth)", "adapterType": "claude_local", "adapterConfig": { "model": "claude-sonnet-5" } },
+      { "id": "gemini", "label": "Gemini", "adapterType": "gemini_local", "adapterConfig": { "model": "auto", "env": { "GEMINI_MODEL": "gemini-3.7-flash", "GEMINI_CLI_TRUST_WORKSPACE": "true", "ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS": "120000" } }, "envFromDotenv": ["GEMINI_API_KEY"] }
     ],
     "Researcher": [
       { "id": "nemotron", "label": "opencode nemotron-3-ultra (gratis)", "adapterType": "opencode_local", "adapterConfig": { "model": "opencode/nemotron-3-ultra-free" } },

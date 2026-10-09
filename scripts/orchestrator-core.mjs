@@ -54,6 +54,23 @@ export function validateOrder(order) {
   return { ok: errors.length === 0, errors };
 }
 
+export const ORDER_LABELS = ['Tujuan', 'Masukan', 'Batasan', 'Keluaran'];
+/**
+ * Struktur wajib instruksi tahap dari Manager (template di divisions/edukasiai/sop/work-order-templates.md): minimal 3 dari 4 label
+ * (Tujuan:, Masukan:, Batasan:, Keluaran:) masing-masing di awal baris. Tahap "Dilewati" tidak diperiksa. Mengembalikan { ok, errors }.
+ */
+export function checkOrderStructure(order) {
+  const errors = [];
+  for (const stage of STAGES) {
+    const text = String(order?.stages?.[stage] ?? '');
+    if (/^\s*Dilewati/i.test(text)) continue;
+    const lines = text.split(/\r?\n/).map((l) => l.trim().toLowerCase());
+    const missing = ORDER_LABELS.filter((l) => !lines.some((ln) => ln.startsWith(l.toLowerCase() + ':')));
+    if (ORDER_LABELS.length - missing.length < 3) errors.push(`stages.${stage} harus berstruktur: tulis label ${ORDER_LABELS.map((l) => l + ':').join(' ')} masing-masing di awal baris (kurang: ${missing.join(', ')})`);
+  }
+  return { ok: errors.length === 0, errors };
+}
+
 /**
  * Brief revisi: front matter `mode: revisi`, `dari: EDU-n` (run sumber), `mulai: copywriter|designer`.
  * Tahap sebelum `mulai` memakai artefak run sumber (tanpa memanggil agent/kuota). Mengembalikan { from, start, startIndex, notes } atau null.

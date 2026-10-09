@@ -30,6 +30,41 @@ export function shouldReset({ currentIdx, lastSwitchMs, nowMs }) {
   return currentIdx > 0 && dayKey(nowMs) !== dayKey(lastSwitchMs);
 }
 
+// ── Pergantian dua arah antar penyedia berlangganan (ChatGPT <-> Claude) tanpa bentrok (keputusan owner 2026-10-10) ──
+export const HOUR_MS = 3_600_000;
+const AUTH_RE = /not logged in|login required|authentication required|unauthori[sz]ed|invalid.*(token|credential)|please (log ?in|sign ?in)/i;
+/** Lama sebuah entri diblokir setelah gagal: masalah login 12 jam (butuh owner), kuota/rate-limit 3 jam (jendela umum langganan). */
+const RESET_RE = /(?:try again|retry|resets?|available again)[^0-9]{0,25}([0-9]+(?:[.][0-9]+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/i;
+export function blockDurationMs(errText) {
+  const t = String(errText ?? '');
+  if (AUTH_RE.test(t)) return 12 * HOUR_MS;
+  const m = RESET_RE.exec(t);
+  if (m) { // pesan limit menyebut kapan pulih: pakai itu (dibatasi 5 menit - 24 jam) ditambah 1 menit
+    const n = Number(m[1]); const ms = m[2].toLowerCase().startsWith('h') ? n * HOUR_MS : n * 60_000;
+    return Math.min(Math.max(ms, 5 * 60_000), 24 * HOUR_MS) + 60_000;
+  }
+  return 3 * HOUR_MS;
+}
+export const isBlocked = (blocked, id, nowMs) => (blocked?.[id] ?? 0) > nowMs;
+export const pruneBlocked = (blocked = {}, nowMs) => Object.fromEntries(Object.entries(blocked).filter(([, until]) => until > nowMs));
+const providerOf = (e) => e.provider ?? e.id;
+/**
+ * Entri pertama menurut urutan prioritas yang boleh dipakai: bukan yang baru gagal (exclude), tidak diblokir, dan tidak melanggar pengecualian bersama
+ * (bila agent lain sedang memakai salah satu penyedia eksklusif, entri eksklusif penyedia lain tidak boleh dipilih).
+ */
+export function pickEntry({ chain, blocked = {}, nowMs, exclude = null, activeProviders = [], exclusive = [] }) {
+  const usable = chain.filter((e) => e.id !== exclude && !isBlocked(blocked, e.id, nowMs));
+  const lockedTo = activeProviders.find((p) => exclusive.includes(p));
+  const allowed = lockedTo ? usable.filter((e) => !exclusive.includes(providerOf(e)) || providerOf(e) === lockedTo) : usable;
+  return allowed[0] ?? null;
+}
+/** Kembali ke entri berprioritas lebih tinggi bila blokirnya sudah berakhir (hanya dipanggil saat agent menganggur). */
+export function returnTarget({ chain, currentIdx, blocked, nowMs, activeProviders, exclusive }) {
+  const best = pickEntry({ chain, blocked, nowMs, activeProviders, exclusive });
+  const bi = best ? chain.findIndex((e) => e.id === best.id) : -1;
+  return bi >= 0 && bi < currentIdx ? best : null;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
 
 // Multi-agent: setiap agent di agent-models.json punya rantai modelnya sendiri; keadaan (kapan terakhir berpindah, entri aktif) per agent.
@@ -54,7 +89,7 @@ async function main() {
     const byState = chain.findIndex((e) => e.id === readState(name).entry);
     if (byState >= 0) return byState;
     const byAdapter = chain.findIndex((e) => e.adapterType === agent.adapterType && (e.adapterConfig.model ?? null) === (agent.adapterConfig?.model ?? null));
-    return Math.max(0, byAdapter);
+    return byAdapter; // -1 = di luar rantai
   };
 
   const dotenv = () => {
@@ -76,17 +111,35 @@ async function main() {
     const adapterConfig = { ...base, ...(entry.adapterConfig.model ? {} : { model: null }), ...entry.adapterConfig, ...(Object.keys(env).length ? { env } : {}) };
     await j(`/agents/${agent.id}`, jb('PATCH', { adapterType: entry.adapterType, adapterConfig }));
     await j(`/agents/${agent.id}/resume`, jb('POST', {}));
-    writeState(name, { switchedAtMs: Date.now(), entry: entry.id });
+    writeState(name, { ...readState(name), switchedAtMs: Date.now(), entry: entry.id });
     log(`${name} -> ${entry.label} (${entry.adapterType}) — ${why}`);
     return true;
   }
 
+  /** Penyedia eksklusif yang SEDANG dipakai agent lain (run aktif), supaya ChatGPT dan Claude tidak berjalan bersamaan. */
+  async function activeProvidersExcept(name) {
+    const out = new Set();
+    const all = await j(`/companies/${company.id}/agents`);
+    const runs = await j(`/companies/${company.id}/heartbeat-runs?limit=60`);
+    for (const other of Object.keys(cfg.agents)) {
+      if (other === name) continue;
+      const ag = all.find((x) => x.name === other);
+      if (!ag || !isBusy(runs.filter((r) => r.agentId === ag.id))) continue;
+      const cur = cfg.agents[other][idxOf(other, ag)];
+      if (cur) out.add(providerOf(cur));
+    }
+    return [...out];
+  }
+
   async function once(name) {
     const chain = cfg.agents[name];
+    const exclusive = cfg.exclusiveProviders ?? [];
     const agent = await agentOf(name);
     if (!agent) return;
     const idx = idxOf(name, agent);
-    const st = readState(name);
+    const nowMs = Date.now();
+    let st = readState(name);
+    st = { ...st, blocked: pruneBlocked(st.blocked, nowMs) };
     // Pemulihan setelah internet kembali: agent berstatus error karena galat jaringan di-resume otomatis (tanpa trigger tambahan).
     if (agent.status === 'error' && !isOffline(readNetworkState(path.join(ROOT, 'workspace', 'network-state.json')))) {
       const recent = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id && r.status !== 'cancelled' && r.status !== 'scheduled_retry')[0];
@@ -96,35 +149,73 @@ async function main() {
         return;
       }
     }
-    if (shouldReset({ currentIdx: idx, lastSwitchMs: st.switchedAtMs, nowMs: Date.now() })) return apply(name, chain[0], 'hari baru, kembali ke prioritas utama');
+    const allRuns = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id);
+    const busy = isBusy(allRuns);
+    const activeProviders = await activeProvidersExcept(name);
+    const cur = chain[idx];
+    // Hari baru: blokir dihapus dan kembali ke prioritas utama.
+    if (shouldReset({ currentIdx: idx, lastSwitchMs: st.switchedAtMs, nowMs })) { writeState(name, { ...st, blocked: {} }); return apply(name, chain[0], 'hari baru, kembali ke prioritas utama'); }
+    // Di luar rantai (mis. model manual/warisan): kembali ke rantai bila menganggur.
+    if (idx < 0) {
+      if (busy) return;
+      const t = pickEntry({ chain, blocked: st.blocked, nowMs, activeProviders, exclusive });
+      if (t) { writeState(name, st); return apply(name, t, 'di luar rantai model, kembali ke rantai'); }
+      return;
+    }
+    // Entri aktif diblokir (mis. dipakai owner/gagal) dan agent menganggur: pindah ke yang tersedia, dua arah.
+    if (isBlocked(st.blocked, cur.id, nowMs) && !busy) {
+      const t = pickEntry({ chain, blocked: st.blocked, nowMs, exclude: cur.id, activeProviders, exclusive });
+      if (t) { writeState(name, st); return apply(name, t, `${cur.label} sedang diblokir; ${t.label} mengambil alih`); }
+      return log(`SEMUA model ${name} diblokir/gagal; butuh owner (login ulang atau tunggu kuota)`);
+    }
+    // Blokir entri berprioritas lebih tinggi sudah berakhir: kembali (hanya saat menganggur).
+    if (!busy) {
+      const back = returnTarget({ chain, currentIdx: idx, blocked: st.blocked, nowMs, activeProviders, exclusive });
+      if (back) { writeState(name, st); return apply(name, back, `${back.label} tersedia lagi, kembali ke prioritas`); }
+    }
     // Run yang dibatalkan (mis. agent sedang di-pause) bukan bukti kuota/model; yang dinilai adalah run terakhir yang benar-benar berjalan.
-    const runs = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id && r.status !== 'cancelled');
-    const last = runs[0];
-    if (!last || Date.parse(last.startedAt ?? 0) <= st.switchedAtMs) return;
+    const last = allRuns.filter((r) => r.status !== 'cancelled')[0];
+    if (!last || Date.parse(last.startedAt ?? 0) <= st.switchedAtMs) { if (st.blocked && Object.keys(st.blocked).length !== Object.keys(readState(name).blocked ?? {}).length) writeState(name, st); return; }
     if (!['failed', 'error', 'timed_out'].includes(last.status)) return;
     const errText = `${last.error ?? ''} ${last.errorCode ?? ''}`;
     // Putus internet BUKAN masalah model: jangan pernah berpindah model karenanya (orkestrator menahan dan melanjutkan sendiri).
     if (isNetworkError(errText) || isOffline(readNetworkState(path.join(ROOT, 'workspace', 'network-state.json')))) return;
     if (!isFailoverError(errText)) return; // galat tugas biasa / galat sementara: bukan urusan failover
-    const n = nextIndex(chain.length, idx);
-    if (n === null) return log(`SEMUA model ${name} habis/gagal; butuh owner (login ulang atau tunggu kuota)`);
-    await apply(name, chain[n], `run gagal: ${String(last.error).slice(0, 80)}`);
+    // Gagal karena kuota/login: blokir entri ini, lalu pilih yang lain menurut prioritas (ChatGPT <-> Claude bergantian, Gemini cadangan terakhir).
+    st.blocked = { ...st.blocked, [cur.id]: nowMs + blockDurationMs(errText) };
+    writeState(name, st);
+    const t = pickEntry({ chain, blocked: st.blocked, nowMs, exclude: cur.id, activeProviders, exclusive });
+    if (!t) return log(`SEMUA model ${name} habis/gagal; butuh owner (login ulang atau tunggu kuota)`);
+    await apply(name, t, `${cur.label} gagal (${String(last.error).slice(0, 80)}); diblokir ${Math.round(blockDurationMs(errText) / HOUR_MS)} jam`);
   }
 
   const names = arg('--agent') ? [arg('--agent')] : Object.keys(cfg.agents);
   if (a.includes('--status')) {
     for (const name of names) {
       const agent = await agentOf(name);
-      console.log(`${name}: ${agent.adapterType}${agent.adapterConfig?.model ? ' ' + agent.adapterConfig.model : ''} (${agent.status}), urutan ${idxOf(name, agent) + 1}/${cfg.agents[name].length}`);
+      const ix = idxOf(name, agent);
+      const bl = Object.entries(pruneBlocked(readState(name).blocked, Date.now())).map(([id, until]) => `${id} sampai ${new Date(until).toISOString().slice(11, 16)}Z`);
+      console.log(`${name}: ${agent.adapterType}${agent.adapterConfig?.model ? ' ' + agent.adapterConfig.model : ''} (${agent.status}), ${ix < 0 ? 'DI LUAR rantai' : `urutan ${ix + 1}/${cfg.agents[name].length}`}${bl.length ? ' · diblokir: ' + bl.join(', ') : ''}`);
     }
     for (const t of ['codex_local', 'gemini_local', 'claude_local']) console.log(`- auth ${t}: ${JSON.stringify(await j(`/companies/${company.id}/adapters/${t}/auth-signal`))}`);
+  } else if (a.includes('--block') || a.includes('--unblock')) {
+    // Penyedia sedang dipakai owner (mis. sesi Claude Code/ChatGPT pribadi): blokir sementara agar agent memakai yang lain.
+    const name = arg('--agent', 'Manager');
+    const id = arg('--block') ?? arg('--unblock');
+    if (!cfg.agents[name].some((x) => x.id === id)) throw new Error(`id tidak dikenal: ${cfg.agents[name].map((x) => x.id).join('|')}`);
+    const st = readState(name);
+    const blocked = pruneBlocked(st.blocked, Date.now());
+    if (a.includes('--block')) blocked[id] = Date.now() + Number(arg('--hours', 2)) * HOUR_MS; else delete blocked[id];
+    writeState(name, { ...st, blocked });
+    log(`${name}: ${id} ${a.includes('--block') ? 'DIBLOKIR ' + arg('--hours', 2) + ' jam (dipakai owner)' : 'dibuka blokirnya'}`);
+    await once(name);
   } else if (a.includes('--use')) {
     const name = arg('--agent', 'Manager');
     const e = cfg.agents[name].find((x) => x.id === arg('--use'));
     if (!e) throw new Error(`id tidak dikenal: ${cfg.agents[name].map((x) => x.id).join('|')}`);
     await apply(name, e, 'dipilih manual');
   } else if (a.includes('--reset')) {
-    for (const name of names) await apply(name, cfg.agents[name][0], 'reset ke prioritas utama');
+    for (const name of names) { writeState(name, { ...readState(name), blocked: {} }); await apply(name, cfg.agents[name][0], 'reset ke prioritas utama'); }
   } else if (a.includes('--watch')) {
     const ms = Number(arg('--interval', 30)) * 1000;
     const lockFile = path.join(ROOT, 'workspace', 'failover.lock');

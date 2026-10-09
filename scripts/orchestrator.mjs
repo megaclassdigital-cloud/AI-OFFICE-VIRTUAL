@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { checkOrderStructure, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
@@ -157,6 +157,15 @@ async function checkNetwork(job) {
 
 const orderPathFor = (identifier) => path.join(ORDERS, `${identifier}.json`);
 
+let templatesCache = null;
+/** Template perintah per divisi untuk Manager (berkas SOP); dibaca sekali, dipotong agar prompt tetap ringkas. */
+function workOrderTemplates() {
+  if (templatesCache === null) {
+    try { templatesCache = readFileSync(path.join(ROOT, 'divisions', 'edukasiai', 'sop', 'work-order-templates.md'), 'utf8').replace(/^\uFEFF/, '').slice(0, 5000); } catch { templatesCache = ''; }
+  }
+  return templatesCache ? 'TEMPLATE PERINTAH (ikuti bentuknya; sesuaikan isinya dengan brief dan kemampuan tiap agent):\n' + templatesCache : '';
+}
+
 function managerInstruction({ identifier, brief }) {
   const example = JSON.stringify({ title: 'judul produksi', stages: Object.fromEntries(STAGES.map((s) => [s, `instruksi konkret untuk ${STAGE_AGENT[s]}`])) }, null, 2);
   return [
@@ -164,8 +173,9 @@ function managerInstruction({ identifier, brief }) {
     '----', brief.slice(0, 12000), '----',
     `Tugasmu: tulis WORK ORDER JSON untuk issue ${identifier}. Jangan mengerjakan tahap agent lain; jangan melakukan riset sendiri.`,
     `Simpan ke path absolut: ${orderPathFor(identifier)} (buat foldernya bila belum ada) lalu baca ulang untuk memastikan file ada.`,
-    `Format wajib (semua lima tahap harus terisi, tiap instruksi maks 4000 karakter, bahasa Indonesia, konkret: apa yang dikerjakan, batasan, bentuk keluaran):`,
+    `Format wajib (semua lima tahap harus terisi, tiap instruksi maks 4000 karakter, bahasa Indonesia, konkret). SETIAP instruksi tahap WAJIB berstruktur dengan label persis di awal baris: Tujuan:, Masukan:, Batasan:, Keluaran:, Selesai bila: (kode memeriksanya; tanpa struktur work order dikembalikan kepadamu).`,
     example,
+    workOrderTemplates(),
     `Jika brief meminta arahan desain, tulis brief desain .md di ${path.join(OUTPUTS, 'briefs', `${identifier}.md`)} (diawali front matter, ikuti templat) dan sebut path-nya di instruksi tahap designer.`,
     `Setelah file ada: panggil complete_stage (awaiting_approval) lewat aao-tool.mjs dengan ringkasan singkat rencanamu, lalu berhenti.`,
   ].join('\n\n');
@@ -338,7 +348,7 @@ async function gatherFacts(job, state) {
   const managerFailed = !live && !managerFinished && mgrRuns.find((r) => ['failed', 'error', 'timed_out'].includes(r.status));
   let order = null;
   const op = orderPathFor(job.identifier);
-  if (existsSync(op)) { try { order = validateOrder(JSON.parse(readFileSync(op, 'utf8'))); } catch (e) { order = { ok: false, errors: [`JSON tidak bisa dibaca: ${e.message}`] }; } }
+  if (existsSync(op)) { try { const raw = JSON.parse(readFileSync(op, 'utf8')); order = validateOrder(raw); if (order.ok && job.phase === 'planning') { const sc = checkOrderStructure(raw); if (!sc.ok) order = sc; } } catch (e) { order = { ok: false, errors: [`JSON tidak bisa dibaca: ${e.message}`] }; } }
   let stage = null; let output;
   if (job.phase === 'running' && job.stageIssueId) {
     const issue = await j(`/issues/${job.stageIssueId}`);
