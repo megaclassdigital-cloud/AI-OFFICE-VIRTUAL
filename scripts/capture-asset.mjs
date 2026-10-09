@@ -185,8 +185,8 @@ export async function captureOne(page, req, outFile, engines = ['google', 'bing'
 export async function main(argv) {
   const get = (k) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : null);
   const issue = get('--issue');
-  if (!issue || !/^EDU-[0-9]+$|^TEST-[A-Z0-9-]+$/.test(issue)) { console.error('Pakai: --issue EDU-<n>'); return 1; }
-  const runDir = path.join(root, 'workspace', 'agent', 'runs', issue);
+  if (!issue || !/^EDU-[0-9]+(?:\/revision-[0-9]+)?$|^TEST-[A-Z0-9-]+$/.test(issue)) { console.error('Pakai: --issue EDU-<n>'); return 1; }
+  const runDir = path.join(root, 'workspace', 'agent', 'runs', ...issue.split('/'));
   const reqFile = get('--requests') ?? path.join(runDir, 'asset-requests.json');
   if (!existsSync(reqFile)) { console.error(`Tidak ada ${reqFile}`); return 1; }
   const { requests } = JSON.parse(readFileSync(reqFile, 'utf8').replace(/^﻿/, ''));

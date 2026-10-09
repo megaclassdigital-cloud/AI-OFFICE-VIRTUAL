@@ -3,7 +3,7 @@
 // owner comment to an issue created here). Loopback only, same-origin only, size and rate limited. No LLM here.
 import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { isStatusQuestion, buildStatusText, lastActivityFromLog, isResearchQuestion, buildResearchText } from './status.mjs';
+import { isStatusQuestion, buildStatusText, lastActivityFromLog, isResearchQuestion, buildResearchText, buildBriefAck } from './status.mjs';
 import { STAGES, STAGE_AGENT } from '../../scripts/orchestrator-core.mjs';
 
 const MAX_TEXT = 4000;
@@ -45,6 +45,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     const st = stateFile ? await readJson(stateFile) : null;
     const job = st?.job ? { identifier: st.job.identifier, phase: st.job.phase, stageIndex: st.job.stageIndex, stageStartedMs: st.job.stageStartedMs } : null;
     const lastJob = !job && st?.history?.length ? { identifier: st.history[st.history.length - 1].identifier, phase: st.history[st.history.length - 1].phase } : null;
+    const pending = (st?.pending ?? []).map((p) => ({ identifier: p.identifier, ready: !!p.ready }));
     let queue = 0; try { queue = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* tanpa inbox */ }
     const ns = netFile ? await readJson(netFile) : null;
     const net = ns && nowMs - (ns.updatedAtMs ?? 0) < 120_000 ? { offline: ns.hold === true, since: ns.since } : null;
@@ -63,16 +64,16 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     if (job?.phase === 'blocked' && orchLogFile) {
       try { const l = (await readFile(orchLogFile, 'utf8')).split(/\r?\n/).reverse().find((x) => x.includes('DIBLOKIR')); lastBlockLine = l ? l.replace(/^\S+\s+/, '').slice(0, 200) : null; } catch { /* tanpa log */ }
     }
-    return { nowMs, job, lastJob, agents, net, activity, lastBlockLine, queue };
+    return { nowMs, job, lastJob, agents, net, activity, lastBlockLine, queue, pending };
   }
 
   // Berkas run terbaru (job berjalan atau terakhir) untuk menjawab pertanyaan hasil riset.
   async function gatherResearch() {
     const readJson = async (f) => { try { return JSON.parse((await readFile(f, 'utf8')).replace(/^﻿/, '')); } catch { return null; } };
     const st = stateFile ? await readJson(stateFile) : null;
-    const ids = [st?.job?.identifier, ...(st?.history ?? []).map((h) => h.identifier).reverse()].filter(Boolean);
+    const ids = [st?.job && (st.job.runKey ?? st.job.identifier), ...(st?.history ?? []).map((h) => h.runKey ?? h.identifier).reverse()].filter(Boolean);
     for (const identifier of ids) {
-      const dir = path.join(outputRoot ?? '', 'runs', identifier);
+      const dir = path.join(outputRoot ?? '', 'runs', ...String(identifier).split('/'));
       const research = await readJson(path.join(dir, 'research-output.json'));
       if (research?.candidates?.length) return { identifier, research, verification: await readJson(path.join(dir, 'verification-result.json')), carousel: await readJson(path.join(dir, 'carousel.json')) };
     }
@@ -102,7 +103,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         let job = null; let history = 0; let queue = 0;
         try { const s = JSON.parse((await readFile(stateFile, 'utf8')).replace(/^\uFEFF/, '')); job = s.job ? { identifier: s.job.identifier, phase: s.job.phase, stageIndex: s.job.stageIndex } : null; history = (s.history ?? []).length; } catch { /* belum ada state */ }
         try { queue = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* inbox belum ada */ }
-        json(res, 200, { job, history, queue });
+        json(res, 200, { job, history, queue, pending: 0 });
         return true;
       }
       if (u.pathname === '/api/talk/outputs' && req.method === 'GET') {
@@ -151,8 +152,12 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         const safe = String(name ?? 'brief').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+/, '').slice(0, 60) || 'brief';
         const file = `${now()}-${safe.replace(/\.(md|txt|json)$/i, '')}.md`;
         await mkdir(inboxRoot, { recursive: true });
+        // Balasan instan: posisi antrean dihitung SEBELUM brief ini ditulis (brief yang sudah antre di inbox + rencana yang sedang disusun)
+        let st = null; try { st = JSON.parse((await readFile(stateFile, 'utf8')).replace(/^\uFEFF/, '')); } catch { /* belum ada state */ }
+        let inboxAhead = 0; try { inboxAhead = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* inbox belum ada */ }
         await writeFile(path.join(inboxRoot, file), body, 'utf8');
-        json(res, 200, { file, note: 'Brief masuk inbox; orkestrator akan menyerahkannya ke Manager.' });
+        const ack = buildBriefAck({ job: st?.job ?? null, pending: (st?.pending ?? []).map((p) => ({ identifier: p.identifier, ready: !!p.ready })), inboxAhead });
+        json(res, 200, { file, note: 'Brief masuk antrean.', ack });
         return true;
       }
       if (u.pathname === '/api/talk' && req.method === 'POST') {

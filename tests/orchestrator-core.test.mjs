@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief } from '../scripts/orchestrator-core.mjs';
+import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS } from '../scripts/orchestrator-core.mjs';
 
 const goodOrder = { title: 'Carousel tren AI', stages: Object.fromEntries(STAGES.map((s) => [s, `kerjakan ${s}`])) };
 const T0 = 1_000_000;
@@ -119,5 +119,33 @@ ${body}`;
     expect(parseRevisionBrief(brief('mode: revisi\ndari: EDU-27\nmulai: researcher'))).toBeNull();
     expect(parseRevisionBrief(brief('mode: revisi\ndari: EDU-27\nmulai: qa'))).toBeNull();
     expect(parseRevisionBrief(null)).toBeNull();
+  });
+});
+
+describe('perencanaan di muka (Manager responsif selagi job lain berjalan)', () => {
+  const running = { identifier: 'EDU-56', phase: 'running', stageIndex: 3 };
+  it('hanya selama ada job aktif dan slot rencana belum penuh', () => {
+    expect(MAX_PENDING_PLANS).toBe(1);
+    expect(canPlanAhead(running, [])).toBe(true);
+    expect(canPlanAhead({ ...running, phase: 'planning' }, [])).toBe(true);
+    expect(canPlanAhead(running, [{ identifier: 'EDU-58' }])).toBe(false);
+    expect(canPlanAhead(null, [])).toBe(false);
+    for (const phase of ['done', 'blocked']) expect(canPlanAhead({ ...running, phase }, [])).toBe(false);
+  });
+  it('nextPlanned: yang siap paling awal (FIFO); belum siap tidak dipromosikan', () => {
+    expect(nextPlanned([])).toBeNull();
+    expect(nextPlanned([{ identifier: 'a' }])).toBeNull();
+    expect(nextPlanned([{ identifier: 'a' }, { identifier: 'b', ready: true }, { identifier: 'c', ready: true }]).identifier).toBe('b');
+  });
+});
+
+describe('rencana yang ditahan owner (hold)', () => {
+  it('tidak dipromosikan, tidak mengisi slot rencana, dan tidak menghalangi brief lain', () => {
+    const running = { identifier: 'EDU-56', phase: 'running' };
+    const held = { identifier: 'EDU-58', ready: true, hold: true };
+    expect(nextPlanned([held])).toBeNull();
+    expect(canPlanAhead(running, [held])).toBe(true);
+    expect(activePending([held])).toEqual([]);
+    expect(nextPlanned([held, { identifier: 'EDU-60', ready: true }]).identifier).toBe('EDU-60');
   });
 });

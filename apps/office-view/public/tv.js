@@ -20,15 +20,16 @@ const dlUrl = (p) => `${img(p)}&download=1`;
 async function downloadAll(slides) { for (const s of slides) { const a = document.createElement('a'); a.href = dlUrl(s.image); a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((r) => setTimeout(r, 450)); } }
 const TABS = [['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA']];
 
-const st = { prod: null, tab: 'show', data: null, slide: 0, sig: '' };
-const sel = h('select', { id: 'tvProd', 'aria-label': 'Pilih produksi', onchange: () => { st.prod = sel.value; st.slide = 0; load(true); } });
+const st = { prod: null, rev: '', tab: 'show', data: null, slide: 0, sig: '' };
+const sel = h('select', { id: 'tvProd', 'aria-label': 'Pilih produksi', onchange: () => { st.prod = sel.value; st.rev = ''; st.slide = 0; load(true); } });
+const revSel = h('select', { id: 'tvRev', 'aria-label': 'Pilih versi', hidden: true, onchange: () => { st.rev = revSel.value; st.slide = 0; load(true); } });
 const chip = h('span', { class: 'tv-chip' });
 const main = h('main', { id: 'tvMain' });
 const stages = h('footer', { id: 'tvStages' });
 const tabs = h('nav', { class: 'tv-tabs', role: 'tablist' }, TABS.map(([k, l]) => h('button', { type: 'button', role: 'tab', 'data-tab': k, onclick: () => { st.tab = k; render(); } }, l)));
 const overlay = h('div', { id: 'tv', hidden: true, role: 'dialog', 'aria-label': 'Dashboard Papan Tayang' },
   h('div', { class: 'tv-bezel' },
-    h('header', {}, h('div', { class: 'tv-title' }, '📺 PAPAN TAYANG'), sel, chip, h('button', { type: 'button', class: 'tv-x', title: 'Tutup (Esc)', onclick: () => close() }, '✕')),
+    h('header', {}, h('div', { class: 'tv-title' }, '📺 PAPAN TAYANG'), sel, revSel, chip, h('button', { type: 'button', class: 'tv-x', title: 'Tutup (Esc)', onclick: () => close() }, '✕')),
     tabs, main, stages));
 document.body.append(overlay);
 const tvBtn = h('button', { type: 'button', id: 'bTV', title: 'Buka dashboard Papan Tayang', onclick: () => open() }, '📺 TV');
@@ -49,15 +50,20 @@ async function load(force) {
   let board = { items: [] };
   try { board = await jget('/api/inspect/board'); } catch { /* pakai pilihan lama */ }
   if (force || !sel.options.length) {
-    setKids(sel, ...board.items.map((i) => h('option', { value: i.prod }, `${i.prod} · ${i.title}`.slice(0, 70))));
+    setKids(sel, ...board.items.map((i) => h('option', { value: i.prod }, `${i.label ?? i.prod} · ${i.title}`.slice(0, 70))));
     if (!st.prod || !board.items.some((i) => i.prod === st.prod)) st.prod = board.items[0]?.prod ?? null;
     sel.value = st.prod ?? '';
   }
   if (!st.prod) { st.data = null; render(); return; }
-  let d; try { d = await jget(`/api/inspect/production?prod=${encodeURIComponent(st.prod)}`); } catch { d = null; }
+  let d; try { d = await jget(`/api/inspect/production?prod=${encodeURIComponent(st.prod)}${st.rev !== '' ? `&rev=${encodeURIComponent(st.rev)}` : ''}`); } catch { d = null; }
   const sig = JSON.stringify(d);
   if (sig === st.sig && !force) return;
-  st.sig = sig; st.data = d && !d.error ? d : null; render();
+  st.sig = sig; st.data = d && !d.error ? d : null;
+  // pemilih versi (asli / revisi N) hanya tampil bila konten punya revisi; default = versi terbaru
+  const vs = st.data?.versions ?? [];
+  revSel.hidden = vs.length < 2;
+  if (vs.length >= 2) { setKids(revSel, ...vs.map((v) => h('option', { value: String(v.rev) }, v.label))); revSel.value = String(st.data.revision); }
+  render();
 }
 
 const hhmm = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');

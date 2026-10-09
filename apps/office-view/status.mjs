@@ -58,6 +58,7 @@ export function buildStatusText(f) {
     if (j.phase === 'running' && f.activity) lines.push(`⏳ ${stageName} terakhir: ${f.activity.label} (${dur(f.nowMs - f.activity.ts)} lalu)`);
     if (f.queue) lines.push(`📥 Antrean brief: ${f.queue}`);
   }
+  for (const p of f.pending ?? []) lines.push(p.ready ? `📝 ${p.identifier}: rencana Manager siap, menunggu giliran.` : `📝 ${p.identifier}: Manager sedang menyusun rencana (paralel, tidak mengganggu job yang berjalan).`);
   lines.push(f.net?.offline ? `🔌 Internet: TERPUTUS${f.net.since ? ' sejak ' + hhmm(f.net.since) : ''}; pekerjaan ditahan, lanjut otomatis saat online.` : '🌐 Internet: online');
   const busy = (f.agents ?? []).filter((a) => a.status !== 'idle');
   const idle = (f.agents ?? []).filter((a) => a.status === 'idle').map((a) => a.name);
@@ -111,4 +112,23 @@ export function buildResearchText(data) {
   lines.push('Satu produksi menghasilkan SATU carousel: Copywriter merangkai satu topik/angle dari kandidat terverifikasi, bukan satu carousel per kandidat.' + (carousel?.topic ? ` Carousel run ini: "${String(carousel.topic).slice(0, 100)}" (${carousel.slides?.length ?? '?'} slide, ${carousel.sources?.length ?? '?'} sumber).` : ''));
   lines.push('Kandidat lain tidak otomatis jadi konten. Untuk beberapa konten, beri arahan satu topik per produksi (mis. "buat carousel tentang <judul kandidat>"); produksi berjalan satu per satu.');
   return lines.join('\n');
+}
+
+/**
+ * Balasan instan (dari kode, tanpa LLM) saat brief masuk antrean: posisi, job yang berjalan, dan apa yang terjadi berikutnya.
+ * facts: { job:{identifier,phase,stageIndex}|null, pending:[{identifier,ready}], inboxAhead:number }  (inboxAhead = brief yang sudah antre di inbox SEBELUM brief ini)
+ */
+export function buildBriefAck({ job = null, pending = [], inboxAhead = 0 } = {}) {
+  const pos = pending.length + inboxAhead + 1;
+  const running = job && !['done', 'blocked'].includes(job.phase) ? job : null;
+  if (!running) {
+    return pending.length || inboxAhead
+      ? `Brief diterima (antrean #${pos}). Tidak ada job berjalan; brief di depan diproses lebih dulu, lalu brief ini.`
+      : 'Brief diterima. Tidak ada job berjalan: orkestrator mengambilnya dalam beberapa detik dan Manager langsung menyusun rencana.';
+  }
+  const stage = running.stageIndex >= 0 ? STAGE_AGENT[STAGES[running.stageIndex]] : 'perencanaan';
+  const base = `Brief diterima (antrean #${pos}). Job ${running.identifier} (tahap ${stage}) tetap berjalan dan tidak diganggu.`;
+  if (!pending.length && !inboxAhead) return `${base} Manager mulai menyusun rencana brief ini sekarang, paralel; tahap Researcher mulai begitu giliran tiba.`;
+  const ahead = pending[0] ? `Manager sedang/telah menyusun rencana untuk ${pending[0].identifier}` : 'Ada brief di depan';
+  return `${base} ${ahead}; brief ini direncanakan Manager begitu slot rencana kosong, lalu menunggu giliran tahapnya.`;
 }

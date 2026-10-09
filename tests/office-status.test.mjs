@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isStatusQuestion, lastActivityFromLog, buildStatusText, isResearchQuestion, buildResearchText } from '../apps/office-view/status.mjs';
+import { isStatusQuestion, lastActivityFromLog, buildStatusText, isResearchQuestion, buildResearchText, buildBriefAck } from '../apps/office-view/status.mjs';
 
 describe('isStatusQuestion', () => {
   it('pertanyaan progres singkat dikenali', () => {
@@ -61,5 +61,29 @@ describe('isResearchQuestion / buildResearchText', () => {
   });
   it('tanpa data riset: jujur, tidak mengarang', () => {
     expect(buildResearchText({})).toMatch(/Belum ada hasil riset/);
+  });
+});
+
+describe('buildBriefAck (balasan instan saat brief masuk antrean)', () => {
+  const job = { identifier: 'EDU-56', phase: 'running', stageIndex: 3 };
+  it('tanpa job berjalan: segera diambil', () => {
+    expect(buildBriefAck({})).toMatch(/Tidak ada job berjalan.*Manager langsung menyusun rencana/);
+  });
+  it('job berjalan, antrean kosong: Manager merencanakan paralel dan job tidak diganggu', () => {
+    const t = buildBriefAck({ job });
+    expect(t).toMatch(/antrean #1/); expect(t).toMatch(/EDU-56 \(tahap Designer\) tetap berjalan dan tidak diganggu/); expect(t).toMatch(/Manager mulai menyusun rencana brief ini sekarang, paralel/);
+  });
+  it('slot rencana terpakai: posisi bertambah dan dijelaskan menunggu slot', () => {
+    const t = buildBriefAck({ job, pending: [{ identifier: 'EDU-58', ready: false }], inboxAhead: 1 });
+    expect(t).toMatch(/antrean #3/); expect(t).toMatch(/EDU-58/); expect(t).toMatch(/slot rencana kosong/);
+  });
+  it('job selesai/diblokir dianggap tidak berjalan', () => {
+    expect(buildBriefAck({ job: { ...job, phase: 'done' } })).toMatch(/Tidak ada job berjalan/);
+  });
+  it('status memuat rencana yang disusun/siap', () => {
+    const f = { nowMs: 1_000_000, job: { identifier: 'EDU-56', phase: 'running', stageIndex: 3, stageStartedMs: 900_000 }, agents: [], net: null, activity: null, queue: 0, pending: [{ identifier: 'EDU-58', ready: false }] };
+    expect(buildStatusText(f)).toMatch(/EDU-58: Manager sedang menyusun rencana/);
+    f.pending = [{ identifier: 'EDU-58', ready: true }];
+    expect(buildStatusText(f)).toMatch(/EDU-58: rencana Manager siap, menunggu giliran/);
   });
 });

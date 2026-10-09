@@ -116,7 +116,7 @@ async function sendBrief(name, text) {
   const r = await fetch('/api/talk/brief', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, text }) }).catch(() => null);
   const j = r ? await r.json().catch(() => ({})) : {};
   status.textContent = r && r.ok ? `✔ ${j.note}` : `Gagal: ${j.error ?? 'tidak terhubung'}`;
-  if (r && r.ok) msg('system', 'Orkestrator', `Brief masuk antrean: ${j.file}`, Date.now());
+  if (r && r.ok) { msg('system', 'Orkestrator', `Brief masuk antrean: ${j.file}`, Date.now()); if (j.ack) msg('system', 'Manager (otomatis)', j.ack, Date.now()); }
   return !!(r && r.ok);
 }
 async function produce() {

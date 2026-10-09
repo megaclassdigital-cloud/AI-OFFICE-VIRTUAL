@@ -4,6 +4,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { activityTimeline } from './status.mjs';
 import { summarizeProduction, productionStatus, cleanTitle } from './production.mjs';
+import { CONTENT_RE, RUN_KEY_RE, runDirOf, runKeyFor, latestRunKey, listRevisions, masterIdentifierOf, labelOf, revisionOf } from '../../scripts/run-registry.mjs';
 
 const TEXT_EXT = new Set(['.json', '.md', '.txt']);
 const IMG_EXT = new Set(['.png']);
@@ -110,13 +111,21 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
   }
 
   const readJsonSafe = async (abs) => { try { return JSON.parse((await readFile(abs, 'utf8')).replace(/^﻿/, '')); } catch { return null; } };
-  async function listRender(prod) {
-    const dir = path.join(outputRoot, 'runs', prod, 'render');
-    return (await readdir(dir).catch(() => [])).filter((f) => /[.](png|json)$/.test(f)).map((f) => `runs/${prod}/render/${f}`);
+  // Kode konten (EDU-49) tidak berubah; revisi berada di runs/EDU-49/revision-N. "prod" dari UI = kode konten; "rev" opsional memilih versi (default terbaru).
+  function resolveRun(prod, rev) {
+    if (!CONTENT_RE.test(prod ?? '')) return null;
+    const revs = listRevisions(outputRoot, prod);
+    const wanted = rev !== undefined && rev !== '' && Number.isInteger(Number(rev)) ? Number(rev) : null;
+    const runKey = wanted !== null && (wanted === 0 || revs.includes(wanted)) ? runKeyFor(prod, wanted) : latestRunKey(outputRoot, prod);
+    return { contentId: prod, runKey, masterIdentifier: masterIdentifierOf(outputRoot, runKey), versions: [0, ...revs].map((n) => ({ rev: n, label: n === 0 ? 'asli' : `revisi ${n}` })) };
   }
-  async function masterOf(prod) {
+  async function listRender(runKey) {
+    const dir = path.join(runDirOf(outputRoot, runKey), 'render');
+    return (await readdir(dir).catch(() => [])).filter((f) => /[.](png|json)$/.test(f)).map((f) => `runs/${runKey}/render/${f}`);
+  }
+  async function masterOf(masterIdentifier) {
     const { companyId } = await ctx();
-    const master = (await api(`/companies/${companyId}/issues`)).find((i) => i.identifier === prod) ?? null;
+    const master = (await api(`/companies/${companyId}/issues`)).find((i) => i.identifier === masterIdentifier) ?? null;
     let handoff = null;
     if (master) {
       try { const dl = await api(`/issues/${master.id}/documents`); const d = (Array.isArray(dl) ? dl : dl.documents ?? []).find((x) => x.key === 'handoff'); if (d) { try { handoff = JSON.parse(d.body); } catch { handoff = {}; } } } catch { /* tanpa dokumen */ }
@@ -128,46 +137,56 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
     const s = await readJsonSafe(stateFile);
     return s?.job ?? null;
   }
-  async function productionView(prod) {
-    if (!/^EDU-[0-9]+$/.test(prod ?? '')) return { status: 400, body: { error: 'id produksi tidak valid' } };
-    const dir = path.join(outputRoot, 'runs', prod);
+  async function productionView(prod, rev) {
+    const run = resolveRun(prod, rev);
+    if (!run) return { status: 400, body: { error: 'id produksi tidak valid' } };
+    const { runKey, masterIdentifier } = run;
+    const dir = runDirOf(outputRoot, runKey);
     const [research, verification, carousel, design, qaAcc, qaMain, visualQa, order] = await Promise.all([
       readJsonSafe(path.join(dir, 'research-output.json')), readJsonSafe(path.join(dir, 'verification-result.json')), readJsonSafe(path.join(dir, 'carousel.json')),
       readJsonSafe(path.join(dir, 'carousel-design.json')), readJsonSafe(path.join(dir, 'qa-result.json.accepted')), readJsonSafe(path.join(dir, 'qa-result.json')),
-      readJsonSafe(path.join(dir, 'render', 'visual-qa.json')), readJsonSafe(path.join(outputRoot, 'orders', `${prod}.json`)),
+      readJsonSafe(path.join(dir, 'render', 'visual-qa.json')), readJsonSafe(path.join(outputRoot, 'orders', `${masterIdentifier}.json`)),
     ]);
     let master = null; let handoff = null; let paperclipOk = true;
-    try { ({ master, handoff } = await masterOf(prod)); } catch { paperclipOk = false; }
+    try { ({ master, handoff } = await masterOf(masterIdentifier)); } catch { paperclipOk = false; }
     const mt = async (f) => (await stat(path.join(dir, f)).catch(() => null))?.mtimeMs ?? null;
-    const mtimes = { manager: (await stat(path.join(outputRoot, 'orders', `${prod}.json`)).catch(() => null))?.mtimeMs ?? null, researcher: await mt('research-output.json'), verifier: await mt('verification-result.json'), copywriter: await mt('carousel.json'), designer: await mt('carousel-design.json'), qa: await mt('qa-result.json.accepted') ?? await mt('qa-result.json') };
-    const view = summarizeProduction({ prod, order, research, verification, carousel, design, qa: qaAcc ?? qaMain, visualQa, master, handoff, job: await activeJob(), renderFiles: await listRender(prod), mtimes, paperclipOk });
-    return { status: 200, body: view };
+    const mtimes = { manager: (await stat(path.join(outputRoot, 'orders', `${masterIdentifier}.json`)).catch(() => null))?.mtimeMs ?? null, researcher: await mt('research-output.json'), verifier: await mt('verification-result.json'), copywriter: await mt('carousel.json'), designer: await mt('carousel-design.json'), qa: await mt('qa-result.json.accepted') ?? await mt('qa-result.json') };
+    const aj = await activeJob();
+    const job = aj && aj.identifier === masterIdentifier ? { ...aj, identifier: run.contentId } : null; // summarizeProduction mencocokkan job dengan kode konten
+    const view = summarizeProduction({ prod: run.contentId, order, research, verification, carousel, design, qa: qaAcc ?? qaMain, visualQa, master, handoff, job, renderFiles: await listRender(runKey), mtimes, paperclipOk });
+    return { status: 200, body: { ...view, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
   }
-  /** Papan Tayang: tiga produksi terbaru dengan sampul dan status (untuk digambar di peta). */
+  /** Papan Tayang: tiga konten terbaru (versi terbaru tiap konten) dengan sampul dan status. */
   async function boardView() {
-    const dirs = (await readdir(path.join(outputRoot, 'runs'), { withFileTypes: true }).catch(() => [])).filter((e) => e.isDirectory() && /^EDU-[0-9]+$/.test(e.name));
-    const withTime = await Promise.all(dirs.map(async (e) => ({ prod: e.name, t: (await stat(path.join(outputRoot, 'runs', e.name)).catch(() => ({ mtimeMs: 0 }))).mtimeMs })));
+    const dirs = (await readdir(path.join(outputRoot, 'runs'), { withFileTypes: true }).catch(() => [])).filter((e) => e.isDirectory() && CONTENT_RE.test(e.name));
+    const withTime = await Promise.all(dirs.map(async (e) => {
+      const key = latestRunKey(outputRoot, e.name);
+      return { prod: e.name, runKey: key, t: (await stat(runDirOf(outputRoot, key)).catch(() => ({ mtimeMs: 0 }))).mtimeMs };
+    }));
     const items = [];
     const job = await activeJob();
-    for (const { prod } of withTime.sort((a, b) => b.t - a.t).slice(0, 3)) {
-      const render = await listRender(prod);
+    for (const { prod, runKey } of withTime.sort((a, b) => b.t - a.t).slice(0, 3)) {
+      const masterIdentifier = masterIdentifierOf(outputRoot, runKey);
+      const render = await listRender(runKey);
       const slides = render.filter((f) => /slide-[0-9]+[.]png$/.test(f)).sort();
-      const carousel = await readJsonSafe(path.join(outputRoot, 'runs', prod, 'carousel.json'));
-      const order = await readJsonSafe(path.join(outputRoot, 'orders', `${prod}.json`));
+      const carousel = await readJsonSafe(path.join(runDirOf(outputRoot, runKey), 'carousel.json'));
+      const order = await readJsonSafe(path.join(outputRoot, 'orders', `${masterIdentifier}.json`));
       let master = null; let handoff = null; let unknown = false;
-      try { ({ master, handoff } = await masterOf(prod)); } catch { unknown = true; }
-      items.push({ prod, title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: job?.identifier === prod ? job : null, unknown }) });
+      try { ({ master, handoff } = await masterOf(masterIdentifier)); } catch { unknown = true; }
+      items.push({ prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: job?.identifier === masterIdentifier ? job : null, unknown }) });
     }
     return { status: 200, body: { items } };
   }
 
-  async function filesView(prod) {
-    if (!/^EDU-\d+$/.test(prod ?? '')) return { status: 400, body: { error: 'id produksi tidak valid' } };
-    const dir = path.join(outputRoot, 'runs', prod);
+  async function filesView(prod, rev) {
+    const run = RUN_KEY_RE.test(prod ?? '') ? { runKey: prod } : resolveRun(prod, rev);
+    if (!run) return { status: 400, body: { error: 'id produksi tidak valid' } };
+    const dir = runDirOf(outputRoot, run.runKey);
     const out = [];
     const walk = async (d, rel, depth) => {
       for (const e of await readdir(d, { withFileTypes: true }).catch(() => [])) {
         const r = `${rel}/${e.name}`;
+        if (e.isDirectory() && depth === 0 && /^revision-[0-9]+$/.test(e.name)) continue; // revisi punya daftar sendiri
         if (e.isDirectory() && depth < 2) await walk(path.join(d, e.name), r, depth + 1);
         else if (e.isFile()) {
           const ext = path.extname(e.name).toLowerCase();
@@ -175,7 +194,7 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
         }
       }
     };
-    await walk(dir, `runs/${prod}`, 0);
+    await walk(dir, `runs/${run.runKey}`, 0);
     return { status: 200, body: { files: out.sort((a, b) => a.path.localeCompare(b.path)) } };
   }
 
@@ -189,9 +208,9 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
       if (p === '/api/inspect/agent') r = await agentView(q('name'));
       else if (p === '/api/inspect/approvals') r = await approvalsView();
       else if (p === '/api/inspect/issue') r = await issueView(q('id'));
-      else if (p === '/api/inspect/files') r = await filesView(q('prod'));
+      else if (p === '/api/inspect/files') r = await filesView(q('prod'), q('rev'));
       else if (p === '/api/inspect/board') r = await boardView();
-      else if (p === '/api/inspect/production') r = await productionView(q('prod'));
+      else if (p === '/api/inspect/production') r = await productionView(q('prod'), q('rev'));
       else if (p === '/api/inspect/file') {
         const abs = safeJoin(outputRoot, q('path'), TEXT_EXT);
         const st = abs ? await stat(abs).catch(() => null) : null;

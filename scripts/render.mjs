@@ -143,10 +143,10 @@ function resolveAsset(value) {
 
 /** Jenis aset ("brand" | "photo" | "product" | null) dari assets-manifest.json milik run, untuk path runs/<ID>/assets/<file>. */
 function assetKind(value) {
-  const m = String(value ?? '').match(/^runs\/([A-Za-z0-9-]+)\/assets\/([^/]+)$/);
+  const m = String(value ?? '').match(/^runs\/(EDU-[0-9]+(?:\/revision-[0-9]+)?|[A-Za-z0-9-]+)\/assets\/([^/]+)$/);
   if (!m) return null;
   try {
-    const man = JSON.parse(readFileSync(path.join(repoRoot, 'workspace', 'agent', 'runs', m[1], 'assets-manifest.json'), 'utf8').replace(/^﻿/, ''));
+    const man = JSON.parse(readFileSync(path.join(repoRoot, 'workspace', 'agent', 'runs', ...m[1].split('/'), 'assets-manifest.json'), 'utf8').replace(/^﻿/, ''));
     return man.assets?.find((a) => a.file === m[2])?.kind ?? null;
   } catch { return null; }
 }
@@ -328,6 +328,18 @@ try {
     );
 
     await page.evaluate(() => Promise.all([...document.images].map((im) => im.decode().catch(() => {}))));
+    // Logo/merek (contain): panel mengambil warna latar dari sudut gambarnya sendiri, supaya latar abu-abu/krem gambar tidak tampak sebagai kotak di atas panel.
+    await page.evaluate(() => {
+      for (const im of document.querySelectorAll('img[data-fit="contain"]')) {
+        try {
+          // satu piksel latar tepat di sudut kiri-atas (digeser 3 piksel dari tepi agar garis tepi hasil screenshot tidak ikut), bukan rata-rata area (mengenai isi logo)
+          const c = document.createElement('canvas'); c.width = 1; c.height = 1;
+          const g = c.getContext('2d'); g.drawImage(im, 3, 3, 1, 1, 0, 0, 1, 1);
+          const d = g.getImageData(0, 0, 1, 1).data;
+          if (d[3] > 200) im.style.background = 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+        } catch { /* gambar tidak terbaca: tetap panel putih */ }
+      }
+    });
     await page.evaluate(() => document.fonts.ready);
     const loadedFonts = await page.evaluate(() =>
       [...document.fonts].filter((f) => f.status === 'loaded').map((f) => `${f.family.replace(/['"]/g, '')} ${f.weight}`)

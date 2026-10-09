@@ -31,8 +31,10 @@ async function main() {
   const a = process.argv.slice(2);
   const prod = a[0];
   if (!/^EDU-[0-9]+$/.test(prod ?? '')) { console.error('Pemakaian: node scripts/finalize-production.mjs EDU-27'); return 2; }
+  const runKey = a.includes('--run') ? a[a.indexOf('--run') + 1] : prod; // folder run (EDU-49/revision-N untuk revisi); prod = identifier issue master Paperclip
+  if (!/^EDU-[0-9]+(?:\/revision-[0-9]+)?$/.test(runKey)) { console.error('--run tidak valid'); return 2; }
   const flag = (n) => (a.includes(n) ? a[a.indexOf(n) + 1] === 'true' : undefined);
-  const dir = path.join(ROOT, 'workspace', 'agent', 'runs', prod);
+  const dir = path.join(ROOT, 'workspace', 'agent', 'runs', ...runKey.split('/'));
   const j = async (p, o) => { const r = await fetch(API + p, o); const t = await r.text(); try { return JSON.parse(t); } catch { return t; } };
   const jb = (b) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(b), 'utf8') });
   const log = (m) => console.log(`${new Date().toISOString().slice(11, 19)} ${m}`);
@@ -65,7 +67,7 @@ async function main() {
     const { checkAssets } = await import('./asset-gate.mjs');
     const templates = readJson(path.join(ROOT, 'divisions', 'edukasiai', 'brand', 'templates.json')).templates;
     const manifestFile = path.join(dir, 'assets-manifest.json');
-    const assetErrors = checkAssets({ design, templates, manifest: existsSync(manifestFile) ? readJson(manifestFile) : null, identifier: prod, carousel, rootDir: ROOT });
+    const assetErrors = checkAssets({ design, templates, manifest: existsSync(manifestFile) ? readJson(manifestFile) : null, identifier: runKey, carousel, rootDir: ROOT });
     if (assetErrors.length) throw new Error(`aset gambar tidak lolos: ${assetErrors.join(' | ').slice(0, 400)}`);
   }
   const qaFile = ['qa-result.json.accepted', 'qa-result.json'].map((f) => path.join(dir, f)).find((f) => existsSync(f));
@@ -103,7 +105,7 @@ async function main() {
   // 3. render seal (the plugin RPC is capped at ~30 s on this machine; the worker keeps going, so we wait for the render to settle)
   const renderDir = path.join(ROOT, 'workspace', 'issues', id, 'render');
   const t0 = Date.now();
-  const rr = await tool('render_carousel', { issueId: id, designPath: `agent/runs/${prod}/carousel-design.json` }, 'Designer');
+  const rr = await tool('render_carousel', { issueId: id, designPath: `agent/runs/${runKey}/carousel-design.json` }, 'Designer');
   log(`render_carousel: ${rr.sealed === true ? 'tersegel' : (rr.error ? 'RPC habis waktu, menunggu worker' : JSON.stringify(rr).slice(0, 160))}`);
   if (rr.sealed !== true) {
     let stable = 0; let last = '';

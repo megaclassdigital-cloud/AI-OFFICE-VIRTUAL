@@ -90,11 +90,12 @@ export function checkAssets({ design, templates, manifest, identifier, carousel 
       if (def[slot]?.type !== 'image') continue;
       const v = String(value);
       if (v.startsWith('brand/')) { if (/placeholder|(^|\/)hero-\d/i.test(v)) errors.push(`slide ${s.index}: gambar "${v}" adalah placeholder tata letak, bukan aset asli`); continue; }
+      if (/^runs\//.test(v) && !v.startsWith(ASSET_PREFIX(identifier))) { errors.push(`slide ${s.index}: gambar "${v}" berasal dari run lain; pakai ${ASSET_PREFIX(identifier)}<berkas> (aset dibawa ke run ini)`); continue; }
       if (!v.startsWith(ASSET_PREFIX(identifier))) continue;
       const file = v.slice(ASSET_PREFIX(identifier).length);
       const a = byFile.get(file);
       if (!a || !OK_STATUS.has(a.status)) { errors.push(`slide ${s.index}: gambar "${file}" belum asli (status ${a?.status ?? 'tidak tercatat'})`); continue; }
-      const abs = path.join(rootDir, 'workspace', 'agent', 'runs', identifier, 'assets', file);
+      const abs = path.join(rootDir, 'workspace', 'agent', 'runs', ...String(identifier).split('/'), 'assets', file);
       if (!existsSync(abs) || statSync(abs).size < 2000) errors.push(`slide ${s.index}: berkas gambar "${file}" tidak ada atau terlalu kecil`);
       if (a.kind === 'brand' && a.status === 'captured') {
         const t = String(a.title ?? '');

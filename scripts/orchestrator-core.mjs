@@ -65,9 +65,21 @@ export function parseRevisionBrief(brief) {
   if (String(meta.mode ?? '').toLowerCase() !== 'revisi') return null;
   const from = meta.dari;
   const start = String(meta.mulai ?? 'designer').toLowerCase();
-  if (!/^EDU-[0-9]+$/.test(from ?? '') || !['copywriter', 'designer'].includes(start)) return null;
+  if (!/^EDU-[0-9]+(?:\/revision-[0-9]+)?$/.test(from ?? '') || !['copywriter', 'designer'].includes(start)) return null;
   return { from, start, startIndex: STAGES.indexOf(start), notes: m[2].trim() };
 }
+
+/** Kunci folder run sebuah job: revisi memakai EDU-49/revision-N; job lama tanpa runKey memakai identifier-nya. */
+export const runKeyOf = (job) => job?.runKey ?? job?.identifier;
+
+/** Berapa brief yang boleh direncanakan Manager di muka selagi job lain berjalan (menjaga kuota Manager). */
+export const MAX_PENDING_PLANS = 1;
+/** Boleh merencanakan brief berikutnya di muka? Hanya selama ada job aktif dan slot rencana belum penuh. */
+export const canPlanAhead = (job, pending = [], max = MAX_PENDING_PLANS) => Boolean(job && !['done', 'blocked'].includes(job.phase) && pending.filter((p) => !p.hold).length < max);
+/** Rencana siap yang paling lama menunggu giliran (FIFO), atau null. */
+export const nextPlanned = (pending = []) => pending.find((p) => p.ready && !p.hold) ?? null;
+/** Rencana yang ditahan owner (hold) tidak dievaluasi, tidak dipromosikan, dan tidak menghalangi brief lain. */
+export const activePending = (pending = []) => pending.filter((p) => !p.hold);
 
 export const newJob = ({ masterIssueId, identifier, nowMs }) => ({
   masterIssueId, identifier, phase: 'planning', stageIndex: -1, stageIssueId: null, createdMs: nowMs, stageStartedMs: null, planRetries: 0,

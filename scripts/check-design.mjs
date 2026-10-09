@@ -30,7 +30,7 @@ export const ROLE_TEMPLATES = {
   comparison: ['comparison', 'compare-cards'],
   cta: ['cta', 'hero-cta'],
 };
-const IMAGE_PATH_RE = /^(runs\/EDU-[0-9]+\/assets\/[A-Za-z0-9._-]+\.(png|jpe?g|webp)|brand\/[A-Za-z0-9._\/-]+\.(png|jpe?g|webp))$/;
+const IMAGE_PATH_RE = /^(runs\/EDU-[0-9]+(?:\/revision-[0-9]+)?\/assets\/[A-Za-z0-9._-]+\.(png|jpe?g|webp)|brand\/[A-Za-z0-9._\/-]+\.(png|jpe?g|webp))$/;
 const NUMBER_EXEMPT_SLOTS = new Set(['number']);
 const NAME_EXEMPT_SLOTS = new Set(['kicker']);
 
