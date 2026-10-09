@@ -271,7 +271,7 @@ export function describeEvent(world, ev, stamp) {
       return null;
     case 'handoff':
       return ev.emoji === '❌' ? `${hh} ${nm(ev.from)} mengembalikan ${ev.issue?.identifier ?? ''} ke ${nm(ev.to)} (revisi)` : `${hh} ${nm(ev.from)} menyerahkan ${ev.issue?.identifier ?? 'dokumen'} ke ${nm(ev.to)}`;
-    case 'comment': return `${hh} komentar baru di ${ev.issue?.identifier ?? 'issue'} (${nm(ev.agentId)})`;
+    case 'comment': return ev.excerpt ? `${hh} ${ev.fromOwner ? 'Owner → ' : ''}${nm(ev.agentId)} · ${ev.issue?.identifier ?? 'issue'}: ${ev.excerpt}` : `${hh} komentar baru di ${ev.issue?.identifier ?? 'issue'} (${nm(ev.agentId)})`;
     case 'deliver': return `${hh} ${nm(ev.agentId)} meletakkan ${ev.issue?.identifier ?? 'paket'} di Meja Owner, menunggu keputusan`;
     case 'owner.queue': return `${hh} paket menunggu owner: ${ev.count}`;
     case 'owner.decide': return `${hh} owner ${ev.decision === 'rejected' ? 'menolak' : 'menyetujui'} paket`;

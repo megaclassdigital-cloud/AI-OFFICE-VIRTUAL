@@ -42,6 +42,11 @@ if (info.enabled) {
     const r = await fetch('/api/talk', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, issueId }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { $('talkStatus').textContent = `Gagal: ${j.error ?? r.status}`; $('talkSend').disabled = false; return; }
+    if (j.kind === 'status') {
+      // Jawaban instan dari data nyata: tampil lokal, tidak membuat issue dan tidak membangunkan Manager.
+      addMsg('me', 'Owner', text); addMsg('system', 'Status', j.answer);
+      $('talkText').value = ''; $('talkStatus').textContent = 'Jawaban status instan (tanpa kuota).'; $('talkSend').disabled = false; return;
+    }
     issueId = j.issueId; $('talkText').value = '';
     $('talkStatus').textContent = 'Terkirim. Manager dibangunkan; balasan muncul di sini.';
     await poll(); clearInterval(timer); timer = setInterval(poll, 4000);

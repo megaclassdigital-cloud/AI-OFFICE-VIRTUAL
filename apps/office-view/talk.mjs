@@ -3,13 +3,15 @@
 // owner comment to an issue created here). Loopback only, same-origin only, size and rate limited. No LLM here.
 import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { isStatusQuestion, buildStatusText, lastActivityFromLog } from './status.mjs';
+import { STAGES, STAGE_AGENT } from '../../scripts/orchestrator-core.mjs';
 
 const MAX_TEXT = 4000;
 const OUT_EXT = new Set(['.md', '.json', '.txt']);
 const MAX_FILE = 200 * 1024;
 const MIN_GAP_MS = 5000;
 
-export function createTalk({ base, port, managerName = 'Manager', companyMatch = /edukasi/i, now = () => Date.now(), outputRoot = null, inboxRoot = null, stateFile = null }) {
+export function createTalk({ base, port, managerName = 'Manager', companyMatch = /edukasi/i, now = () => Date.now(), outputRoot = null, inboxRoot = null, stateFile = null, orchLogFile = null, netFile = null }) {
   const agentNames = new Map();
   const issues = new Set();
   let last = 0;
@@ -36,6 +38,33 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     return cache;
   }
 
+  // Jawaban status instan dari data nyata (tanpa LLM). Setiap sumber gagal-aman: yang tidak terbaca dilewati, tidak membuat jawaban gagal.
+  async function gatherStatus() {
+    const nowMs = now();
+    const readJson = async (f) => { try { return JSON.parse((await readFile(f, 'utf8')).replace(/^\uFEFF/, '')); } catch { return null; } };
+    const st = stateFile ? await readJson(stateFile) : null;
+    const job = st?.job ? { identifier: st.job.identifier, phase: st.job.phase, stageIndex: st.job.stageIndex, stageStartedMs: st.job.stageStartedMs } : null;
+    let queue = 0; try { queue = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* tanpa inbox */ }
+    const ns = netFile ? await readJson(netFile) : null;
+    const net = ns && nowMs - (ns.updatedAtMs ?? 0) < 120_000 ? { offline: ns.hold === true, since: ns.since } : null;
+    let agents = []; let activity = null;
+    try {
+      const t = await target();
+      agents = (await api(`/companies/${t.companyId}/agents`)).map((a) => ({ name: a.name, status: a.status, model: a.adapterConfig?.model ?? '' }));
+      if (job?.phase === 'running' && job.stageIndex >= 0) {
+        const who = agents.find((a) => a.name === STAGE_AGENT[STAGES[job.stageIndex]]);
+        const full = (await api(`/companies/${t.companyId}/agents`)).find((a) => a.name === who?.name);
+        const runs = full ? (await api(`/companies/${t.companyId}/heartbeat-runs?limit=30`)).filter((r) => r.agentId === full.id && r.status === 'running') : [];
+        if (runs[0]) { const lg = await api(`/heartbeat-runs/${runs[0].id}/log`); activity = lastActivityFromLog(lg?.content); }
+      }
+    } catch { /* Paperclip tidak terjangkau: tampilkan yang ada */ }
+    let lastBlockLine = null;
+    if (job?.phase === 'blocked' && orchLogFile) {
+      try { const l = (await readFile(orchLogFile, 'utf8')).split(/\r?\n/).reverse().find((x) => x.includes('DIBLOKIR')); lastBlockLine = l ? l.replace(/^\S+\s+/, '').slice(0, 200) : null; } catch { /* tanpa log */ }
+    }
+    return { nowMs, job, agents, net, activity, lastBlockLine, queue };
+  }
+
   const sameOrigin = (req) => {
     const host = req.headers.host;
     if (host !== `127.0.0.1:${port}`) return false;
@@ -54,6 +83,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     if (!u.pathname.startsWith('/api/talk')) return false;
     try {
       if (u.pathname === '/api/talk/info' && req.method === 'GET') { json(res, 200, { enabled: true, to: managerName }); return true; }
+      if (u.pathname === '/api/talk/status' && req.method === 'GET') { json(res, 200, { text: buildStatusText(await gatherStatus()) }); return true; }
       if (u.pathname === '/api/talk/pipeline' && req.method === 'GET') {
         let job = null; let history = 0; let queue = 0;
         try { const s = JSON.parse((await readFile(stateFile, 'utf8')).replace(/^\uFEFF/, '')); job = s.job ? { identifier: s.job.identifier, phase: s.job.phase, stageIndex: s.job.stageIndex } : null; history = (s.history ?? []).length; } catch { /* belum ada state */ }
@@ -115,7 +145,10 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         if (!sameOrigin(req)) { json(res, 403, { error: 'origin ditolak' }); return true; }
         if (now() - last < MIN_GAP_MS) { json(res, 429, { error: 'tunggu beberapa detik antar pesan' }); return true; }
         const { text, issueId } = await readBody(req);
-        const msg = typeof text === 'string' ? text.trim() : '';
+        let msg = typeof text === 'string' ? text.trim() : '';
+        // Pertanyaan progres dijawab instan dari data nyata (tanpa membangunkan Manager). "manager:" memaksa ke Manager.
+        if (!issueId && isStatusQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildStatusText(await gatherStatus()) }); return true; }
+        msg = msg.replace(/^manager\s*:\s*/i, '');
         if (!msg || msg.length > MAX_TEXT) { json(res, 400, { error: `pesan 1-${MAX_TEXT} karakter` }); return true; }
         last = now();
         const t = await target();

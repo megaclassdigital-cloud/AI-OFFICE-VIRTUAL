@@ -116,7 +116,7 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
           if (p.comments.has(c.id)) continue;
           const who = c.authorAgentId ?? i.assigneeAgentId;
           // excerpt = data teks dari Paperclip, hanya ditampilkan sebagai teks di kanvas (tidak pernah dieksekusi)
-          const excerpt = String(c.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 90);
+          const excerpt = String(c.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
           if (who) push({ type: 'comment', agentId: who, issue: issueRef(i), ...(c.authorAgentId ? {} : { fromOwner: true }), ...(excerpt ? { excerpt } : {}) }, t0);
         }
       }

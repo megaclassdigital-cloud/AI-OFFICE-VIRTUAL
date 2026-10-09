@@ -45,7 +45,19 @@ Untuk komentar, status, dan lampiran, **pakai tool plugin `aao-approval-gate`**,
   ringkasan dan mengubah status sekaligus; setelah itu tidak ada pekerjaan lagi untukmu.
 - `attach_file { issueId, key, body }` — lampirkan dokumen (key huruf kecil, mis. `research-output.json`).
 
-**Cara memanggil tool (semua adapter):** jalankan perintah shell ini; hasilnya JSON `{ok:...}`.
+**CARA UTAMA, TANPA JSON (paling andal di PowerShell; JSON inline sering rusak oleh kutip, `&`, dan backtick):**
+
+```
+node D:AI-MemoryAI-Agent-Officedivisionsedukasiai	oolsaao-tool.mjs say "teks komentar"
+node D:AI-MemoryAI-Agent-Officedivisionsedukasiai	oolsaao-tool.mjs done "ringkasan hasil"
+node D:AI-MemoryAI-Agent-Officedivisionsedukasiai	oolsaao-tool.mjs need-human "alasan terhalang"
+```
+
+`say` = komentar; `done` = selesai (menunggu owner); `need-human` = kamu terhalang. Untuk teks panjang atau yang memuat kutip ganda,
+tulis teks ke berkas UTF-8 lalu pakai `say --text-file C:path	eks.txt` (juga untuk `done` dan `need-human`). `issueId` otomatis memakai issue run ini.
+**Jangan mengulang perintah yang sama lebih dari dua kali**: bila gagal dua kali, pakai `--text-file`, atau `need-human` dengan galatnya.
+
+**Bentuk JSON (hanya bila perlu tool lain, mis. attach_file, verify_candidate):** jalankan perintah shell ini; hasilnya JSON `{ok:...}`.
 
 ```
 node D:\AI-Memory\AI-Agent-Office\divisions\edukasiai\tools\aao-tool.mjs post_comment "{\"issueId\":\"<id>\",\"body\":\"teks\"}"

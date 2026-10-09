@@ -167,8 +167,12 @@ async function gatherFacts(job, state) {
   if (job.phase === 'running' && job.stageIssueId) {
     const issue = await j(`/issues/${job.stageIssueId}`);
     const agentId = issue.assigneeAgentId;
-    const last = runs.filter((r) => r.agentId === agentId && Date.parse(r.startedAt ?? 0) >= job.stageStartedMs - 5000)[0];
-    const failed = !!last && ['failed', 'error', 'timed_out'].includes(last.status) && !['in_review', 'done'].includes(issue.status);
+    // Penilaian kegagalan: abaikan run dibatalkan dan "scheduled_retry" (percobaan ulang bawaan Paperclip yang bisa macet bila agent
+    // berstatus error). Gagal = tidak ada run yang masih berjalan/antre, dan run nyata terakhir berakhir gagal.
+    const mine = runs.filter((r) => r.agentId === agentId && Date.parse(r.startedAt ?? r.createdAt ?? 0) >= job.stageStartedMs - 5000);
+    const active = mine.some((r) => ['running', 'queued'].includes(r.status));
+    const last = mine.find((r) => !['cancelled', 'scheduled_retry'].includes(r.status));
+    const failed = !active && !!last && ['failed', 'error', 'timed_out'].includes(last.status) && !['in_review', 'done'].includes(issue.status);
     stage = { status: issue.status, failed, error: failed ? last.error : undefined };
     if (['in_review', 'done'].includes(issue.status)) output = checkOutput(job, STAGES[job.stageIndex]);
   }
@@ -203,6 +207,8 @@ async function applyActions(job, actions, facts) {
       const ag = agentByName(STAGE_AGENT[act.stage]);
       const cur = await j('/agents/' + ag.id);
       if (['error', 'paused'].includes(cur.status)) await j('/agents/' + ag.id + '/resume', jb('POST', {}));
+      // Tutup issue tahap lama (milik orkestrator) agar percobaan ulang bawaan Paperclip tidak berjalan bersamaan dengan yang baru.
+      if (act.oldIssueId) await j('/issues/' + act.oldIssueId, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {});
       await new Promise((r) => setTimeout(r, 45_000));
       job.stageIssueId = await createStage(job, act.stage);
       job.stageStartedMs = Date.now();

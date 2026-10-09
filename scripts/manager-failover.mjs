@@ -87,6 +87,15 @@ async function main() {
     if (!agent) return;
     const idx = idxOf(name, agent);
     const st = readState(name);
+    // Pemulihan setelah internet kembali: agent berstatus error karena galat jaringan di-resume otomatis (tanpa trigger tambahan).
+    if (agent.status === 'error' && !isOffline(readNetworkState(path.join(ROOT, 'workspace', 'network-state.json')))) {
+      const recent = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id && r.status !== 'cancelled' && r.status !== 'scheduled_retry')[0];
+      if (recent && isNetworkError(`${recent.error ?? ''} ${recent.errorCode ?? ''}`)) {
+        await j(`/agents/${agent.id}/resume`, jb('POST', {}));
+        log(`${name} dipulihkan otomatis setelah galat jaringan`);
+        return;
+      }
+    }
     if (shouldReset({ currentIdx: idx, lastSwitchMs: st.switchedAtMs, nowMs: Date.now() })) return apply(name, chain[0], 'hari baru, kembali ke prioritas utama');
     // Run yang dibatalkan (mis. agent sedang di-pause) bukan bukti kuota/model; yang dinilai adalah run terakhir yang benar-benar berjalan.
     const runs = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id && r.status !== 'cancelled');

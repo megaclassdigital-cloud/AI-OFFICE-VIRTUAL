@@ -120,11 +120,13 @@ export function step(job, facts) {
       }
     } else if (st.failed && isNetworkError(st.error) && (j.netRetries ?? 0) < LIMITS.maxNetRetries) {
       // Putus jaringan: ulangi tahap yang sama tanpa menghabiskan jatah percobaan biasa.
+      const oldIssueId = j.stageIssueId;
       j.netRetries = (j.netRetries ?? 0) + 1; j.stageStartedMs = facts.nowMs; j.stageIssueId = null;
-      actions.push({ type: 'retryStage', stage: stageName, reason: 'jaringan terputus, diulang saat online', network: true });
+      actions.push({ type: 'retryStage', stage: stageName, reason: 'jaringan terputus, diulang saat online', network: true, oldIssueId });
     } else if (st.failed && isTransientError(st.error) && (j.stageAttempts ?? 1) < LIMITS.maxStageAttempts) {
+      const oldIssueId = j.stageIssueId;
       j.stageAttempts = (j.stageAttempts ?? 1) + 1; j.stageStartedMs = facts.nowMs; j.stageIssueId = null;
-      actions.push({ type: 'retryStage', stage: stageName, reason: String(st.error).slice(0, 100) });
+      actions.push({ type: 'retryStage', stage: stageName, reason: String(st.error).slice(0, 100), oldIssueId });
     } else if (st.status === 'blocked' || st.failed) {
       block(`tahap ${STAGE_AGENT[stageName]} ${st.failed ? 'gagal' : 'terhalang'}${st.error ? `: ${String(st.error).slice(0, 120)}` : ''}`);
     } else if (facts.nowMs - j.stageStartedMs > LIMITS.stageTimeoutMs) {

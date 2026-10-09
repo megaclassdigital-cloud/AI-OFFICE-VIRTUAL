@@ -4,16 +4,15 @@
 // It builds the HTTP request in code (UTF-8 byte-safe) and fills the run context from the agent's own env.
 // Env used: PAPERCLIP_API_URL, PAPERCLIP_RUN_ID (set by Paperclip for every run), PAPERCLIP_TASK_ID (default issueId).
 import { readFileSync } from 'node:fs';
+import { parseCli } from './aao-cli.mjs';
 
-const argv = process.argv.slice(2);
-const tool = argv[0];
-const fileIdx = argv.indexOf('--file');
-const raw = fileIdx === -1 ? (argv[1] ?? '{}') : '{}';
-const rest = fileIdx === -1 ? [] : ['--file', argv[fileIdx + 1]];
-if (!tool) { console.error('Pemakaian: node aao-tool.mjs <tool> \'{"issueId":"..."}\' [--file params.json]'); process.exit(2); }
+const fail = (error, extra = {}) => { console.log(JSON.stringify({ ok: false, error, ...extra })); process.exit(1); };
+const parsed = parseCli(process.argv.slice(2), (p) => readFileSync(p, 'utf8'));
+if (parsed.error) fail(parsed.error);
+const tool = parsed.tool;
+const params = parsed.params;
 // PAPERCLIP_API_URL di dalam run bisa berupa "http://host:port" atau "http://host:port/api". Coba keduanya lalu cadangan 127.0.0.1:3177;
 // salah basis mengenai halaman UI (HTML), bukan API, jadi basis dipilih hanya bila /health menjawab JSON.
-const fail = (error, extra = {}) => { console.log(JSON.stringify({ ok: false, error, ...extra })); process.exit(1); };
 const envUrl = (process.env.PAPERCLIP_API_URL ?? '').trim().replace(/\/+$/, '');
 const candidates = [...new Set([envUrl && (envUrl.endsWith('/api') ? envUrl : envUrl + '/api'), envUrl, 'http://127.0.0.1:3177/api'].filter(Boolean))];
 let API = null; const tried = [];
@@ -29,11 +28,6 @@ if (!API) fail('tidak menemukan API Paperclip yang menjawab JSON', { tried });
 const runId = process.env.PAPERCLIP_RUN_ID;
 if (!runId) { console.log(JSON.stringify({ ok: false, error: 'PAPERCLIP_RUN_ID tidak ada; alat ini hanya jalan di dalam run agent' })); process.exit(1); }
 
-let params;
-try {
-  const f = rest.indexOf('--file');
-  params = JSON.parse(f >= 0 ? readFileSync(rest[f + 1], 'utf8') : raw);
-} catch (e) { console.log(JSON.stringify({ ok: false, error: `parameter bukan JSON valid: ${e.message}` })); process.exit(1); }
 if (!params.issueId && process.env.PAPERCLIP_TASK_ID && tool !== 'aao_hello') params.issueId = process.env.PAPERCLIP_TASK_ID;
 
 const getJson = async (p, init) => {
