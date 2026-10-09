@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Office View server: read-only, bind 127.0.0.1:3190. Tidak ada aksi tulis ke Paperclip dan tidak ada panggilan LLM.
+// Office View server: read-only by default (opt-in --enable-talk adds one owner->Manager message path), bind 127.0.0.1:3190. Tidak ada aksi tulis ke Paperclip dan tidak ada panggilan LLM.
 //
 // Pemakaian: node apps/office-view/server.mjs [--port 3190] [--paperclip http://127.0.0.1:3177] [--open] [--poll-ms 2000]
 
@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBridge } from './bridge.mjs';
+import { createTalk } from './talk.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..');
@@ -23,6 +24,9 @@ const LAYOUT_FILE = path.join(repoRoot, 'divisions', 'edukasiai', 'office', 'lay
 const REPLAY_FILE = path.join(repoRoot, 'fixtures', 'office-events', 'demo-carousel.jsonl');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json; charset=utf-8' };
 
+const TALK = a.includes('--enable-talk');
+const talk = TALK ? createTalk({ base: PAPERCLIP, port: PORT }) : null;
+
 export const bridge = createBridge({ base: PAPERCLIP, log: (m) => console.error(m) });
 
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': MIME['.json'], 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
@@ -35,8 +39,10 @@ export async function readReplay() {
 
 export const server = http.createServer(async (req, res) => {
   try {
-    if (req.method !== 'GET') return json(res, 405, { error: 'Office View read-only' });
     const u = new URL(req.url, 'http://localhost');
+    if (talk && (await talk(req, res, u, json))) return;
+    if (u.pathname === '/api/talk/info') return json(res, 200, { enabled: false });
+    if (req.method !== 'GET') return json(res, 405, { error: 'Office View read-only' });
     const p = u.pathname;
     if (p === '/api/layout') return json(res, 200, JSON.parse(strip(await readFile(LAYOUT_FILE, 'utf8'))));
     if (p === '/api/status') return json(res, 200, bridge.status());

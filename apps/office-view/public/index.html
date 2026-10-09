@@ -47,8 +47,16 @@
     <p>Ruang <b>redup</b> = belum punya sumber data nyata ("segera aktif"). Di mode Live tidak ada yang dipalsukan.</p>
   </aside>
 
+  <aside id="talk" hidden aria-label="Bicara dengan Manager">
+    <h3><span>💬 Bicara dengan Manager</span><span id="talkIssue"></span></h3>
+    <div id="talkThread" aria-live="polite"></div>
+    <div id="talkStatus"></div>
+    <form id="talkForm"><textarea id="talkText" maxlength="4000" placeholder="Tulis arahan untuk Manager… (Ctrl+Enter kirim)"></textarea><button id="talkSend" type="submit">Kirim</button></form>
+  </aside>
+
   <section id="log" aria-label="Log kejadian" aria-live="polite"></section>
 </div>
 <script src="/office.js" type="module"></script>
+<script src="/talk-ui.js" type="module"></script>
 </body>
 </html>

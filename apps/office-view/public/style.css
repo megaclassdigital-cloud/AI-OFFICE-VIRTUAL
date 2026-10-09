@@ -21,3 +21,17 @@ button:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
 #log[hidden] { display: none; } #log div { flex: 0 0 auto; padding: 2px 0; border-bottom: 1px solid #ffffff10; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } #log div:last-child { color: #fff; font-weight: 600; } #log time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
 @media (max-width: 1100px) { .brandline { display: none; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Talk panel (opt-in) */
+#talk { position: absolute; right: 12px; bottom: 96px; width: 360px; max-height: 46%; display: flex; flex-direction: column; gap: 6px; background: rgba(15, 23, 42, .94); color: #f1f5f9; border: 1px solid #475569; border-radius: 10px; padding: 10px; font: 13px/1.4 system-ui, sans-serif; z-index: 20; }
+#talk[hidden] { display: none; }
+#talk h3 { margin: 0; font-size: 13px; display: flex; justify-content: space-between; }
+#talkThread { overflow: auto; min-height: 60px; display: flex; flex-direction: column; gap: 6px; }
+#talkThread .m { padding: 6px 8px; border-radius: 8px; background: #1e293b; white-space: pre-wrap; word-break: break-word; }
+#talkThread .m.me { background: #1d4ed8; align-self: flex-end; }
+#talkThread .meta { font-size: 11px; opacity: .7; }
+#talkForm { display: flex; gap: 6px; }
+#talkText { flex: 1; resize: vertical; min-height: 44px; max-height: 120px; border-radius: 6px; border: 1px solid #64748b; background: #0f172a; color: inherit; padding: 6px; font: inherit; }
+#talkSend { border: 0; border-radius: 6px; background: #22c55e; color: #052e16; font-weight: 700; padding: 0 12px; cursor: pointer; }
+#talkSend:disabled { opacity: .5; cursor: default; }
+#talkStatus { font-size: 11px; opacity: .8; min-height: 14px; }

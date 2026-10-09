@@ -10,6 +10,15 @@ node apps/office-view/server.mjs --port 3190 --paperclip http://127.0.0.1:3177
 
 Syarat: Paperclip hidup (`scripts\start-paperclip.ps1 -Status`). Jika mati, UI menampilkan banner "Paperclip tidak terhubung" dan mencoba lagi sendiri.
 
+## Kolom komunikasi dengan Manager (opt-in)
+
+```powershell
+npm run office:talk            # sama seperti office, plus panel "Bicara dengan Manager" di kanan bawah
+```
+
+Pesan Anda menjadi issue yang ditugaskan ke agent **Manager** (atau komentar pada issue yang dibuat panel ini); balasan Manager muncul di panel.
+Ini satu-satunya jalur tulis Office View: hanya aktif dengan `--enable-talk`, loopback + same-origin, maks 4000 karakter, jeda 5 detik, hanya company EdukasiAI. Tanpa flag, semua tetap read-only (405). Pesan membangunkan Manager (satu run model gratis).
+
 ## Mode
 
 | Mode | Sumber | Label |
