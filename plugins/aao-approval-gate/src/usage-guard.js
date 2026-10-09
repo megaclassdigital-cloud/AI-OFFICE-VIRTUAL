@@ -47,6 +47,8 @@ export function summarizeRuns(runs, nowMs, limits) {
   const dayStart = startOfLocalDay(nowMs, limits.timezoneOffsetMinutes);
   const out = new Map();
   for (const r of runs) {
+    // Run yang dibatalkan sebelum berjalan (mis. agent sedang di-pause) tidak memakai kuota model: tidak dihitung.
+    if (r.status === 'cancelled') continue;
     const s = Date.parse(r.startedAt ?? '');
     if (!Number.isFinite(s) || s < dayStart || s > nowMs) continue;
     const f = r.finishedAt ? Date.parse(r.finishedAt) : nowMs; // run berjalan dihitung sampai sekarang

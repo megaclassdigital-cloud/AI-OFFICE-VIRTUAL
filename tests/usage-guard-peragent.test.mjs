@@ -42,4 +42,12 @@ describe('batas per agent (perAgent)', () => {
     expect(() => normalizeLimits({ perAgent: [] })).toThrow();
     expect(() => normalizeLimits({ perAgent: { Manager: { maxMinutesPerAgentPerDay: 120 } } })).not.toThrow();
   });
+
+  it('run dibatalkan tidak dihitung (tidak memakai kuota), run lain tetap dihitung', async () => {
+    const runs = [...runsFor('r', 5), ...runsFor('r', 4).map((x) => ({ ...x, status: 'cancelled' })), { agentId: 'r', startedAt: '2026-10-09T01:00:00Z', finishedAt: '2026-10-09T01:01:00Z', status: 'failed' }];
+    const { deps } = mk(runs, { r: 'Researcher' });
+    expect((await enforce({ companyId: 'c', limitsRaw: { maxRunsPerAgentPerDay: 7 }, nowMs: NOW, deps })).paused).toEqual([]);
+    const { deps: d2 } = mk(runs, { r: 'Researcher' });
+    expect((await enforce({ companyId: 'c', limitsRaw: { maxRunsPerAgentPerDay: 6 }, nowMs: NOW, deps: d2 })).paused).toEqual(['r']);
+  });
 });
