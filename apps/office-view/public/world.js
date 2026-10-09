@@ -99,6 +99,32 @@ function standNear(world, key) {
   return d ? d.stand : world.layout.loungeSlots[0];
 }
 
+const VERB = {
+  researcher: 'Mencari kandidat berita AI',
+  verifier: 'Memeriksa sumber, URL, dan tanggal',
+  copywriter: 'Menulis draf teks slide',
+  designer: 'Memilih template dan warna',
+  qa: 'Memeriksa hasil render slide',
+  manager: 'Menyusun arahan dan brief',
+};
+const fmtElapsed = (sec) => (sec < 60 ? `${Math.max(1, Math.floor(sec))}d` : `${Math.floor(sec / 60)}m ${Math.floor(sec % 60)}d`);
+
+/** Teks "berbicara dalam hati" dari data log (tanpa LLM, tanpa token). Kosong untuk Owner. */
+export function thoughtOf(c, t) {
+  if (c.isOwner) return '';
+  const ref = c.issue?.identifier ? ` (${c.issue.identifier})` : '';
+  const el = c.since !== undefined ? ` · ${fmtElapsed(t - c.since)}` : '';
+  if (c.carry) return `Membawa dokumen${ref} ke rekan`;
+  if (c.state === 'working') {
+    if (c.moving) return `Menuju meja${ref}…`;
+    return `${VERB[c.deskKey] ?? VERB[String(c.role ?? '').toLowerCase()] ?? 'Mengerjakan tugas'}${ref}${el}`;
+  }
+  if (c.state === 'failed') return `Run gagal${c.reason ? ': ' + c.reason : ''} — menunggu dipulihkan`;
+  if (c.state === 'alert') return `Butuh keputusan manusia${c.reason ? ': ' + c.reason : ''}`;
+  if (c.state === 'paused') return `Dijeda${c.reason ? ' (' + c.reason + ')' : ''} — tidak bekerja`;
+  return c.moving ? 'Berjalan…' : 'Istirahat, menunggu tugas';
+}
+
 function title(issue) {
   if (!issue) return '';
   return issue.title ? `${issue.identifier ?? ''} ${issue.title}`.trim() : issue.identifier ?? '';
@@ -111,7 +137,9 @@ export function applyEvent(world, ev, { instant = false } = {}) {
     case 'agent.state': {
       const c = ensureChar(world, ev);
       const prev = c.state;
+      if (c.state !== ev.state || c.since === undefined) c.since = world.t;
       c.state = ev.state;
+      c.reason = ev.reason;
       c.issue = ev.issue ?? null;
       if (instant) {
         const h = homeOf(world, c);
@@ -120,7 +148,7 @@ export function applyEvent(world, ev, { instant = false } = {}) {
         c.path = [];
         goHome(world, c);
       }
-      if (ev.state === 'working') say(world, c, '⌨️', title(ev.issue), 6);
+      if (ev.state === 'working') say(world, c, '⌨️', `Mulai: ${title(ev.issue)}`, 5);
       else if (ev.state === 'failed') say(world, c, '🐞', ev.reason ?? 'run gagal', 8);
       else if (ev.state === 'alert') say(world, c, '⚠️', ev.reason ?? 'butuh manusia', 8);
       else if (ev.state === 'paused') say(world, c, '😴', ev.reason ?? 'dijeda', 8);
@@ -132,19 +160,24 @@ export function applyEvent(world, ev, { instant = false } = {}) {
       const to = world.chars.get(ev.to);
       if (!from || !to) break;
       const target = to.deskKey ? standNear(world, to.deskKey) : L.loungeSlots[0];
-      from.queue = [{ go: target, carry: true }, { bubbleBoth: ev.emoji ?? '📄', other: to.id, text: title(ev.issue) }, { wait: 1.2 }, { drop: true }];
+      from.queue = [{ go: target, carry: true }, { bubbleBoth: ev.emoji ?? '📄', other: to.id, text: ev.emoji === '❌' ? `${to.name}, perlu revisi: ${title(ev.issue)}` : `${to.name}, ini untukmu: ${title(ev.issue)}`, otherText: ev.emoji === '❌' ? 'Baik, aku perbaiki.' : `Diterima dari ${from.name}, kukerjakan.` }, { wait: 1.2 }, { drop: true }];
       from.path = [];
       break;
     }
     case 'comment': {
       const c = world.chars.get(ev.agentId);
-      if (c) say(world, c, '💬', title(ev.issue), 3.5);
+      const quote = ev.excerpt ? `${ev.excerpt}` : title(ev.issue);
+      if (ev.fromOwner) {
+        const o = world.chars.get('owner');
+        if (o) say(world, o, '🗣️', `Arahan: ${quote}`, 6);
+        if (c) say(world, c, '👂', `Diterima: ${title(ev.issue)}`, 6);
+      } else if (c) say(world, c, '💬', quote, 6);
       break;
     }
     case 'deliver': {
       const c = world.chars.get(ev.agentId);
       if (!c) break;
-      c.queue = [{ go: L.ownerDrop, carry: true }, { owner: ev.count ?? null }, { bubble: '✋', text: title(ev.issue), s: 2.5 }, { wait: 1.5 }, { drop: true }];
+      c.queue = [{ go: L.ownerDrop, carry: true }, { owner: ev.count ?? null }, { bubble: '✋', text: `Paket siap, menunggu keputusanmu: ${title(ev.issue)}`, s: 5 }, { wait: 1.5 }, { drop: true }];
       c.path = [];
       break;
     }
@@ -174,9 +207,9 @@ export function applyEvent(world, ev, { instant = false } = {}) {
 function runStep(world, c, step) {
   if (step.go) { c.path = planPath(world.layout, c, step.go); if (step.carry) c.carry = true; return false; }
   if (step.bubbleBoth) {
-    say(world, c, step.bubbleBoth, step.text, 3);
+    say(world, c, step.bubbleBoth, step.text, 4.5);
     const o = world.chars.get(step.other);
-    if (o) say(world, o, step.bubbleBoth, step.text, 3);
+    if (o) say(world, o, '💬', step.otherText ?? step.text, 4.5);
     return true;
   }
   if (step.bubble) { say(world, c, step.bubble, step.text, step.s ?? 2.5); return true; }

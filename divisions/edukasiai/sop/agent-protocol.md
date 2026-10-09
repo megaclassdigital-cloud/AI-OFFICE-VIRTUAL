@@ -20,6 +20,19 @@ ada supaya itu tidak terulang.
 4. **Setelah pekerjaanmu selesai, berhenti.** Jangan mencari pekerjaan tambahan, jangan
    memverifikasi berulang kali, jangan "merapikan" hal yang tidak diminta.
 
+## Lokasi file (WAJIB dibaca)
+
+Direktori kerjamu (cwd) adalah folder workspace internal Paperclip, **bukan** repo. Karena itu semua path di instruksi ini
+(`divisions/...`, `workspace/agent/...`, `schemas/...`, `scripts/...`) **relatif ke akar repo**:
+
+- Akar repo: `D:\AI-Memory\AI-Agent-Office`
+- Brand kit: `D:\AI-Memory\AI-Agent-Office\divisions\edukasiai\brand\`
+- Folder hasil kerja (tulis di sini, path absolut): `D:\AI-Memory\AI-Agent-Office\workspace\agent\`
+  (brief desain di `...\workspace\agent\briefs\`)
+
+Menulis ke path relatif membuat file hilang di folder internal Paperclip dan owner tidak bisa melihat hasilmu.
+Setelah menulis file, **baca ulang atau `dir`** untuk memastikan file benar-benar ada sebelum melapor selesai.
+
 ## Tool plugin (UTAMA, menggantikan HTTP buatan sendiri)
 
 Untuk komentar, status, dan lampiran, **pakai tool plugin `aao-approval-gate`**, bukan curl/PowerShell:
@@ -31,6 +44,17 @@ Untuk komentar, status, dan lampiran, **pakai tool plugin `aao-approval-gate`**,
   `awaiting_approval` (selesai, menunggu owner) atau `needs_human` (kamu terhalang). Tool menulis
   ringkasan dan mengubah status sekaligus; setelah itu tidak ada pekerjaan lagi untukmu.
 - `attach_file { issueId, key, body }` — lampirkan dokumen (key huruf kecil, mis. `research-output.json`).
+
+**Cara memanggil tool (semua adapter):** jalankan perintah shell ini; hasilnya JSON `{ok:...}`.
+
+```
+node D:\AI-Memory\AI-Agent-Office\divisions\edukasiai\tools\aao-tool.mjs post_comment "{\"issueId\":\"<id>\",\"body\":\"teks\"}"
+node D:\AI-Memory\AI-Agent-Office\divisions\edukasiai\tools\aao-tool.mjs complete_stage "{\"issueId\":\"<id>\",\"outcome\":\"awaiting_approval\",\"summary\":\"...\"}"
+```
+
+`issueId` boleh dikosongkan: otomatis memakai issue run ini (`PAPERCLIP_TASK_ID`). Untuk JSON panjang atau berisi kutip,
+tulis dulu ke file lalu `... aao-tool.mjs attach_file --file C:\path\params.json`. Jika tool bukan milik perananmu, hasilnya
+`ok:false`; laporkan, jangan mencari jalan lain.
 
 Tool ini membangun HTTP dengan benar (byte UTF-8) di dalam kode. **Dilarang membuat panggilan
 HTTP sendiri** (curl, Invoke-RestMethod, Invoke-WebRequest) untuk tiga hal di atas. Jika tool

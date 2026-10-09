@@ -13,7 +13,7 @@ if (info.enabled) {
   };
   const render = (thread) => {
     $('talkThread').replaceChildren();
-    for (const c of thread.comments) addMsg(c.from === 'Owner' ? 'me' : '', c.from, c.body);
+    for (const c of thread.comments) addMsg(c.kind === 'owner' ? 'me' : c.kind === 'system' ? 'system' : '', c.from, c.body);
     $('talkIssue').textContent = `${thread.issue.identifier} · ${thread.issue.status}`;
   };
   const poll = async () => {
@@ -31,6 +31,20 @@ if (info.enabled) {
     await poll(); clearInterval(timer); timer = setInterval(poll, 4000);
     setTimeout(() => { $('talkSend').disabled = false; }, 5000);
   };
+  const loadFiles = async () => {
+    const j = await fetch('/api/talk/outputs', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ files: [] }));
+    const box = $('talkFiles'); box.replaceChildren();
+    if (!j.files.length) { box.textContent = 'Belum ada file hasil kerja.'; return; }
+    for (const f of j.files) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = `${f.path} · ${(f.size / 1024).toFixed(1)} KB`;
+      b.addEventListener('click', async () => {
+        const r = await fetch('/api/talk/file?path=' + encodeURIComponent(f.path)).then((x) => x.json()).catch(() => ({}));
+        $('talkFile').hidden = false; $('talkFile').textContent = r.body ?? r.error ?? 'gagal membaca'; // textContent: isi file = data
+      });
+      box.append(b);
+    }
+  };
+  $('talkOut').addEventListener('toggle', () => { if ($('talkOut').open) loadFiles(); });
   $('talkForm').addEventListener('submit', (e) => { e.preventDefault(); send(); });
   $('talkText').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } e.stopPropagation(); });
 }

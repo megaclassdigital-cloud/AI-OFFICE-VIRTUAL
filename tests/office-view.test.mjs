@@ -89,7 +89,7 @@ describe('world: gerak dan pemetaan', () => {
     expect(r.queue.length + r.path.length).toBeGreaterThan(0);
     run(w, 0.5);
     expect(char(w, 'a-r').carry).toBe(true);
-    expect(until(w, () => char(w, 'a-v').bubble?.emoji === '📄', 10)).toBe(true);
+    expect(until(w, () => char(w, 'a-v').bubble?.emoji === '💬' && /Diterima/.test(char(w, 'a-v').bubble.text), 10)).toBe(true);
     run(w, 10);
     expect(char(w, 'a-r').carry).toBe(false);
     const seat = layout.desks.find((d) => d.key === 'researcher').seat;
@@ -100,7 +100,7 @@ describe('world: gerak dan pemetaan', () => {
     const w = mkWorld(); seed(w);
     applyEvent(w, { type: 'agent.state', ...AG.q, state: 'working', issue }, { instant: true });
     applyEvent(w, { type: 'handoff', from: 'a-q', to: 'a-c', issue, emoji: '❌' });
-    expect(until(w, () => char(w, 'a-c').bubble?.emoji === '❌' && char(w, 'a-q').carry, 20)).toBe(true);
+    expect(until(w, () => /perbaiki/.test(char(w, 'a-c').bubble?.text ?? '') && char(w, 'a-q').carry, 20)).toBe(true);
     expect(roomAt(layout, char(w, 'a-q'))?.id).toBe('studio');
   });
 
@@ -390,4 +390,20 @@ describe('office-view server', () => {
     expect(src).not.toMatch(/https?:\/\/(?!127\.0\.0\.1)/);
     expect(src).not.toMatch(/anthropic|openai|api\.groq|generativelanguage/i);
   });
+});
+
+import { thoughtOf } from '../apps/office-view/public/world.js';
+describe('thoughtOf: teks "berbicara dalam hati" dari log (tanpa LLM)', () => {
+  const base = { isOwner: false, deskKey: 'designer', role: 'designer', moving: false, carry: false, issue: { identifier: 'EDU-7' }, since: 0 };
+  it('bekerja: kata kerja per peran + ID issue + durasi', () => {
+    expect(thoughtOf({ ...base, state: 'working' }, 75)).toBe('Memilih template dan warna (EDU-7) · 1m 15d');
+    expect(thoughtOf({ ...base, state: 'working', deskKey: 'manager', role: 'pm' }, 5)).toContain('Menyusun arahan');
+  });
+  it('status lain dimengerti manusia', () => {
+    expect(thoughtOf({ ...base, state: 'idle', issue: null }, 9)).toBe('Istirahat, menunggu tugas');
+    expect(thoughtOf({ ...base, state: 'failed', reason: 'kuota habis' }, 9)).toContain('kuota habis');
+    expect(thoughtOf({ ...base, state: 'paused', reason: 'guard' }, 9)).toContain('Dijeda');
+    expect(thoughtOf({ ...base, carry: true, state: 'working' }, 9)).toContain('Membawa dokumen');
+  });
+  it('owner tidak punya pikiran', () => { expect(thoughtOf({ ...base, isOwner: true, state: 'idle' }, 1)).toBe(''); });
 });

@@ -1,6 +1,6 @@
 // Office View: renderer Canvas + kontroler. Semua gerakan datang dari applyEvent() (world.js) —
 // event LIVE (bridge) dan event SIMULASI (replay) memakai jalur yang sama. Tidak ada aksi tulis, tidak ada LLM.
-import { createWorld, applyEvent, stepWorld, describeEvent, addOwner, roomAt } from './world.js';
+import { createWorld, applyEvent, stepWorld, describeEvent, addOwner, roomAt, thoughtOf } from './world.js';
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -96,16 +96,49 @@ function drawTag(c, ch) {
   pill(c, text, ch.x, ch.y - FH * SC - 30, 15, '#0d1017e6', '#fff');
   if (sub) { c.font = '600 11px "Segoe UI", sans-serif'; c.fillStyle = '#aab3c5'; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.fillText(sub, ch.x, ch.y - FH * SC - 34); c.textAlign = 'left'; }
 }
+function wrap(c, text, maxW, maxLines) {
+  const words = String(text).split(' '); const lines = []; let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (c.measureText(t).width <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = trunc(lines[maxLines - 1], Math.max(8, lines[maxLines - 1].length - 1)) + '…'; }
+  return lines;
+}
+// Bubble "berbicara dalam hati": selalu tampil saat tidak ada bubble bicara; teks dari log, tanpa LLM.
+function drawThought(c, ch) {
+  if (ch.bubble) return;
+  const txt = thoughtOf(ch, app.world.t);
+  if (!txt) return;
+  const y = ch.y - FH * SC - 62;
+  c.font = 'italic 600 13px "Segoe UI", sans-serif';
+  const lines = wrap(c, txt, 250, 2); const lh = 16;
+  const w = Math.max(...lines.map((l) => c.measureText(l).width)) + 22, h = lines.length * lh + 12, x = Math.max(8, Math.min(1920 - w - 8, ch.x - w / 2));
+  c.save(); c.globalAlpha = 0.92;
+  c.fillStyle = '#e8eefc'; c.strokeStyle = '#7b8bb2'; c.lineWidth = 1.5; c.setLineDash([5, 3]);
+  rr(c, x, y - h, w, h, 14); c.fill(); c.stroke(); c.setLineDash([]);
+  c.fillStyle = '#e8eefc'; for (const [dx, dy, r] of [[-6, 4, 4], [-2, 11, 2.5]]) { c.beginPath(); c.arc(ch.x + dx, y + dy, r, 0, Math.PI * 2); c.fill(); c.stroke(); }
+  c.fillStyle = '#2b3550'; c.textBaseline = 'middle'; c.textAlign = 'left';
+  lines.forEach((l, i) => c.fillText(l, x + 11, y - h + 6 + lh * i + lh / 2));
+  c.restore();
+}
 function drawBubble(c, ch) {
   if (!ch.bubble) return;
+  drawSpeech(c, ch);
+}
+function drawSpeech(c, ch) {
   const y = ch.y - FH * SC - 66;
-  const txt = ch.bubble.text ? trunc(ch.bubble.text, 30) : '';
-  c.font = '600 14px "Segoe UI", sans-serif'; const tw = txt ? c.measureText(txt).width : 0;
-  const w = 56 + tw + (txt ? 12 : 0), h = 44, x = ch.x - w / 2;
-  c.fillStyle = '#ffffff'; rr(c, x, y - h, w, h, 12); c.fill();
+  c.font = '600 14px "Segoe UI", sans-serif';
+  const lines = ch.bubble.text ? wrap(c, ch.bubble.text, 280, 3) : []; const lh = 18;
+  const tw = lines.length ? Math.max(...lines.map((l) => c.measureText(l).width)) : 0;
+  const w = 56 + tw + (lines.length ? 12 : 0), h = Math.max(44, lines.length * lh + 14), x = Math.max(8, Math.min(1920 - w - 8, ch.x - w / 2));
+  c.fillStyle = '#ffffff'; c.strokeStyle = '#1b2336'; c.lineWidth = 2; c.setLineDash([]);
+  rr(c, x, y - h, w, h, 12); c.fill(); c.stroke();
   c.beginPath(); c.moveTo(ch.x - 8, y - 1); c.lineTo(ch.x + 8, y - 1); c.lineTo(ch.x, y + 10); c.closePath(); c.fill();
   c.font = '26px "Segoe UI Emoji", sans-serif'; c.textBaseline = 'middle'; c.fillStyle = '#111'; c.fillText(ch.bubble.emoji, x + 10, y - h / 2 + 2);
-  if (txt) { c.font = '600 14px "Segoe UI", sans-serif'; c.fillText(txt, x + 46, y - h / 2 + 2); }
+  c.font = '600 14px "Segoe UI", sans-serif';
+  lines.forEach((l, i) => c.fillText(l, x + 46, y - h + 14 + lh * i + lh / 2 - 3));
 }
 
 function render() {
@@ -133,7 +166,7 @@ function render() {
   // karakter urut kedalaman
   const list = [...w.chars.values()].sort((p, q) => p.y - q.y);
   for (const ch of list) drawChar(ctx, ch, w);
-  for (const ch of list) { drawTag(ctx, ch); drawBubble(ctx, ch); }
+  for (const ch of list) { drawTag(ctx, ch); drawThought(ctx, ch); drawBubble(ctx, ch); }
 }
 
 // ───────── log, banner, kontrol ─────────

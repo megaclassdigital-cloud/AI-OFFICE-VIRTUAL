@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createTalk } from '../apps/office-view/talk.mjs';
 
 let mock, base, calls = [], tclock = 1_000_000;
@@ -14,7 +17,7 @@ beforeAll(async () => {
     if (req.url === '/api/companies/c2/projects') return out([{ id: 'p1' }]);
     if (req.url === '/api/companies/c2/issues' && req.method === 'POST') return out({ id: 'i1', identifier: 'EDU-1' });
     if (req.url === '/api/issues/i1/comments' && req.method === 'POST') return out({ id: 'cm1' });
-    if (req.url === '/api/issues/i1/comments') return out([{ authorType: 'agent', body: 'Siap', createdAt: 't2' }, { authorType: 'user', body: 'Halo', createdAt: 't1' }]);
+    if (req.url === '/api/issues/i1/comments') return out([{ authorType: 'agent', authorAgentId: 'a2', body: 'Siap', createdAt: 't3' }, { authorType: 'system', body: 'Paperclip needs a disposition', createdAt: 't2' }, { authorType: 'user', body: 'Halo', createdAt: 't1' }]);
     if (req.url === '/api/issues/i1') return out({ identifier: 'EDU-1', status: 'todo' });
     res.writeHead(404); res.end('{}');
   });
@@ -63,7 +66,27 @@ describe('office talk', () => {
     await call(h, 'POST', '/api/talk', { text: 'awal' });
     expect((await call(h, 'POST', '/api/talk', { text: 'lanjut', issueId: 'i1' })).res.body).toMatchObject({ kind: 'comment' });
     const t = await call(h, 'GET', '/api/talk/thread?issue=i1');
-    expect(t.res.body.comments.map((c) => c.from)).toEqual(['Owner', 'Manager']);
+    expect(t.res.body.comments.map((c) => c.from)).toEqual(['Owner', 'Sistem', 'Manager']);
+    expect(t.res.body.comments.map((c) => c.kind)).toEqual(['owner', 'system', 'agent']);
     expect((await call(h, 'GET', '/api/talk/thread?issue=other')).res.code).toBe(404);
+  });
+});
+
+describe('office talk: hasil kerja (read-only, terkurung di folder output)', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'aao-out-'));
+  mkdirSync(path.join(root, 'briefs'));
+  writeFileSync(path.join(root, 'briefs', 'EDU-1.md'), '# Brief isi');
+  writeFileSync(path.join(root, 'rahasia.exe'), 'x');
+  const mk2 = () => createTalk({ base, port: 3190, outputRoot: root });
+  it('mendaftar hanya .md/.json/.txt, termasuk subfolder', async () => {
+    const r = (await call(mk2(), 'GET', '/api/talk/outputs')).res.body.files.map((f) => f.path);
+    expect(r).toEqual(['briefs/EDU-1.md']);
+  });
+  it('membaca file sah, menolak traversal dan ekstensi lain', async () => {
+    const h = mk2();
+    expect((await call(h, 'GET', '/api/talk/file?path=briefs/EDU-1.md')).res.body.body).toContain('isi');
+    expect((await call(h, 'GET', '/api/talk/file?path=../etc/passwd.txt')).res.code).toBe(403);
+    expect((await call(h, 'GET', '/api/talk/file?path=rahasia.exe')).res.code).toBe(403);
+    expect((await call(h, 'GET', '/api/talk/file?path=briefs/tidak-ada.md')).res.code).toBe(404);
   });
 });
