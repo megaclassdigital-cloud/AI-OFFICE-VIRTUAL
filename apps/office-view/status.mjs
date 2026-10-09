@@ -63,3 +63,25 @@ export function buildStatusText(f) {
   lines.push('ℹ Jawaban ini dibuat dari data nyata tanpa memakai kuota. Untuk bertanya ke Manager sendiri, awali dengan "manager:".');
   return lines.join('\n');
 }
+
+/** Timeline of what an agent did in a run: newest last, at most `limit` entries. Same log format as lastActivityFromLog. */
+export function activityTimeline(content, limit = 30) {
+  const out = [];
+  for (const line of String(content ?? '').split('\n')) {
+    if (!line.trim()) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    let i = null; try { i = JSON.parse(o.chunk); } catch { continue; }
+    const ts = Date.parse(o.ts);
+    if (!Number.isFinite(ts)) continue;
+    const part = i?.part;
+    if (part?.type === 'tool' || i?.type === 'tool_use') {
+      const inp = part?.state?.input ?? {};
+      const arg = String(inp.filePath ?? inp.path ?? inp.pattern ?? inp.command ?? inp.url ?? '').replace(/\s+/g, ' ');
+      out.push({ ts, kind: 'tool', tool: part?.tool ?? 'alat', label: arg.slice(0, 140), status: part?.state?.status ?? null });
+    } else if (i?.type === 'text' || part?.type === 'text') {
+      const txt = String(part?.text ?? i?.text ?? '').replace(/\s+/g, ' ').trim();
+      if (txt) out.push({ ts, kind: 'text', tool: 'jawaban', label: txt.slice(0, 160), status: null });
+    }
+  }
+  return out.slice(-limit);
+}

@@ -173,8 +173,30 @@ async function gatherFacts(job, state) {
     const active = mine.some((r) => ['running', 'queued'].includes(r.status));
     const last = mine.find((r) => !['cancelled', 'scheduled_retry'].includes(r.status));
     const failed = !active && !!last && ['failed', 'error', 'timed_out'].includes(last.status) && !['in_review', 'done'].includes(issue.status);
-    stage = { status: issue.status, failed, error: failed ? last.error : undefined };
-    if (['in_review', 'done'].includes(issue.status)) output = checkOutput(job, STAGES[job.stageIndex]);
+    let status = issue.status;
+    let failedNow = failed;
+    // Selesai berbasis berkas: agent yang sudah menulis keluaran valid dan SEGAR (lebih baru dari awal tahap) tetapi lupa memanggil
+    // complete_stage tidak boleh dianggap macet. Berkas basi dari percobaan sebelumnya tidak dihitung (cek waktu ubah).
+    if (!['in_review', 'done'].includes(status)) {
+      try {
+        const st = statSync(outPathFor(job.identifier, STAGES[job.stageIndex]));
+        // Berkas segar (ditulis selama tahap ini) dan STABIL (tidak berubah >= 60 dtk, jadi bukan setengah tertulis).
+        if (st.mtimeMs >= job.stageStartedMs - 5000 && Date.now() - st.mtimeMs >= 60_000) {
+          const chk = checkOutput(job, STAGES[job.stageIndex]);
+          if (chk.ok) {
+            status = 'done'; output = chk; failedNow = false;
+            // Agen yang sudah menulis keluaran valid tetapi tidak pernah menyudahi run-nya: hentikan run itu (hemat kuota) dan tutup issue tahap.
+            for (const r of mine.filter((x) => ['running', 'queued'].includes(x.status))) {
+              await j('/heartbeat-runs/' + r.id + '/cancel', jb('POST', {})).catch(() => {});
+              log(job.identifier + ' ' + STAGE_AGENT[STAGES[job.stageIndex]] + ' menulis keluaran valid tetapi run masih berjalan: run dihentikan');
+            }
+            await j('/issues/' + job.stageIssueId, jb('PATCH', { status: 'in_review' })).catch(() => {});
+          }
+        }
+      } catch { /* berkas belum ada */ }
+    }
+    stage = { status, failed: failedNow, error: failedNow ? last.error : undefined };
+    if (!output && ['in_review', 'done'].includes(status)) output = checkOutput(job, STAGES[job.stageIndex]);
   }
   if (job.phase === 'planning' && managerFailed && !order?.ok) return { order, managerFinished: false, managerFailedError: managerFailed.error ?? managerFailed.status, succeeded, stage, nowMs: now };
   return { order, managerFinished, succeeded, stage, output, nowMs: now };
@@ -245,7 +267,17 @@ async function once() {
   if (!DRY) writeState(state);
 }
 
-if (a.includes('--retry')) {
+if (a.includes('--recheck')) {
+  // Evaluasi ulang job terblokir TANPA mengulang tahap (mis. keluaran sudah ada tetapi status issue tidak berubah).
+  const s = readState();
+  const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked' && x.stageIndex >= 0);
+  if (!blocked) { console.log('Tidak ada job terblokir.'); process.exit(1); }
+  s.history = s.history.filter((x) => x.masterIssueId !== blocked.masterIssueId);
+  s.job = { ...blocked, phase: 'running' }; // stageStartedMs asli dipertahankan: keluaran yang ditulis selama tahap ini tetap dihitung "segar"
+  delete s.job.endedMs; delete s.job.abandoned;
+  writeState(s);
+  log('job ' + s.job.identifier + ' dievaluasi ulang pada tahap ' + STAGE_AGENT[STAGES[s.job.stageIndex]]);
+} else if (a.includes('--retry')) {
   // Ulangi tahap yang terblokir (mis. gangguan penyedia model): buat ulang issue tahap itu dan lanjutkan.
   const s = readState();
   const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked' && x.stageIndex >= 0);
