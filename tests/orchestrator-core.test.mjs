@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, checkOrderStructure } from '../scripts/orchestrator-core.mjs';
+import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, analysisOf, renderAnalysisComment, MAX_EXTRA_CONTENTS } from '../scripts/orchestrator-core.mjs';
 
 const goodOrder = { title: 'Carousel tren AI', stages: Object.fromEntries(STAGES.map((s) => [s, `kerjakan ${s}`])) };
 const T0 = 1_000_000;
@@ -152,7 +152,7 @@ describe('rencana yang ditahan owner (hold)', () => {
 
 describe('checkOrderStructure (template perintah Manager)', () => {
   const good = 'Tujuan: cari berita.\nMasukan: brief owner.\nBatasan: jangan karang.\nKeluaran: research-raw.json.\nSelesai bila: 5 kandidat.';
-  const mk = (over = {}) => ({ title: 't', stages: { ...Object.fromEntries(STAGES.map((s) => [s, good])), ...over } });
+  const mk = (over = {}) => ({ title: 't', analysis: { topics: ['satu topik'] }, stages: { ...Object.fromEntries(STAGES.map((s) => [s, good])), ...over } });
   it('struktur lengkap lolos; 3 dari 4 label masih lolos', () => {
     expect(checkOrderStructure(mk())).toEqual({ ok: true, errors: [] });
     expect(checkOrderStructure(mk({ qa: 'Tujuan: a\nMasukan: b\nKeluaran: c' })).ok).toBe(true);
@@ -164,5 +164,52 @@ describe('checkOrderStructure (template perintah Manager)', () => {
   });
   it('tahap Dilewati (revisi) tidak diperiksa', () => {
     expect(checkOrderStructure(mk({ researcher: 'Dilewati (revisi): memakai hasil EDU-49.', verifier: 'Dilewati (revisi): memakai hasil EDU-49.' })).ok).toBe(true);
+  });
+});
+
+describe('Manager 2.0: analisis wajib, beberapa konten dari satu brief', () => {
+  const good = 'Tujuan: a.\nMasukan: b.\nBatasan: c.\nKeluaran: d.';
+  const stages = () => Object.fromEntries(STAGES.map((s) => [s, good]));
+  const order = (over = {}) => ({ title: 'Konten A', analysis: { topics: ['ChatGPT Astra', 'Berita AGI'], assumptions: ['AGI = berita industri'], risks: ['produk mungkin tidak ada'], unknownEntities: ['ChatGPT Astra'] }, stages: stages(), ...over });
+
+  it('analisis wajib: tanpa topik ditolak dengan petunjuk', () => {
+    expect(checkOrderStructure(order()).ok).toBe(true);
+    const r = checkOrderStructure(order({ analysis: undefined }));
+    expect(r.ok).toBe(false); expect(r.errors.join()).toMatch(/analysis\.topics wajib/);
+    expect(checkOrderStructure(order({ analysis: { topics: [] } })).ok).toBe(false);
+    expect(checkOrderStructure(order({ analysis: { topics: ['x'] } })).ok).toBe(false);
+  });
+  it('konten tambahan: valid bila stages lengkap, maksimal 2, struktur ikut diperiksa', () => {
+    const extra = { title: 'Berita AGI', stages: stages() };
+    expect(validateOrder(order({ extraContents: [extra] })).ok).toBe(true);
+    expect(extraContentsOf(order({ extraContents: [extra] }))).toEqual([{ title: 'Berita AGI', stages: extra.stages }]);
+    expect(MAX_EXTRA_CONTENTS).toBe(2);
+    const tooMany = validateOrder(order({ extraContents: [extra, extra, extra] }));
+    expect(tooMany.ok).toBe(false); expect(tooMany.errors.join()).toMatch(/extraContents maksimal 2/);
+    const bad = validateOrder(order({ extraContents: [{ title: 'ab', stages: { researcher: 'x' } }] }));
+    expect(bad.ok).toBe(false); expect(bad.errors.join()).toMatch(/extraContents\[0\]\.title wajib/); expect(bad.errors.join()).toMatch(/extraContents\[0\]\.stages\.verifier wajib/);
+    const unstructured = checkOrderStructure(order({ extraContents: [{ title: 'Berita AGI', stages: Object.fromEntries(STAGES.map((s) => [s, 'cari saja'])) }] }));
+    expect(unstructured.ok).toBe(false); expect(unstructured.errors.join()).toMatch(/extraContents\[0\]\.stages\.researcher harus berstruktur/);
+  });
+  it('ownerQuestions dibatasi 3 teks pendek', () => {
+    expect(validateOrder(order({ ownerQuestions: ['Apakah Astra produk resmi?'] })).ok).toBe(true);
+    expect(validateOrder(order({ ownerQuestions: ['a', 'b', 'c', 'd'] })).ok).toBe(false);
+    expect(validateOrder(order({ ownerQuestions: [123] })).ok).toBe(false);
+  });
+  it('komentar analisis memakai bahasa sederhana: topik, konten terpisah, nama tak dikenal, asumsi, pertanyaan', () => {
+    const t = renderAnalysisComment(order({ extraContents: [{ title: 'Berita AGI', stages: stages() }], ownerQuestions: ['Apakah Astra produk resmi?'] }));
+    expect(t).toMatch(/Rencana Manager siap: "Konten A"/); expect(t).toMatch(/ChatGPT Astra; Berita AGI/);
+    expect(t).toMatch(/2 konten terpisah.*"Berita AGI".*kode konten berbeda/); expect(t).toMatch(/tidak saya kenal.*ChatGPT Astra/);
+    expect(t).toMatch(/Asumsi: AGI = berita industri/); expect(t).toMatch(/Pertanyaan untuk Anda.*Astra produk resmi/);
+    expect(analysisOf({}).topics).toEqual([]);
+  });
+});
+
+describe('slot perencanaan Manager: rencana siap tidak memakai slot', () => {
+  it('canPlanAhead menghitung hanya rencana yang belum siap dan tidak ditahan', () => {
+    const running = { identifier: 'EDU-56', phase: 'running' };
+    expect(canPlanAhead(running, [{ identifier: 'a', ready: true }])).toBe(true);
+    expect(canPlanAhead(running, [{ identifier: 'a', ready: true }, { identifier: 'b', ready: true, hold: true }])).toBe(true);
+    expect(canPlanAhead(running, [{ identifier: 'a' }])).toBe(false);
   });
 });

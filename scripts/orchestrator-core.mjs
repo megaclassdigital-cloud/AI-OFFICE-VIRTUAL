@@ -38,20 +38,62 @@ export function checkQaResult(data) {
 const DONE_STATUSES = new Set(['in_review', 'done']);
 
 /** Validate a Manager work order. Returns { ok, errors }. Every problem is reported, not just the first. */
+export const MAX_EXTRA_CONTENTS = 2;
+const validateStages = (stages, prefix, errors) => {
+  if (!stages || typeof stages !== 'object' || Array.isArray(stages)) { errors.push(`${prefix}stages wajib (objek)`); return; }
+  for (const s of STAGES) {
+    const v = stages[s];
+    if (typeof v !== 'string' || !v.trim()) errors.push(`${prefix}stages.${s} wajib (teks instruksi)`);
+    else if (v.length > LIMITS.maxText) errors.push(`${prefix}stages.${s} terlalu panjang (>${LIMITS.maxText})`);
+  }
+  for (const k of Object.keys(stages)) if (!STAGES.includes(k)) errors.push(`${prefix}stages.${k} bukan tahap yang dikenal`);
+};
+
+/**
+ * Validate a Manager work order. Returns { ok, errors }. Every problem is reported, not just the first.
+ * Bentuk: { title, stages, analysis?, extraContents?: [{title, stages}] (maks MAX_EXTRA_CONTENTS konten tambahan dari brief yang sama), ownerQuestions?: [teks] }.
+ */
 export function validateOrder(order) {
   const errors = [];
   if (!order || typeof order !== 'object' || Array.isArray(order)) return { ok: false, errors: ['order bukan objek JSON'] };
   if (typeof order.title !== 'string' || !order.title.trim()) errors.push('title wajib');
-  if (!order.stages || typeof order.stages !== 'object') errors.push('stages wajib (objek)');
-  else {
-    for (const s of STAGES) {
-      const v = order.stages[s];
-      if (typeof v !== 'string' || !v.trim()) errors.push(`stages.${s} wajib (teks instruksi)`);
-      else if (v.length > LIMITS.maxText) errors.push(`stages.${s} terlalu panjang (>${LIMITS.maxText})`);
+  validateStages(order.stages, '', errors);
+  if (order.extraContents !== undefined) {
+    if (!Array.isArray(order.extraContents)) errors.push('extraContents harus berupa daftar');
+    else {
+      if (order.extraContents.length > MAX_EXTRA_CONTENTS) errors.push(`extraContents maksimal ${MAX_EXTRA_CONTENTS} (brief dengan lebih banyak topik: pilih yang utama, sisanya dilaporkan di analysis)`);
+      order.extraContents.slice(0, MAX_EXTRA_CONTENTS + 1).forEach((c, i) => {
+        if (!c || typeof c.title !== 'string' || c.title.trim().length < 3) errors.push(`extraContents[${i}].title wajib`);
+        validateStages(c?.stages, `extraContents[${i}].`, errors);
+      });
     }
-    for (const k of Object.keys(order.stages)) if (!STAGES.includes(k)) errors.push(`stages.${k} bukan tahap yang dikenal`);
   }
+  if (order.ownerQuestions !== undefined && (!Array.isArray(order.ownerQuestions) || order.ownerQuestions.length > 3 || order.ownerQuestions.some((q) => typeof q !== 'string' || q.length > 300))) errors.push('ownerQuestions harus daftar maksimal 3 teks (maks 300 karakter)');
   return { ok: errors.length === 0, errors };
+}
+
+/** Konten tambahan (dari brief yang sama) yang sudah tervalidasi: [{ title, stages }]. */
+export const extraContentsOf = (order) => (Array.isArray(order?.extraContents) ? order.extraContents.slice(0, MAX_EXTRA_CONTENTS).map((c) => ({ title: String(c.title).trim(), stages: c.stages })) : []);
+
+/** Analisis Manager yang dinormalisasi untuk ditampilkan ke owner. */
+export function analysisOf(order) {
+  const a = order?.analysis ?? {};
+  const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim().slice(0, 300)).slice(0, 6) : []);
+  return { topics: list(a.topics), assumptions: list(a.assumptions), risks: list(a.risks), unknownEntities: list(a.unknownEntities), ownerQuestions: list(order?.ownerQuestions).slice(0, 3) };
+}
+
+/** Teks komentar untuk owner: apa yang dipahami Manager dari brief, asumsi, risiko, dan pertanyaan (bahasa sederhana). */
+export function renderAnalysisComment(order) {
+  const a = analysisOf(order);
+  const extra = extraContentsOf(order);
+  const lines = [`Rencana Manager siap: "${String(order?.title ?? '').slice(0, 120)}".`];
+  if (a.topics.length) lines.push(`Topik yang saya pahami dari brief: ${a.topics.join('; ')}.`);
+  if (extra.length) lines.push(`Brief ini memuat ${1 + extra.length} konten terpisah: konten utama diproses lebih dulu, lalu ${extra.map((c) => '"' + c.title + '"').join(', ')} mengantre sebagai konten sendiri (kode konten berbeda).`);
+  if (a.unknownEntities.length) lines.push(`Perlu dipastikan (tidak saya kenal): ${a.unknownEntities.join('; ')}. Researcher/Verifier diminta memastikan keberadaannya lewat sumber resmi.`);
+  if (a.assumptions.length) lines.push(`Asumsi: ${a.assumptions.join('; ')}.`);
+  if (a.risks.length) lines.push(`Risiko: ${a.risks.join('; ')}.`);
+  if (a.ownerQuestions.length) lines.push(`Pertanyaan untuk Anda (tidak menahan pekerjaan; koreksi lewat revisi bila perlu): ${a.ownerQuestions.join(' | ')}`);
+  return lines.join(' ');
 }
 
 export const ORDER_LABELS = ['Tujuan', 'Masukan', 'Batasan', 'Keluaran'];
@@ -61,13 +103,20 @@ export const ORDER_LABELS = ['Tujuan', 'Masukan', 'Batasan', 'Keluaran'];
  */
 export function checkOrderStructure(order) {
   const errors = [];
-  for (const stage of STAGES) {
-    const text = String(order?.stages?.[stage] ?? '');
-    if (/^\s*Dilewati/i.test(text)) continue;
-    const lines = text.split(/\r?\n/).map((l) => l.trim().toLowerCase());
-    const missing = ORDER_LABELS.filter((l) => !lines.some((ln) => ln.startsWith(l.toLowerCase() + ':')));
-    if (ORDER_LABELS.length - missing.length < 3) errors.push(`stages.${stage} harus berstruktur: tulis label ${ORDER_LABELS.map((l) => l + ':').join(' ')} masing-masing di awal baris (kurang: ${missing.join(', ')})`);
-  }
+  const checkStages = (stages, prefix) => {
+    for (const stage of STAGES) {
+      const text = String(stages?.[stage] ?? '');
+      if (/^\s*Dilewati/i.test(text)) continue;
+      const lines = text.split(/\r?\n/).map((l) => l.trim().toLowerCase());
+      const missing = ORDER_LABELS.filter((l) => !lines.some((ln) => ln.startsWith(l.toLowerCase() + ':')));
+      if (ORDER_LABELS.length - missing.length < 3) errors.push(`${prefix}stages.${stage} harus berstruktur: tulis label ${ORDER_LABELS.map((l) => l + ':').join(' ')} masing-masing di awal baris (kurang: ${missing.join(', ')})`);
+    }
+  };
+  checkStages(order?.stages, '');
+  extraContentsOf(order).forEach((c, i) => checkStages(c.stages, `extraContents[${i}].`));
+  // analisis wajib: Manager harus menghitung topik dan menandai nama/produk yang tidak dikenal SEBELUM merencanakan
+  const topics = order?.analysis?.topics;
+  if (!Array.isArray(topics) || !topics.length || topics.some((t) => typeof t !== 'string' || t.trim().length < 3)) errors.push('analysis.topics wajib: daftar topik yang kamu temukan di brief (1 bila satu topik); isi juga analysis.assumptions, analysis.risks, analysis.unknownEntities (daftar, boleh kosong)');
   return { ok: errors.length === 0, errors };
 }
 
@@ -92,7 +141,7 @@ export const runKeyOf = (job) => job?.runKey ?? job?.identifier;
 /** Berapa brief yang boleh direncanakan Manager di muka selagi job lain berjalan (menjaga kuota Manager). */
 export const MAX_PENDING_PLANS = 1;
 /** Boleh merencanakan brief berikutnya di muka? Hanya selama ada job aktif dan slot rencana belum penuh. */
-export const canPlanAhead = (job, pending = [], max = MAX_PENDING_PLANS) => Boolean(job && !['done', 'blocked'].includes(job.phase) && pending.filter((p) => !p.hold).length < max);
+export const canPlanAhead = (job, pending = [], max = MAX_PENDING_PLANS) => Boolean(job && !['done', 'blocked'].includes(job.phase) && pending.filter((p) => !p.hold && !p.ready).length < max);
 /** Rencana siap yang paling lama menunggu giliran (FIFO), atau null. */
 export const nextPlanned = (pending = []) => pending.find((p) => p.ready && !p.hold) ?? null;
 /** Rencana yang ditahan owner (hold) tidak dievaluasi, tidak dipromosikan, dan tidak menghalangi brief lain. */
