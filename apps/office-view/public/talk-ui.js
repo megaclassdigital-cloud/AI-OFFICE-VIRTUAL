@@ -51,13 +51,23 @@ if (info.enabled) {
     $('talkStatus').textContent = r.ok ? `✔ ${j.note} (${j.file})` : `Gagal: ${j.error ?? r.status}`;
     return r.ok;
   };
+  const STAGE_NAMES = ['Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA'];
+  const pipe = async () => {
+    const p = await fetch('/api/talk/pipeline', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+    if (!p) return;
+    const stage = p.job && p.job.stageIndex >= 0 ? ` · tahap ${p.job.stageIndex + 1}/5 ${STAGE_NAMES[p.job.stageIndex]}` : '';
+    $('talkPipe').textContent = p.job ? `🏭 Produksi ${p.job.identifier}: ${p.job.phase}${stage}${p.queue ? ` · antrean ${p.queue}` : ''}` : `🏭 Tidak ada produksi berjalan${p.queue ? ` · antrean ${p.queue}` : ''}`;
+  };
+  pipe(); setInterval(pipe, 5000);
   $('talkProd').addEventListener('click', async () => {
     const text = $('talkText').value.trim(); if (!text) { $('talkStatus').textContent = 'Tulis brief di kotak dulu.'; return; }
+    if (!confirm('Ini memulai PRODUKSI PENUH (semua agent bekerja berurutan dan memakai kuota). Untuk sekadar berbicara dengan Manager, pakai tombol Kirim. Lanjutkan produksi?')) return;
     if (await sendBrief('brief-panel', text)) $('talkText').value = '';
   });
   $('talkFileIn').addEventListener('change', async (e) => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     if (f.size > 150000) { $('talkStatus').textContent = 'File terlalu besar (maks 150 KB).'; return; }
+    if (!confirm('Unggah "' + f.name + '" sebagai BRIEF PRODUKSI? Semua agent akan bekerja berurutan dan memakai kuota. (Untuk bicara biasa, pakai Kirim.)')) return;
     await sendBrief(f.name, await f.text());
   });
   $('talkOut').addEventListener('toggle', () => { if ($('talkOut').open) loadFiles(); });

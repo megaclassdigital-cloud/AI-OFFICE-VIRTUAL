@@ -5,9 +5,27 @@
 // Env used: PAPERCLIP_API_URL, PAPERCLIP_RUN_ID (set by Paperclip for every run), PAPERCLIP_TASK_ID (default issueId).
 import { readFileSync } from 'node:fs';
 
-const [tool, raw = '{}', ...rest] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const tool = argv[0];
+const fileIdx = argv.indexOf('--file');
+const raw = fileIdx === -1 ? (argv[1] ?? '{}') : '{}';
+const rest = fileIdx === -1 ? [] : ['--file', argv[fileIdx + 1]];
 if (!tool) { console.error('Pemakaian: node aao-tool.mjs <tool> \'{"issueId":"..."}\' [--file params.json]'); process.exit(2); }
-const API = (process.env.PAPERCLIP_API_URL ?? 'http://127.0.0.1:3177/api').replace(/\/$/, '');
+// PAPERCLIP_API_URL di dalam run bisa berupa "http://host:port" atau "http://host:port/api". Coba keduanya lalu cadangan 127.0.0.1:3177;
+// salah basis mengenai halaman UI (HTML), bukan API, jadi basis dipilih hanya bila /health menjawab JSON.
+const fail = (error, extra = {}) => { console.log(JSON.stringify({ ok: false, error, ...extra })); process.exit(1); };
+const envUrl = (process.env.PAPERCLIP_API_URL ?? '').trim().replace(/\/+$/, '');
+const candidates = [...new Set([envUrl && (envUrl.endsWith('/api') ? envUrl : envUrl + '/api'), envUrl, 'http://127.0.0.1:3177/api'].filter(Boolean))];
+let API = null; const tried = [];
+for (const base of candidates) {
+  try {
+    const r = await fetch(base + '/health', { signal: AbortSignal.timeout(8000) });
+    const t = await r.text();
+    if (r.ok && t.trim().startsWith('{')) { API = base; break; }
+    tried.push({ base, status: r.status, bodyStart: t.slice(0, 60) });
+  } catch (e) { tried.push({ base, error: String(e.message ?? e).slice(0, 80) }); }
+}
+if (!API) fail('tidak menemukan API Paperclip yang menjawab JSON', { tried });
 const runId = process.env.PAPERCLIP_RUN_ID;
 if (!runId) { console.log(JSON.stringify({ ok: false, error: 'PAPERCLIP_RUN_ID tidak ada; alat ini hanya jalan di dalam run agent' })); process.exit(1); }
 
@@ -18,14 +36,19 @@ try {
 } catch (e) { console.log(JSON.stringify({ ok: false, error: `parameter bukan JSON valid: ${e.message}` })); process.exit(1); }
 if (!params.issueId && process.env.PAPERCLIP_TASK_ID && tool !== 'aao_hello') params.issueId = process.env.PAPERCLIP_TASK_ID;
 
-const get = async (p) => (await fetch(API + p)).json();
+const getJson = async (p, init) => {
+  const r = await fetch(API + p, init);
+  const t = await r.text();
+  try { return { status: r.status, ok: r.ok, data: JSON.parse(t) }; } catch { fail('respons bukan JSON', { status: r.status, url: API + p, bodyStart: t.slice(0, 80) }); }
+};
+const get = async (p) => (await getJson(p)).data;
 const run = await get(`/heartbeat-runs/${runId}`);
 let projectId;
 if (params.issueId) projectId = (await get(`/issues/${params.issueId}`)).projectId;
 projectId ??= (await get(`/companies/${run.companyId}/projects`))[0]?.id;
 
 const body = Buffer.from(JSON.stringify({ tool: `aao-approval-gate:${tool}`, parameters: params, runContext: { companyId: run.companyId, agentId: run.agentId, runId, projectId } }), 'utf8');
-const r = await fetch(`${API}/plugins/tools/execute`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
-const x = await r.json().catch(() => ({}));
+const rr = await getJson('/plugins/tools/execute', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+const x = rr.data;
 console.log(JSON.stringify(x.result?.data ?? x.result ?? x));
-process.exitCode = r.ok ? 0 : 1;
+process.exitCode = rr.ok ? 0 : 1;

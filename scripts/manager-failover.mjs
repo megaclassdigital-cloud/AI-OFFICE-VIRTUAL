@@ -58,7 +58,7 @@ async function main() {
     const agent = await agentOf();
     const live = (await j(`/companies/${company.id}/heartbeat-runs?limit=30`)).filter((r) => r.agentId === agent.id);
     if (isBusy(live) && !a.includes('--force')) { log(`ditunda: Manager sedang menjalankan run, tidak ganti model ke ${entry.label}`); return false; }
-    const base = { cwd: path.join(ROOT, 'workspace', 'agent'), timeoutSec: 600, nonInteractivePermissions: 'deny' };
+    const base = { cwd: path.join(ROOT, 'workspace', 'agent'), timeoutSec: 1500, nonInteractivePermissions: 'deny' };
     const env = { ...(entry.adapterConfig.env ?? {}) };
     const de = dotenv();
     for (const k of entry.envFromDotenv ?? []) { if (!de.has(k)) throw new Error(`${k} tidak ada di .env`); env[k] = de.get(k); }

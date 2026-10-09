@@ -74,6 +74,10 @@ function checkOutput(job, stageName) {
   return { ok: true, errors: [] };
 }
 
+// Contoh berkas valid (fixture golden) per tahap, supaya agent meniru bentuknya alih-alih menebak.
+const EXAMPLES = { researcher: '01-research-output.json', verifier: '02-verification-result.json', copywriter: '03-carousel.json', designer: '04-carousel-design.json' };
+const exampleFor = (stage) => (EXAMPLES[stage] ? path.join(ROOT, 'fixtures', 'golden', 'valid', EXAMPLES[stage]) : null);
+
 const orderPathFor = (identifier) => path.join(ORDERS, `${identifier}.json`);
 
 function managerInstruction({ identifier, brief }) {
@@ -108,6 +112,10 @@ async function ingest() {
   log(`brief ${f} -> issue master ${issue.identifier} (Manager menyusun work order)`);
   return { id: issue.id, identifier: issue.identifier, brief };
 }
+
+// Setelah perencanaan, issue master "diparkir" tanpa penanggung jawab: komentar orkestrator tidak membangunkan Manager
+// (menghemat kuota) dan Manager tidak tampak "butuh manusia" di Office View karena issue lama berstatus blocked.
+const parkMaster = (job) => j('/issues/' + job.masterIssueId, jb('PATCH', { assigneeAgentId: null, status: 'backlog' }));
 
 const comment = (issueId, text) => j(`/issues/${issueId}/comments`, jb('POST', { body: `[Orkestrator] ${text}` }));
 
@@ -145,7 +153,7 @@ async function createStage(job, stage) {
     description: stageDescription({
       order, stage, identifier: job.identifier, outputsDir: OUTPUTS, brief: job.brief, refs: standingRefs(stage),
       inputs: STAGES.slice(0, STAGES.indexOf(stage)).map((s) => artifactPathFor(job.identifier, s)),
-      output: { path: outPathFor(job.identifier, stage), schema: STAGE_OUTPUT[stage].schema, note: stage === 'researcher' ? 'Isi: {"candidates":[{"title","summary","url","published_at","source_name"}]} saja, 5-10 kandidat; kode yang menambah id dan metadata.' : stage === 'qa' ? 'Isi: {"passed": true|false, "notes": ["..."]}; passed=true hanya bila render, teks, dan sumber sesuai brief tetap.' : stage === 'designer' ? 'Setelah menulis, jalankan render_carousel dan perbaiki bila passed=false.' : '' },
+      output: { path: outPathFor(job.identifier, stage), schema: STAGE_OUTPUT[stage].schema, example: exampleFor(stage), note: stage === 'researcher' ? 'Isi: {"candidates":[{"title","summary","url","published_at","source_name"}]} saja, 5-10 kandidat; kode yang menambah id dan metadata.' : stage === 'qa' ? 'Isi: {"passed": true|false, "notes": ["..."]}; passed=true hanya bila render, teks, dan sumber sesuai brief tetap.' : stage === 'designer' ? 'Setelah menulis, jalankan render_carousel dan perbaiki bila passed=false.' : '' },
     }),
     status: 'todo', projectId: project.id, assigneeAgentId: ag.id,
   }));
@@ -157,7 +165,7 @@ async function applyActions(job, actions, facts) {
   for (const act of actions) {
     if (DRY) { log(`[dry-run] ${JSON.stringify(act)}`); continue; }
     if (act.type === 'comment') await comment(job.masterIssueId, act.text);
-    else if (act.type === 'createStage') job.stageIssueId = await createStage(job, act.stage);
+    else if (act.type === 'createStage') { job.stageIssueId = await createStage(job, act.stage); if (act.stage === STAGES[0]) await parkMaster(job); }
     else if (act.type === 'rewakeManager') { job.handledRuns = facts.succeeded; await comment(job.masterIssueId, `Work order belum valid: ${act.errors.join('; ')}. Perbaiki file ${orderPathFor(job.identifier)}, baca ulang, lalu complete_stage lagi.`); }
     else if (act.type === 'rejectStage') {
       await j('/issues/' + job.stageIssueId + '/comments', jb('POST', { body: '[Orkestrator] Keluaran belum lolos pemeriksaan: ' + act.errors.join('; ') + '. Perbaiki file keluaran, baca ulang, lalu panggil complete_stage lagi.' }));
@@ -166,7 +174,7 @@ async function applyActions(job, actions, facts) {
       log(job.identifier + ' tahap ' + STAGE_AGENT[STAGES[job.stageIndex]] + ' ditolak gerbang: ' + act.errors.join('; ').slice(0, 160));
     }
     else if (act.type === 'finish') { await comment(job.masterIssueId, act.text); await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'in_review' })); log(`${job.identifier} selesai, menunggu owner`); }
-    else if (act.type === 'block') { await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await j(`/issues/${job.masterIssueId}`, jb('PATCH', { status: 'blocked' })); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
+    else if (act.type === 'block') { await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
   }
 }
 
@@ -197,7 +205,7 @@ if (a.includes('--retry')) {
   const stageName = STAGES[blocked.stageIndex];
   blocked.phase = 'running'; blocked.stageStartedMs = Date.now(); blocked.stageRetries = 0;
   blocked.stageIssueId = await createStage(blocked, stageName);
-  await j('/issues/' + blocked.masterIssueId, jb('PATCH', { status: 'in_progress' }));
+  await parkMaster(blocked);
   writeState(s);
   log('tahap ' + STAGE_AGENT[stageName] + ' diulang untuk ' + blocked.identifier);
 } else if (a.includes('--resume')) {
@@ -210,7 +218,6 @@ if (a.includes('--retry')) {
   s.history = s.history.filter((x) => x !== blocked && x.masterIssueId !== blocked.masterIssueId);
   s.job = { ...blocked, phase: 'planning', stageIndex: -1, stageIssueId: null, createdMs: Date.now(), planRetries: 0, handledRuns: 0 };
   delete s.job.endedMs; delete s.job.abandoned;
-  await j('/issues/' + s.job.masterIssueId, jb('PATCH', { status: 'in_progress' }));
   writeState(s);
   log('job ' + s.job.identifier + ' dilanjutkan dari work order yang valid');
 } else if (a.includes('--status')) {

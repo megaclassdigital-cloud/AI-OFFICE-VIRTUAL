@@ -7,7 +7,7 @@
   "defaultAdapterType": "codex_local",
   "defaultAdapterConfig": {
     "cwd": "D:\\AI-Memory\\AI-Agent-Office\\workspace\\agent",
-    "timeoutSec": 600,
+    "timeoutSec": 1500,
     "nonInteractivePermissions": "deny"
   },
   "sharedProtocolFile": "sop/agent-protocol.md",

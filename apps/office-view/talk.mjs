@@ -9,7 +9,7 @@ const OUT_EXT = new Set(['.md', '.json', '.txt']);
 const MAX_FILE = 200 * 1024;
 const MIN_GAP_MS = 5000;
 
-export function createTalk({ base, port, managerName = 'Manager', companyMatch = /edukasi/i, now = () => Date.now(), outputRoot = null, inboxRoot = null }) {
+export function createTalk({ base, port, managerName = 'Manager', companyMatch = /edukasi/i, now = () => Date.now(), outputRoot = null, inboxRoot = null, stateFile = null }) {
   const agentNames = new Map();
   const issues = new Set();
   let last = 0;
@@ -54,6 +54,13 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     if (!u.pathname.startsWith('/api/talk')) return false;
     try {
       if (u.pathname === '/api/talk/info' && req.method === 'GET') { json(res, 200, { enabled: true, to: managerName }); return true; }
+      if (u.pathname === '/api/talk/pipeline' && req.method === 'GET') {
+        let job = null; let history = 0; let queue = 0;
+        try { const s = JSON.parse((await readFile(stateFile, 'utf8')).replace(/^\uFEFF/, '')); job = s.job ? { identifier: s.job.identifier, phase: s.job.phase, stageIndex: s.job.stageIndex } : null; history = (s.history ?? []).length; } catch { /* belum ada state */ }
+        try { queue = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* inbox belum ada */ }
+        json(res, 200, { job, history, queue });
+        return true;
+      }
       if (u.pathname === '/api/talk/outputs' && req.method === 'GET') {
         if (!outputRoot) { json(res, 200, { files: [] }); return true; }
         const walk = async (dir, rel = '') => {
