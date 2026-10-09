@@ -191,7 +191,8 @@ async function once() {
 if (a.includes('--retry')) {
   // Ulangi tahap yang terblokir (mis. gangguan penyedia model): buat ulang issue tahap itu dan lanjutkan.
   const s = readState();
-  const blocked = s.job?.phase === 'blocked' ? s.job : null;
+  const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked' && x.stageIndex >= 0);
+  if (blocked && s.job !== blocked) { s.history = s.history.filter((x) => x.masterIssueId !== blocked.masterIssueId); s.job = blocked; delete blocked.endedMs; delete blocked.abandoned; }
   if (!blocked || blocked.stageIndex < 0) { console.log('Tidak ada job terblokir pada suatu tahap.'); process.exit(1); }
   const stageName = STAGES[blocked.stageIndex];
   blocked.phase = 'running'; blocked.stageStartedMs = Date.now(); blocked.stageRetries = 0;
