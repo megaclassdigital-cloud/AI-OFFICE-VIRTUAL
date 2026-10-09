@@ -1,41 +1,379 @@
 {
   "_catatan": "Denah Office View EdukasiAI (docs/ui/OFFICE-VIEW.md). Koordinat dalam piksel kanvas logis 1920x1080. Division lain cukup membuat denahnya sendiri.",
   "division": "EdukasiAI",
-  "canvas": { "width": 1920, "height": 1080 },
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
   "corridorY": 540,
   "rooms": [
-    { "id": "riset",   "name": "Ruang Riset",   "x": 40,   "y": 100, "w": 560, "h": 400, "door": { "x": 320,  "y": 500 }, "aisleY": 430, "floor": "#3b4a5c", "live": true },
-    { "id": "studio",  "name": "Studio Konten", "x": 620,  "y": 100, "w": 560, "h": 400, "door": { "x": 900,  "y": 500 }, "aisleY": 430, "floor": "#4a4358", "live": true },
-    { "id": "qa",      "name": "Meja QA",       "x": 1200, "y": 100, "w": 320, "h": 400, "door": { "x": 1360, "y": 500 }, "aisleY": 430, "floor": "#3c5348", "live": true },
-    { "id": "rapat",   "name": "Ruang Rapat",   "x": 1540, "y": 100, "w": 340, "h": 400, "door": { "x": 1710, "y": 500 }, "aisleY": 430, "floor": "#42525e", "glass": true, "live": false, "dimLabel": "segera aktif" },
-    { "id": "owner",   "name": "Meja Owner",    "x": 40,   "y": 580, "w": 520, "h": 400, "door": { "x": 300,  "y": 580 }, "aisleY": 650, "floor": "#5a4636", "live": true },
-    { "id": "papan",   "name": "Papan Tayang",  "x": 580,  "y": 580, "w": 420, "h": 400, "door": { "x": 790,  "y": 580 }, "aisleY": 650, "floor": "#3d4f4f", "live": false, "liveInSim": true, "dimLabel": "segera aktif" },
-    { "id": "lounge",  "name": "Lounge",        "x": 1020, "y": 580, "w": 540, "h": 400, "door": { "x": 1290, "y": 580 }, "aisleY": 650, "floor": "#4f4a3c", "live": true },
-    { "id": "bug",     "name": "Pojok Bug",     "x": 1580, "y": 580, "w": 300, "h": 400, "door": { "x": 1730, "y": 580 }, "aisleY": 650, "floor": "#5b3b3b", "live": true }
+    {
+      "id": "riset",
+      "name": "Ruang Riset",
+      "x": 40,
+      "y": 100,
+      "w": 560,
+      "h": 400,
+      "door": {
+        "x": 320,
+        "y": 500
+      },
+      "aisleY": 430,
+      "floor": "#3b4a5c",
+      "live": true
+    },
+    {
+      "id": "studio",
+      "name": "Studio Konten",
+      "x": 620,
+      "y": 100,
+      "w": 560,
+      "h": 400,
+      "door": {
+        "x": 900,
+        "y": 500
+      },
+      "aisleY": 430,
+      "floor": "#4a4358",
+      "live": true
+    },
+    {
+      "id": "qa",
+      "name": "Meja QA",
+      "x": 1200,
+      "y": 100,
+      "w": 320,
+      "h": 400,
+      "door": {
+        "x": 1360,
+        "y": 500
+      },
+      "aisleY": 430,
+      "floor": "#3c5348",
+      "live": true
+    },
+    {
+      "id": "rapat",
+      "name": "Ruang Rapat",
+      "x": 1540,
+      "y": 100,
+      "w": 340,
+      "h": 400,
+      "door": {
+        "x": 1710,
+        "y": 500
+      },
+      "aisleY": 430,
+      "floor": "#42525e",
+      "glass": true,
+      "live": true
+    },
+    {
+      "id": "owner",
+      "name": "Meja Owner",
+      "x": 40,
+      "y": 580,
+      "w": 520,
+      "h": 400,
+      "door": {
+        "x": 300,
+        "y": 580
+      },
+      "aisleY": 650,
+      "floor": "#5a4636",
+      "live": true
+    },
+    {
+      "id": "papan",
+      "name": "Papan Tayang",
+      "x": 580,
+      "y": 580,
+      "w": 420,
+      "h": 400,
+      "door": {
+        "x": 790,
+        "y": 580
+      },
+      "aisleY": 650,
+      "floor": "#3d4f4f",
+      "live": false,
+      "liveInSim": true,
+      "dimLabel": "segera aktif"
+    },
+    {
+      "id": "lounge",
+      "name": "Lounge",
+      "x": 1020,
+      "y": 580,
+      "w": 540,
+      "h": 400,
+      "door": {
+        "x": 1290,
+        "y": 580
+      },
+      "aisleY": 650,
+      "floor": "#4f4a3c",
+      "live": true
+    },
+    {
+      "id": "bug",
+      "name": "Pojok Bug",
+      "x": 1580,
+      "y": 580,
+      "w": 300,
+      "h": 400,
+      "door": {
+        "x": 1730,
+        "y": 580
+      },
+      "aisleY": 650,
+      "floor": "#5b3b3b",
+      "live": true
+    }
   ],
   "desks": [
-    { "key": "researcher", "room": "riset",  "desk": { "x": 100, "y": 230, "w": 160, "h": 60 }, "seat": { "x": 180, "y": 322 }, "stand": { "x": 290, "y": 322 } },
-    { "key": "verifier",   "room": "riset",  "desk": { "x": 370, "y": 230, "w": 160, "h": 60 }, "seat": { "x": 450, "y": 322 }, "stand": { "x": 560, "y": 322 } },
-    { "key": "copywriter", "room": "studio", "desk": { "x": 690, "y": 230, "w": 160, "h": 60 }, "seat": { "x": 770, "y": 322 }, "stand": { "x": 880, "y": 322 } },
-    { "key": "designer",   "room": "studio", "desk": { "x": 950, "y": 230, "w": 160, "h": 60 }, "seat": { "x": 1030, "y": 322 }, "stand": { "x": 1140, "y": 322 } },
-    { "key": "qa",         "room": "qa",     "desk": { "x": 1280, "y": 230, "w": 160, "h": 60 }, "seat": { "x": 1360, "y": 322 }, "stand": { "x": 1470, "y": 322 } }
+    {
+      "key": "researcher",
+      "room": "riset",
+      "desk": {
+        "x": 100,
+        "y": 230,
+        "w": 160,
+        "h": 60
+      },
+      "seat": {
+        "x": 180,
+        "y": 322
+      },
+      "stand": {
+        "x": 290,
+        "y": 322
+      }
+    },
+    {
+      "key": "verifier",
+      "room": "riset",
+      "desk": {
+        "x": 370,
+        "y": 230,
+        "w": 160,
+        "h": 60
+      },
+      "seat": {
+        "x": 450,
+        "y": 322
+      },
+      "stand": {
+        "x": 560,
+        "y": 322
+      }
+    },
+    {
+      "key": "copywriter",
+      "room": "studio",
+      "desk": {
+        "x": 690,
+        "y": 230,
+        "w": 160,
+        "h": 60
+      },
+      "seat": {
+        "x": 770,
+        "y": 322
+      },
+      "stand": {
+        "x": 880,
+        "y": 322
+      }
+    },
+    {
+      "key": "designer",
+      "room": "studio",
+      "desk": {
+        "x": 950,
+        "y": 230,
+        "w": 160,
+        "h": 60
+      },
+      "seat": {
+        "x": 1030,
+        "y": 322
+      },
+      "stand": {
+        "x": 1140,
+        "y": 322
+      }
+    },
+    {
+      "key": "qa",
+      "room": "qa",
+      "desk": {
+        "x": 1280,
+        "y": 230,
+        "w": 160,
+        "h": 60
+      },
+      "seat": {
+        "x": 1360,
+        "y": 322
+      },
+      "stand": {
+        "x": 1470,
+        "y": 322
+      }
+    },
+    {
+      "key": "manager",
+      "room": "rapat",
+      "desk": {
+        "x": 1620,
+        "y": 230,
+        "w": 160,
+        "h": 60
+      },
+      "seat": {
+        "x": 1700,
+        "y": 322
+      },
+      "stand": {
+        "x": 1810,
+        "y": 322
+      }
+    }
   ],
-  "roleToDeskKey": { "researcher": "researcher", "designer": "designer", "qa": "qa", "general": "copywriter" },
-  "ownerSeat": { "x": 230, "y": 832 },
-  "ownerDesk": { "x": 150, "y": 740, "w": 190, "h": 66 },
-  "ownerBox": { "x": 410, "y": 760, "w": 90, "h": 60 },
-  "ownerDrop": { "x": 400, "y": 860 },
-  "board": { "x": 640, "y": 625, "w": 300, "h": 170 },
+  "roleToDeskKey": {
+    "researcher": "researcher",
+    "designer": "designer",
+    "qa": "qa",
+    "general": "copywriter",
+    "pm": "manager"
+  },
+  "ownerSeat": {
+    "x": 230,
+    "y": 832
+  },
+  "ownerDesk": {
+    "x": 150,
+    "y": 740,
+    "w": 190,
+    "h": 66
+  },
+  "ownerBox": {
+    "x": 410,
+    "y": 760,
+    "w": 90,
+    "h": 60
+  },
+  "ownerDrop": {
+    "x": 400,
+    "y": 860
+  },
+  "board": {
+    "x": 640,
+    "y": 625,
+    "w": 300,
+    "h": 170
+  },
   "loungeSlots": [
-    { "x": 1100, "y": 880 }, { "x": 1200, "y": 880 }, { "x": 1300, "y": 880 }, { "x": 1420, "y": 740 }, { "x": 1500, "y": 800 },
-    { "x": 1120, "y": 760 }, { "x": 1250, "y": 770 }, { "x": 1400, "y": 900 }
+    {
+      "x": 1100,
+      "y": 880
+    },
+    {
+      "x": 1200,
+      "y": 880
+    },
+    {
+      "x": 1300,
+      "y": 880
+    },
+    {
+      "x": 1420,
+      "y": 740
+    },
+    {
+      "x": 1500,
+      "y": 800
+    },
+    {
+      "x": 1120,
+      "y": 760
+    },
+    {
+      "x": 1250,
+      "y": 770
+    },
+    {
+      "x": 1400,
+      "y": 900
+    }
   ],
-  "sofa": { "x": 1060, "y": 800, "w": 300, "h": 70 },
-  "coffee": { "x": 1470, "y": 640, "w": 60, "h": 80 },
+  "sofa": {
+    "x": 1060,
+    "y": 800,
+    "w": 300,
+    "h": 70
+  },
+  "coffee": {
+    "x": 1470,
+    "y": 640,
+    "w": 60,
+    "h": 80
+  },
   "bugSlots": [
-    { "x": 1730, "y": 860 }, { "x": 1660, "y": 800 }, { "x": 1800, "y": 800 }, { "x": 1690, "y": 920 }, { "x": 1780, "y": 920 }
+    {
+      "x": 1730,
+      "y": 860
+    },
+    {
+      "x": 1660,
+      "y": 800
+    },
+    {
+      "x": 1800,
+      "y": 800
+    },
+    {
+      "x": 1690,
+      "y": 920
+    },
+    {
+      "x": 1780,
+      "y": 920
+    }
   ],
-  "bugDesk": { "x": 1650, "y": 700, "w": 160, "h": 56 },
-  "meetingTable": { "x": 1590, "y": 250, "w": 240, "h": 100 },
-  "plants": [ { "x": 560, "y": 440 }, { "x": 1160, "y": 440 }, { "x": 1020, "y": 940 }, { "x": 1540, "y": 940 }, { "x": 60, "y": 940 } ]
+  "bugDesk": {
+    "x": 1650,
+    "y": 700,
+    "w": 160,
+    "h": 56
+  },
+  "meetingTable": {
+    "x": 1590,
+    "y": 250,
+    "w": 240,
+    "h": 100
+  },
+  "plants": [
+    {
+      "x": 560,
+      "y": 440
+    },
+    {
+      "x": 1160,
+      "y": 440
+    },
+    {
+      "x": 1020,
+      "y": 940
+    },
+    {
+      "x": 1540,
+      "y": 940
+    },
+    {
+      "x": 60,
+      "y": 940
+    }
+  ]
 }

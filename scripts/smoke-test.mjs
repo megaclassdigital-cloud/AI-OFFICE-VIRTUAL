@@ -80,7 +80,7 @@ check('company EdukasiAI ada', !!edu, edu?.name);
 check('company IsolationTest ada', !!iso, iso?.name);
 
 const agents = asList((await api(`/api/companies/${EDU}/agents`)).json, 'agents');
-check('EdukasiAI punya tepat 5 agent', agents.length === 5, `${agents.length} agent`);
+check('EdukasiAI punya tepat 6 agent (5 + Manager)', agents.length === 6, `${agents.length} agent`);
 
 const manifest = JSON.parse(await readFile(path.join(repoRoot, 'divisions/edukasiai/division.json'), 'utf8'));
 const expected = manifest.agents.map((a) => a.name).sort();

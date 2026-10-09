@@ -211,6 +211,21 @@ async function main() {
     }
   }
 
+  // Reporting lines (org chart): agents with reportsToKey report to that agent. Dry run never writes.
+  if (!args.dryRun) {
+    const nowAgents = await api(`/api/companies/${companyId}/agents`);
+    const byName = (n) => nowAgents.find((x) => x.name === n);
+    const keyToName = new Map(manifest.agents.map((x) => [x.key, x.name]));
+    for (const a of manifest.agents.filter((x) => x.reportsToKey)) {
+      const boss = byName(keyToName.get(a.reportsToKey));
+      const me = byName(a.name);
+      if (boss && me && me.reportsTo !== boss.id) {
+        await api(`/api/agents/${me.id}`, { method: 'PATCH', body: { reportsTo: boss.id } });
+        console.log(`~ '${a.name}' melapor ke '${boss.name}'`);
+      }
+    }
+  }
+
   console.log('');
   console.log(`Ringkasan: dibuat=${created} diperbarui=${updated}`);
 

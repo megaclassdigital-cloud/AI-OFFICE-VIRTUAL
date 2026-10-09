@@ -13,6 +13,22 @@
   "sharedProtocolFile": "sop/agent-protocol.md",
   "agents": [
     {
+      "key": "manager",
+      "name": "Manager",
+      "role": "pm",
+      "title": "Manajer Division EdukasiAI",
+      "icon": "crown",
+      "capabilities": "Memimpin division: memecah arahan owner menjadi tugas, menulis brief desain .md untuk Designer, memantau alur dan kuota, melapor ke owner. Tanpa otoritas approval.",
+      "instructionsFile": "agents/manager.md",
+      "adapterType": "opencode_local",
+      "adapterConfig": {
+        "model": "google/gemini-3.1-flash-lite"
+      },
+      "envFromDotenv": [
+        "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+      ]
+    },
+    {
       "key": "researcher",
       "name": "Researcher",
       "role": "researcher",
@@ -23,7 +39,8 @@
       "adapterType": "opencode_local",
       "adapterConfig": {
         "model": "opencode/nemotron-3-ultra-free"
-      }
+      },
+      "reportsToKey": "manager"
     },
     {
       "key": "verifier",
@@ -36,7 +53,8 @@
       "adapterType": "opencode_local",
       "adapterConfig": {
         "model": "opencode/ling-3.1-flash-free"
-      }
+      },
+      "reportsToKey": "manager"
     },
     {
       "key": "copywriter",
@@ -52,7 +70,8 @@
       },
       "envFromDotenv": [
         "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
-      ]
+      ],
+      "reportsToKey": "manager"
     },
     {
       "key": "designer",
@@ -68,7 +87,8 @@
       },
       "envFromDotenv": [
         "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
-      ]
+      ],
+      "reportsToKey": "manager"
     },
     {
       "key": "qa",
@@ -81,7 +101,8 @@
       "adapterType": "opencode_local",
       "adapterConfig": {
         "model": "opencode/mimo-v2.6-flash-free"
-      }
+      },
+      "reportsToKey": "manager"
     }
   ]
 }
