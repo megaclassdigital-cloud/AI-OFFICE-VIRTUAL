@@ -157,3 +157,14 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Lain-lain: Paperclip dinyalakan ulang (plugin ikut dimuat ulang dengan kode terbaru, smoke 37 PASS). `loop/OWNER-QUEUE.md` sempat terhapus di working tree (bukan oleh implementer), dipulihkan dengan `git restore`. Hook plugin `security-guidance` dinonaktifkan atas permintaan owner (`hooks.json` dikosongkan, cadangan `hooks.json.bak-disabled`; `disableAllHooks: true` di settings.json). Owner memilih mengerjakan O-007 lalu O-004; belum dimulai. Pemindahan sesi ke cloud tertunda: belum ada remote GitHub, `CLAUDE.md`/`README.md` milik owner belum di-commit; Paperclip dan `.env` hanya ada di mesin lokal.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-019 — Agent pindah ke opencode_local dengan model gratis; Designer membaca referensi gambar
+- Task: O-007/O-004 (lintas sesi 2026-10-09), atas permintaan owner: pakai LLM gratis, Codex hanya untuk uji.
+- Probe sandbox (docs/evidence/O-007/sandbox-probe.json): satu run Researcher codex_local menolak membaca canary dan menulis di luar workspace. Itu perilaku agent (pagar prompt), BUKAN bukti sandbox OS. D-018 tetap berlaku; O-009 belum diputuskan owner.
+- `gemini_local` (ACP) dicoba dan ditinggalkan: batas startup 15 dtk (perlu ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS, kini di start-paperclip.ps1) dan model tidak bisa diatur lewat ACP. `opencode_local` menerima model per agent.
+- Penempatan: Researcher `opencode/nemotron-3-ultra-free`, Verifier `opencode/ling-3.1-flash-free`, QA `opencode/mimo-v2.6-flash-free`, Copywriter `google/gemini-3.7-flash`, Designer `google/gemini-3.5-flash-lite` (multimodal, terbukti membaca gambar referensi, EDU-23). Key Gemini di `.env` (GEMINI_API_KEY), dipetakan ke GOOGLE_GENERATIVE_AI_API_KEY oleh `install-division.mjs` (envFromDotenv `TARGET=SOURCE`), disimpan hanya di config lokal Paperclip.
+- Kuota gratis Gemini 20 req/hari PER MODEL; model berbeda per agent mencegah rebutan. gemini-3.8-flash dan 3.5-flash habis hari ini.
+- Guard 6 run/agent/hari mem-pause agent saat uji; `POST /api/agents/<id>/resume` memulihkan. Batas tidak dilonggarkan.
+- Belum dibuktikan: agent opencode memanggil tool plugin aao-approval-gate (AC1.2/AC1.3), dan kualitas model gratis untuk pekerjaan nyata.
+- Biaya membalik: rendah
+- Label: REVIEW-OWNER

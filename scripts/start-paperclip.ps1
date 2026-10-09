@@ -116,6 +116,8 @@ if (-not (Test-Path $LogDir)) {
 }
 
 $env:Path = Get-NodePath
+# Gemini CLI ACP cold start can exceed Paperclip default of 15s on this machine.
+$env:ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS = '120000'
 
 if ($Foreground) {
     Write-Host "Menjalankan Paperclip $PaperclipVersion di shell ini. Ctrl+C untuk berhenti."

@@ -21,6 +21,24 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+
+// Per-agent adapter override. Values named in a.envFromDotenv are read from the repo .env at install
+// time and stored only in Paperclip's local config, never written back into the repo.
+async function buildAdapterConfig(base, a) {
+  const cfg = { ...(base ?? {}), ...(a.adapterConfig ?? {}) };
+  if (a.envFromDotenv?.length) {
+    const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env');
+    const lines = existsSync(envPath) ? (await readFile(envPath, 'utf8')).split(/\r?\n/) : [];
+    cfg.env = { ...(cfg.env ?? {}) };
+    for (const entry of a.envFromDotenv) {
+      const [k, src = k] = entry.split('=');
+      const l = lines.find((x) => x.startsWith(src + '='));
+      if (!l) fail(`${src} tidak ada di .env (diperlukan agent '${a.name}')`);
+      cfg.env[k] = l.slice(src.length + 1).trim();
+    }
+  }
+  return cfg;
+}
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -152,10 +170,12 @@ async function main() {
       title: a.title,
       icon: a.icon,
       capabilities: a.capabilities,
-      adapterType: manifest.defaultAdapterType,
+      adapterType: a.adapterType ?? manifest.defaultAdapterType,
       // Least privilege: agent coding CLI punya akses shell, jadi working directory
       // dibatasi ke workspace/ dan tidak dibiarkan di root repo (PRD bagian 8).
-      ...(manifest.defaultAdapterConfig ? { adapterConfig: manifest.defaultAdapterConfig } : {}),
+      ...(manifest.defaultAdapterConfig || a.adapterConfig
+        ? { adapterConfig: await buildAdapterConfig(manifest.defaultAdapterConfig, a) }
+        : {}),
       instructionsBundle: {
         entryFile: 'AGENTS.md',
         files: { 'AGENTS.md': instructions },

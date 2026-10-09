@@ -22,3 +22,6 @@ Diisi oleh Claude Code di F0.1. Upgrade hanya lewat tugas terpisah dengan regres
 - Server Paperclip dikonfigurasi di port **3100** oleh wizard `onboard` (default).
   Port ini **sudah dipakai** oleh dev server lain milik owner (`next dev --turbopack -p 3100` dari `D:\ERP-KIOS`).
   Lihat laporan build `reports/build/2026-10-04_F0.1.md` bagian risiko.
+
+- `@google/gemini-cli@0.63.0` (npm global, 2026-10-09): untuk adapter `gemini_local` (LLM gratis). Script install keytar tidak diizinkan.
+- `opencode-ai@1.18.35` (npm global, 2026-10-09): adapter `opencode_local`, model gratis.

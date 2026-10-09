@@ -19,7 +19,11 @@
       "title": "Peneliti Berita AI",
       "icon": "telescope",
       "capabilities": "Mengumpulkan 5-10 kandidat berita AI dari 7 hari terakhir. Output wajib JSON sesuai schemas/research-output.json: judul, ringkasan, URL sumber, tanggal terbit, nama sumber.",
-      "instructionsFile": "agents/researcher.md"
+      "instructionsFile": "agents/researcher.md",
+      "adapterType": "opencode_local",
+      "adapterConfig": {
+        "model": "opencode/nemotron-3-ultra-free"
+      }
     },
     {
       "key": "verifier",
@@ -28,7 +32,11 @@
       "title": "Verifikator Sumber",
       "icon": "shield",
       "capabilities": "Memeriksa setiap kandidat: URL bisa diakses, tanggal dalam rentang 7 hari, klaim utama ada di halaman. Pengecekan URL dan tanggal dilakukan tool deterministik, bukan penilaian LLM.",
-      "instructionsFile": "agents/verifier.md"
+      "instructionsFile": "agents/verifier.md",
+      "adapterType": "opencode_local",
+      "adapterConfig": {
+        "model": "opencode/ling-3.1-flash-free"
+      }
     },
     {
       "key": "copywriter",
@@ -37,7 +45,14 @@
       "title": "Penulis Carousel",
       "icon": "lightbulb",
       "capabilities": "Menghasilkan struktur carousel 6-10 slide bahasa Indonesia sesuai schemas/carousel.json: hook, isi per slide, CTA, caption, hashtag, daftar sumber.",
-      "instructionsFile": "agents/copywriter.md"
+      "instructionsFile": "agents/copywriter.md",
+      "adapterType": "opencode_local",
+      "adapterConfig": {
+        "model": "google/gemini-3.7-flash"
+      },
+      "envFromDotenv": [
+        "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+      ]
     },
     {
       "key": "designer",
@@ -46,7 +61,14 @@
       "title": "Perancang Slide",
       "icon": "wand",
       "capabilities": "Mengisi schemas/carousel-design.json dari template brand kit: template per slide, isi slot, penekanan, varian warna, ikon lokal. Tidak menulis HTML/CSS bebas.",
-      "instructionsFile": "agents/designer.md"
+      "instructionsFile": "agents/designer.md",
+      "adapterType": "opencode_local",
+      "adapterConfig": {
+        "model": "google/gemini-3.5-flash-lite"
+      },
+      "envFromDotenv": [
+        "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+      ]
     },
     {
       "key": "qa",
@@ -55,7 +77,11 @@
       "title": "Pemeriksa Mutu",
       "icon": "eye",
       "capabilities": "Memeriksa paket teks + PNG + visual-qa.json. Gagal QA teks kembali ke Copywriter, gagal QA visual kembali ke Designer, maksimal 2 putaran lalu needs_human.",
-      "instructionsFile": "agents/qa.md"
+      "instructionsFile": "agents/qa.md",
+      "adapterType": "opencode_local",
+      "adapterConfig": {
+        "model": "opencode/mimo-v2.6-flash-free"
+      }
     }
   ]
 }
