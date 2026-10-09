@@ -4,6 +4,17 @@ import { STAGES, STAGE_AGENT, MAX_EXTRA_CONTENTS } from './orchestrator-core.mjs
 
 const NL = String.fromCharCode(10);
 
+/** Aturan hemat token untuk Manager (berlaku sama untuk ChatGPT dan Claude; kuota langganan dipakai bersama). */
+export const TOKEN_RULES = [
+  'ATURAN HEMAT TOKEN (wajib; berlaku untuk model apa pun yang menjalankan perananmu):',
+  '- Baca HANYA berkas yang disebut di sini (konteks, template, brief). Jangan menjelajah folder atau repo dan jangan membuka berkas lain.',
+  '- Satu kali menulis work order, satu kali membaca ulang untuk memastikan ada. Jangan mengulang-ulang atau menyusun draf bertahap.',
+  '- Jangan menyalin ulang isi brief atau konteks ke keluaran; rujuk saja. Instruksi tiap tahap padat: sekitar 600-1200 karakter, hanya yang perlu.',
+  '- Tanpa pembukaan, penutup, atau penjelasan panjang di balasan. Balasan akhir satu paragraf pendek.',
+  '- Jangan melakukan riset web atau memakai alat berat; riset adalah tugas Researcher. Alat yang boleh: menulis/membaca berkas yang disebut dan aao-tool.',
+  '- Bila informasi tidak ada di brief/konteks, tulis sebagai asumsi atau pertanyaan owner, bukan dicari sendiri.',
+].join(NL);
+
 /** Contoh work order (bentuk, bukan isi) yang diberikan ke Manager. */
 export function exampleOrder() {
   const stage = ['Tujuan: satu kalimat hasil yang harus tercapai.', 'Masukan: berkas/data yang dibaca.', 'Batasan: apa yang dilarang; batas jumlah/panjang.', 'Keluaran: bentuk dan nama berkas.', 'Selesai bila: kriteria yang bisa diperiksa.'].join(NL);
@@ -45,6 +56,7 @@ export function buildManagerInstruction({ identifier, brief, contextFile, orderP
     JSON.stringify(exampleOrder(), null, 2),
     templates,
     designBriefPath ? `Jika brief meminta arahan desain, tulis brief desain .md di ${designBriefPath} (diawali front matter, ikuti templat) dan sebut path-nya di instruksi tahap designer.` : '',
+    TOKEN_RULES,
     'Setelah file ada: panggil complete_stage (awaiting_approval) lewat aao-tool.mjs dengan ringkasan satu paragraf untuk owner (topik yang kamu pahami, jumlah konten, asumsi utama), lalu berhenti.',
   ].filter(Boolean).join(NL + NL);
 }

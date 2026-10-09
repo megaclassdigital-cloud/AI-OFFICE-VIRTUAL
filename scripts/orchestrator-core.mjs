@@ -10,6 +10,11 @@ export const isNetworkError = (text) => /cannot connect to api|unable to connect
 
 /** Galat sementara dari penyedia model (bukan salah tugas): layak diulang otomatis. */
 const TRANSIENT_RE = /\b50[0-4]\b|high demand|overloaded|unavailable|temporar|timed? ?out|econnreset|etimedout|rate.?limit|too many requests|\b429\b|requests ending with a model turn|terminal service failure|cannot connect to api|unable to connect|socket connection was closed/i;
+/**
+ * Galat run Manager yang bisa pulih tanpa campur tangan owner: kuota/limit (failover berpindah ChatGPT <-> Claude), login, atau sesi adapter gagal diinisialisasi.
+ * Perencanaan tidak boleh langsung diblokir karenanya; Paperclip mencoba ulang dan failover berpindah model (batas waktu perencanaan tetap melindungi).
+ */
+export const isManagerRetryable = (text) => /acpx_session_init_failed|ensure_session|internal error|quota|usage limit|limit reached|exhausted|resource_exhausted|rate.?limit|too many requests|\b429\b|not logged in|login required|authentication required/i.test(String(text ?? ''));
 export const isTransientError = (text) => TRANSIENT_RE.test(String(text ?? ''));
 
 /** Keluaran baku tiap tahap: nama berkas (di workspace/agent/runs/<ID>/) dan skema yang memvalidasinya. */

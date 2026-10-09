@@ -100,3 +100,11 @@ describe('konfigurasi rantai: Claude/ChatGPT hanya untuk Manager', () => {
     }
   });
 });
+
+describe('galat inisialisasi sesi (limit ChatGPT desktop) memicu pindah ke Claude', () => {
+  it('Internal error dan acpx_session_init_failed dikenali; blokir mengikuti aturan limit', () => {
+    expect(isFailoverError('Internal error acpx_session_init_failed')).toBe(true);
+    expect(isFailoverError('ensure_session RequestError: Internal error')).toBe(true);
+    expect(blockDurationMs('Internal error acpx_session_init_failed')).toBe(3 * HOUR_MS);
+  });
+});

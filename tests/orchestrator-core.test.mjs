@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, analysisOf, renderAnalysisComment, MAX_EXTRA_CONTENTS } from '../scripts/orchestrator-core.mjs';
+import { STAGES, validateOrder, newJob, step, stageDescription, LIMITS, forwardSlashPaths, parseRevisionBrief, canPlanAhead, nextPlanned, activePending, MAX_PENDING_PLANS, isManagerRetryable, checkOrderStructure, extraContentsOf, analysisOf, renderAnalysisComment, MAX_EXTRA_CONTENTS } from '../scripts/orchestrator-core.mjs';
 
 const goodOrder = { title: 'Carousel tren AI', stages: Object.fromEntries(STAGES.map((s) => [s, `kerjakan ${s}`])) };
 const T0 = 1_000_000;
@@ -211,5 +211,14 @@ describe('slot perencanaan Manager: rencana siap tidak memakai slot', () => {
     expect(canPlanAhead(running, [{ identifier: 'a', ready: true }])).toBe(true);
     expect(canPlanAhead(running, [{ identifier: 'a', ready: true }, { identifier: 'b', ready: true, hold: true }])).toBe(true);
     expect(canPlanAhead(running, [{ identifier: 'a' }])).toBe(false);
+  });
+});
+
+describe('isManagerRetryable (galat Manager yang pulih sendiri tidak memblokir perencanaan)', () => {
+  it('limit, login, dan gagal inisialisasi sesi dianggap bisa pulih', () => {
+    for (const t of ['Internal error', 'acpx_session_init_failed', 'usage limit reached', 'You exhausted your daily quota', '429 Too Many Requests', 'Not logged in', 'ensure_session failed']) expect(isManagerRetryable(t), t).toBe(true);
+  });
+  it('galat tugas biasa tidak', () => {
+    for (const t of ['schema validation failed', 'JSON tidak bisa dibaca', '', null]) expect(isManagerRetryable(t), String(t)).toBe(false);
   });
 });

@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
@@ -543,7 +543,7 @@ async function planAhead(state, offline, review = false) {
       continue;
     }
     Object.assign(p, job);
-    if (facts.managerFailedError && !isNetworkErr(facts.managerFailedError)) { actions.push({ type: 'block', reason: 'run Manager gagal: ' + String(facts.managerFailedError).slice(0, 120) }); p.phase = 'blocked'; }
+    if (facts.managerFailedError && !isNetworkErr(facts.managerFailedError) && !isManagerRetryable(facts.managerFailedError)) { actions.push({ type: 'block', reason: 'run Manager gagal: ' + String(facts.managerFailedError).slice(0, 120) }); p.phase = 'blocked'; }
     await applyActions(p, actions, facts);
     if (p.phase === 'blocked') { state.history.push({ ...p, endedMs: Date.now() }); state.pending = state.pending.filter((x) => x !== p); }
   }
@@ -578,7 +578,7 @@ async function once() {
   facts.offline = net.hold === true;
   const { job, actions } = step(state.job, facts);
   const merged = { ...state.job, ...job };
-  if (facts.managerFailedError && !isNetworkErr(facts.managerFailedError)) { actions.push({ type: 'block', reason: `run Manager gagal: ${String(facts.managerFailedError).slice(0, 120)}` }); merged.phase = 'blocked'; }
+  if (facts.managerFailedError && !isNetworkErr(facts.managerFailedError) && !isManagerRetryable(facts.managerFailedError)) { actions.push({ type: 'block', reason: `run Manager gagal: ${String(facts.managerFailedError).slice(0, 120)}` }); merged.phase = 'blocked'; }
   await applyActions(merged, actions, facts);
   state.pending ??= [];
   if (extraBuffer.length) state.pending.push(...extraBuffer.splice(0));

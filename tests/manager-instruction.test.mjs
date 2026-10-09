@@ -22,3 +22,13 @@ describe('instruksi Manager 2.0', () => {
     expect(buildManagerInstruction({ identifier: 'EDU-1', brief: 'x', contextFile: 'c', orderPath: 'o' })).not.toMatch(/brief desain/);
   });
 });
+
+import { TOKEN_RULES } from '../scripts/manager-instruction.mjs';
+describe('aturan hemat token untuk ChatGPT dan Claude', () => {
+  it('instruksi perencanaan memuat aturan hemat token (baca seperlunya, tulis sekali, tanpa riset web)', () => {
+    const t = buildManagerInstruction({ identifier: 'EDU-1', brief: 'x', contextFile: 'c', orderPath: 'o' });
+    expect(t).toContain(TOKEN_RULES);
+    expect(TOKEN_RULES).toMatch(/Baca HANYA berkas yang disebut/); expect(TOKEN_RULES).toMatch(/Satu kali menulis work order/); expect(TOKEN_RULES).toMatch(/Jangan melakukan riset web/);
+    expect(TOKEN_RULES).toMatch(/model apa pun/);
+  });
+});
