@@ -19,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 import { recordDecision, latestDecision, readOwnerToken, ApprovalError } from './owner-approval.mjs';
 import { currentPackageHash } from './prepare-publication.mjs';
 import { canTransition } from '../plugins/aao-approval-gate/src/lifecycle.js';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { makeRequest, managerRoutingRequestText, requestFile, managerFile, routingDirFor } from './revision-router.mjs';
 
 export class DecideError extends Error {}
 
@@ -32,7 +34,11 @@ export const defaultRenderDir = (issueId, root = path.resolve(path.dirname(fileU
  * @param {object} p
  * @param {{getIssue:Function, getDocument:Function, listAgents:Function, comment:Function, update:Function}} p.client
  */
-export async function decide({ client, token, expectedToken, issueId, decision, note, renderDir = defaultRenderDir(issueId), approvalDir }) {
+/**
+ * routing (opsional, ADR-0004): { dir, forceStage?, nowMs? }. Bila ada, reject TIDAK lagi hardcode ke Copywriter: Manager yang menentukan tahap awal revisi
+ * (atau owner memaksa forceStage); kode menjalankannya lewat orkestrator (mode revisi). Tanpa routing = perilaku lama (kembali ke Copywriter).
+ */
+export async function decide({ client, token, expectedToken, issueId, decision, note, renderDir = defaultRenderDir(issueId), approvalDir, routing = null }) {
   if (!['approved', 'rejected'].includes(decision)) throw new DecideError('decision harus approved atau rejected');
   if (decision === 'rejected' && !String(note ?? '').trim()) throw new DecideError('reject wajib disertai catatan');
   const issue = await client.getIssue(issueId);
@@ -57,8 +63,13 @@ export async function decide({ client, token, expectedToken, issueId, decision, 
   try { sheetNow = sha256(readFileSync(path.join(renderDir, 'contact-sheet.png'))); } catch { /* hilang */ }
   if (!handedSheet || handedSheet !== sheetNow) throw new DecideError('contact-sheet.png tidak sama dengan yang dicatat saat handoff (atau hilang); minta handoff ulang');
 
-  let copywriter = null;
-  if (decision === 'rejected') {
+  let copywriter = null; let manager = null;
+  if (decision === 'rejected' && routing) {
+    if (!routing.forceStage) {
+      manager = (await client.listAgents()).find((a) => /^manager$/i.test(a.name ?? '') || /^pm$/i.test(a.role ?? ''));
+      if (!manager) throw new DecideError('agent Manager tidak ditemukan; reject dibatalkan sebelum menulis apa pun');
+    }
+  } else if (decision === 'rejected') {
     copywriter = (await client.listAgents()).find((a) => /copywriter/i.test(a.role ?? '') || /copywriter/i.test(a.name ?? ''));
     if (!copywriter) throw new DecideError('agent Copywriter tidak ditemukan; reject dibatalkan sebelum menulis apa pun');
   }
@@ -70,7 +81,19 @@ export async function decide({ client, token, expectedToken, issueId, decision, 
   const same = prev && prev.decision === decision && prev.content_hash.combined === hash.combined && (prev.note ?? '') === (note?.trim() ?? '');
   const record = same ? prev : recordDecision({ token, expectedToken, issue: { id: issue.id, identifier: issue.identifier }, decision, note: note?.trim() || undefined, contentHash: hash, dir: approvalDir });
 
-  if (decision === 'rejected') {
+  if (decision === 'rejected' && routing) {
+    // Permintaan routing ditulis SEKALI (ulangi aman: jendela batal tidak diulang). Kode orkestrator yang membaca dan menjalankannya.
+    mkdirSync(routing.dir, { recursive: true });
+    const reqPath = requestFile(routing.dir, issue.identifier);
+    if (!existsSync(reqPath)) writeFileSync(reqPath, JSON.stringify(makeRequest({ identifier: issue.identifier, issueId: issue.id, reason: note, forceStage: routing.forceStage ?? null, nowMs: routing.nowMs ?? Date.now() }), null, 2) + String.fromCharCode(10), 'utf8');
+    if (routing.forceStage) {
+      await client.comment(issueId, [`Owner MENOLAK paket ini (record ${record.record_id}) dan memilih revisi dari tahap ${routing.forceStage}. Revisi dijadwalkan otomatis (jendela batal 60 detik).`, '', 'Catatan owner:', note.trim()].join('\n'));
+      await client.update(issueId, { status: 'in_progress', assigneeAgentId: null });
+    } else {
+      await client.comment(issueId, managerRoutingRequestText({ identifier: issue.identifier, reason: note, file: managerFile(routing.dir, issue.identifier) }));
+      await client.update(issueId, { status: 'in_progress', assigneeAgentId: manager.id });
+    }
+  } else if (decision === 'rejected') {
     await client.comment(issueId, [
       `Owner MENOLAK paket ini (record ${record.record_id}).`, '', 'Catatan owner:', note.trim(), '',
       'Revisi teks sesuai catatan, lalu jalankan ulang alur desain dan QA. Hash paket lama tidak berlaku lagi.',
@@ -80,7 +103,7 @@ export async function decide({ client, token, expectedToken, issueId, decision, 
     await client.comment(issueId, `Owner MENYETUJUI paket ini (record ${record.record_id}, hash ${record.content_hash.combined}). Paket publikasi disiapkan terpisah; tidak ada posting otomatis.`);
     await client.update(issueId, { status: 'done' });
   }
-  return { record, issueStatus: to, returnedTo: copywriter?.name ?? null, resumed: Boolean(same) };
+  return { record, issueStatus: to, returnedTo: copywriter?.name ?? manager?.name ?? null, routed: Boolean(routing), resumed: Boolean(same) };
 }
 
 /** Klien HTTP Paperclip. Node fetch + Buffer: aman untuk teks Indonesia panjang (lihat CLAUDE.md fakta 5). */
@@ -107,7 +130,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const arg = (n, d) => (a.includes(n) ? a[a.indexOf(n) + 1] : d);
   const decision = { approve: 'approved', reject: 'rejected' }[cmd];
   if (!decision || !arg('--issue')) {
-    console.error('Pemakaian: node scripts/owner-decide.mjs approve|reject --issue <uuid> [--note "..."] [--api url]');
+    console.error('Pemakaian: node scripts/owner-decide.mjs approve|reject --issue <uuid> [--note "..."] [--stage copywriter|designer] [--api url]');
     process.exit(64);
   }
   const apiBase = arg('--api', 'http://127.0.0.1:3177/api');
@@ -117,7 +140,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const co = companies.find((c) => /edukasi/i.test(c.name) && !/mega\s*class/i.test(c.name));
     if (!co) throw new DecideError('company EdukasiAI tidak ditemukan');
     const token = readOwnerToken();
-    const r = await decide({ client: httpClient(apiBase, co.id), token, expectedToken: token, issueId: arg('--issue'), decision, note: arg('--note'), approvalDir: defaultApprovalDir() });
+    const r = await decide({ client: httpClient(apiBase, co.id), token, expectedToken: token, issueId: arg('--issue'), decision, note: arg('--note'), approvalDir: defaultApprovalDir(), routing: decision === 'rejected' ? { dir: routingDirFor(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')), forceStage: arg('--stage') ?? null } : null });
     console.log(JSON.stringify({ decision, record_id: r.record.record_id, issueStatus: r.issueStatus, returnedTo: r.returnedTo }, null, 2));
   } catch (e) {
     console.error(`${e instanceof ApprovalError || e instanceof DecideError ? 'DITOLAK' : 'GAGAL'}: ${e.message}`);

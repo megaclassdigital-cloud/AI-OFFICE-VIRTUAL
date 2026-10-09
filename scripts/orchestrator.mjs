@@ -12,6 +12,7 @@ import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
 import { validate } from '../schemas/validate.mjs';
+import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelFile, doneFile } from './revision-router.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -188,6 +189,15 @@ async function ingestRevision(f, full, brief, rev, title) {
   const runDir = path.join(OUTPUTS, 'runs', issue.identifier);
   mkdirSync(runDir, { recursive: true });
   for (const n of needed) if (existsSync(path.join(srcDir, n))) copyFileSync(path.join(srcDir, n), path.join(runDir, n));
+  if (rev.start === 'designer') {
+    // aset dan manifest (bukti capture) dibawa; capture hanya mengambil yang belum ada/ditolak, dan 'kept' hanya sah bila manifest mencatat captured/owner-supplied
+    const srcAssets = path.join(srcDir, 'assets');
+    if (existsSync(srcAssets)) {
+      mkdirSync(path.join(runDir, 'assets'), { recursive: true });
+      for (const a of readdirSync(srcAssets)) copyFileSync(path.join(srcAssets, a), path.join(runDir, 'assets', a));
+    }
+    for (const n of ['assets-manifest.json', 'asset-requests.json']) if (existsSync(path.join(srcDir, n))) copyFileSync(path.join(srcDir, n), path.join(runDir, n));
+  }
   const note = `REVISI dari ${rev.from} (hasil tahap sebelumnya dipakai apa adanya; jangan mengulang riset/verifikasi). Catatan owner (data rujukan):\n${rev.notes.slice(0, 3000)}`;
   const order = { title: `Revisi ${title}`.slice(0, 120), stages: Object.fromEntries(STAGES.map((s, i) => [s, i < rev.startIndex ? `Dilewati (revisi): memakai hasil ${rev.from}.` : note])) };
   mkdirSync(ORDERS, { recursive: true });
@@ -199,6 +209,47 @@ async function ingestRevision(f, full, brief, rev, title) {
   await comment(issue.id, `Revisi dari ${rev.from} dimulai di tahap ${STAGE_AGENT[STAGES[rev.startIndex]]} (tahap sebelumnya memakai hasil lama, tanpa kuota agent).`);
   log(`brief revisi ${f} -> issue master ${issue.identifier}, mulai ${rev.start} (artefak dari ${rev.from})`);
   return { id: issue.id, identifier: issue.identifier, brief, jobPatch };
+}
+
+const ROUTING = routingDirFor(ROOT);
+const readJsonLoose = (file) => { try { return JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return undefined; } };
+
+/**
+ * Setelah owner menolak (ADR-0004): baca permintaan routing, tunggu jendela batal, pakai keputusan Manager (divalidasi KODE) atau cadangan kata kunci,
+ * lalu jatuhkan brief revisi ke inbox. Hanya berkas yang ditolak yang disentuh; issue lama ditutup digantikan revisi.
+ */
+async function processRoutings() {
+  if (DRY || !existsSync(ROUTING)) return;
+  for (const n of readdirSync(ROUTING).filter((x) => x.endsWith('.request.json'))) {
+    const identifier = n.replace('.request.json', '');
+    if (!/^EDU-[0-9]+$/.test(identifier) || existsSync(doneFile(ROUTING, identifier))) continue;
+    const request = readJsonLoose(path.join(ROUTING, n));
+    if (!request?.issueId) continue;
+    const mf = managerFile(ROUTING, identifier);
+    const managerDoc = existsSync(mf) ? (readJsonLoose(mf) ?? 'bukan JSON valid') : null;
+    const r = resolveRouting({ request, manager: managerDoc, cancelled: existsSync(cancelFile(ROUTING, identifier)), nowMs: Date.now() });
+    if (r.action === 'wait') continue;
+    writeFileSync(doneFile(ROUTING, identifier), JSON.stringify({ at: Date.now(), action: r.action, start: r.start ?? null, source: r.source ?? null }) + '\n');
+    if (r.action === 'cancel') {
+      await comment(request.issueId, 'Owner membatalkan revisi otomatis. Keputusan tolak tetap tercatat; paket menunggu keputusan baru.');
+      await j('/issues/' + request.issueId, jb('PATCH', { status: 'in_review', assigneeAgentId: null })).catch(() => {});
+      log(identifier + ' revisi dibatalkan owner');
+      continue;
+    }
+    const srcDir = path.join(OUTPUTS, 'runs', identifier);
+    const need = ['research-output.json', 'verification-result.json', 'carousel.json'].filter((x) => !existsSync(path.join(srcDir, x)));
+    if (need.length) {
+      await comment(request.issueId, 'Revisi tidak bisa dijadwalkan: artefak ' + identifier + ' hilang (' + need.join(', ') + '). Beri perintah riset/brief baru.');
+      log(identifier + ' revisi gagal dijadwalkan: artefak hilang ' + need.join(','));
+      continue;
+    }
+    const brief = buildRevisionBrief({ from: identifier, start: r.start, reason: request.reason, summary: r.summary, instructions: r.instructions, source: r.source });
+    mkdirSync(INBOX, { recursive: true });
+    writeFileSync(path.join(INBOX, 'revisi-' + identifier + '-' + Date.now() + '.md'), brief, 'utf8');
+    await comment(request.issueId, 'Revisi dijadwalkan: mulai dari tahap ' + r.start + ' (penentu: ' + r.source + '). ' + r.summary + (r.escalate ? ' CATATAN: masalah fakta/sumber mungkin butuh riset ulang; Owner perlu memberi perintah riset baru bila revisi ini belum cukup.' : '') + ' Paket baru akan masuk antrian approval; issue ini ditutup digantikan revisi.');
+    await j('/issues/' + request.issueId, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {});
+    log(identifier + ' ditolak owner -> revisi mulai ' + r.start + ' (penentu ' + r.source + ')');
+  }
 }
 
 async function ingest() {
@@ -389,6 +440,7 @@ async function once() {
   const state = readState();
   const net = await checkNetwork(state.job);
   try { await tidyBlocked(state); } catch { /* pembersihan hanya kosmetik; jangan pernah mengganggu alur */ }
+  try { await processRoutings(); } catch (e) { log('routing revisi galat: ' + String(e?.message ?? e).slice(0, 160)); }
   if (!state.job || ['done', 'blocked'].includes(state.job.phase)) {
     if (state.job) { state.history.push({ ...state.job, endedMs: Date.now() }); state.job = null; }
     const made = await ingest();

@@ -1,3 +1,4 @@
+import { ownerDecisionPanel } from "./owner-ui.js";
 // dock.js — right-hand dock of the Office View: Chat with Manager, Agent "memory" inspector, Approval inbox, plus the internet banner.
 // All text from agents/Paperclip is data: it is only ever rendered with textContent (never innerHTML).
 const $ = (id) => document.getElementById(id);
@@ -215,9 +216,7 @@ async function openProd(prod) {
 function decisionCard(d) {
   const cmd = (t) => h('div', { class: 'cmd' }, h('code', {}, t), h('button', { type: 'button', class: 'ghost sm', onclick: async (e) => { try { await navigator.clipboard.writeText(t); e.target.textContent = 'tersalin ✔'; } catch { e.target.textContent = 'salin manual'; } } }, 'salin'));
   return h('div', { class: 'card decide' }, h('h4', {}, 'Keputusan Owner'),
-    h('div', { class: 'sub' }, 'Paket sudah lolos QA dan diserahkan (ada dokumen handoff). Jalankan salah satu di terminal Anda, folder proyek:'),
-    h('div', { class: 'sub' }, '✔ Setujui'), cmd(`node scripts/owner-decide.mjs approve --issue ${d.id}`),
-    h('div', { class: 'sub' }, '✖ Tolak (catatan wajib; paket kembali ke Copywriter)'), cmd(`node scripts/owner-decide.mjs reject --issue ${d.id} --note "alasan"`),
+    ownerDecisionPanel({ issueId: d.id, cmdFallback: cmd }),
     h('div', { class: 'sub' }, 'Belum pernah menyetel token owner? Jalankan sekali: node scripts/owner-approval.mjs init'));
 }
 function fileRow(f) {

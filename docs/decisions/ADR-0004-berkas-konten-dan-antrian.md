@@ -55,3 +55,12 @@ tiap konten punya "berkas" sendiri yang rapi dan siap diteruskan, dan berlaku un
 - Tes antrian: berkas diproses berurutan; berkas ke-6 menunggu saat 5 berkas belum diputuskan owner.
 - Tes gerbang: tahap tidak maju bila dokumen wajib belum lengkap.
 - Bukti end-to-end: satu riset menghasilkan 2-3 berkas yang selesai berurutan dan masuk antrian approval.
+
+## Keputusan tambahan: tombol keputusan owner dan routing revisi (2026-10-09)
+
+- Owner memutuskan di Office View lewat tombol **Setujui / Tolak**; Tolak mewajibkan alasan. Tombol memakai **PIN owner** (hash scrypt di `.env`, diatur dengan `node scripts/owner-pin.mjs set`),
+  dengan pembatas percobaan salah. PIN hanya melindungi jalur tombol; token owner di `.env` tetap dapat dibaca proses lokal (FIX-G3-02, terpisah).
+- **Default routing revisi: Manager yang menentukan** tahap awal (`copywriter` atau `designer`) berdasarkan SOP `divisions/edukasiai/sop/revisi-routing.md`; Manager bertanggung jawab atas pilihannya.
+  Owner dapat memaksa tahap lewat pilihan di formulir. KODE memvalidasi keputusan dan menjalankannya (mode revisi): hanya berkas yang ditolak, tahap sebelumnya disalin tanpa kuota, tidak ada agent lain tersentuh.
+- Jendela batal 60 detik sebelum revisi berjalan; bila Manager tidak menjawab dalam 10 menit atau keputusannya tidak valid, aturan kata kunci menggantikan dan dicatat.
+- Masalah fakta/sumber tidak diperbaiki di mode revisi (riset tidak diulang): ditandai agar owner memberi perintah riset baru.

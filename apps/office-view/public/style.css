@@ -147,3 +147,13 @@ details.card summary { cursor: pointer; font-weight: 700; } .row2 { margin-top: 
 .tv-dl { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .tv-dl .btn { display: inline-block; text-decoration: none; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer; }
 .tv-dl .btn:hover { border-color: #fff8; } .dlx { color: #93c5fd; text-decoration: none; margin-left: 6px; }
+
+/* Panel keputusan Owner (owner-ui.js) */
+.owner-panel { display: grid; gap: 8px; }
+.owner-panel input, .owner-panel textarea, .owner-panel select { width: 100%; box-sizing: border-box; background: var(--panel, #161a22); color: var(--text, #e8e8ea); border: 1px solid var(--line, #2a3040); border-radius: 8px; padding: 8px 10px; font: inherit; }
+.owner-panel textarea { resize: vertical; }
+.owner-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.owner-actions button, .owner-cancel-btn { border: 1px solid var(--line, #2a3040); border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; color: #fff; }
+.owner-approve { background: #15803d; } .owner-reject { background: #b91c1c; } .owner-cancel-btn { background: #92400e; }
+.owner-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.owner-msg { min-height: 1.2em; font-size: .92em; } .owner-msg.ok { color: #86efac; } .owner-msg.bad { color: #fca5a5; }

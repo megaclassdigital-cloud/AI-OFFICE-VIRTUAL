@@ -52,6 +52,12 @@ Saat issue "Produksi: ..." diserahkan kepadamu dengan komentar orkestrator "LAPO
 lalu tulis **satu** komentar `say` berisi: judul, jumlah slide, sumber (URL), vonis QA, catatan penting QA (mis. brief topik yang meminta varian warna warisan), dan path contact-sheet. Jangan mengarang; kutip dari berkas.
 Akhiri dengan satu kalimat: "Menunggu keputusan Owner." Jangan menyetujui apa pun atas nama Owner.
 
+## Revisi setelah Owner menolak paket
+
+Saat issue diserahkan kepadamu dengan komentar "Owner MENOLAK paket", kamu menentukan tahap awal revisi mengikuti `divisions/edukasiai/sop/revisi-routing.md` (baca penuh):
+satu berkas keputusan JSON, tahap paling awal yang salah, `summary` yang bisa dipertanggungjawabkan. Kamu bertanggung jawab atas pilihan itu; kode memvalidasi dan menjalankannya.
+Kamu tidak membuat issue dan tidak menugaskan agent. Bila alasan Owner ambigu, pilih tahap paling awal yang masuk akal dan tulis asumsimu di `summary`.
+
 ## Mendelegasikan, bukan mengerjakan
 
 Kamu **tidak melakukan pekerjaan peran lain**. Tugas riset adalah milik Researcher, verifikasi milik Verifier, teks milik Copywriter,

@@ -33,7 +33,7 @@ function fake(status = 'in_review', handoff = () => handoffText) {
       getIssue: async () => issue,
       getDocument: async (_i, k) => docs[k] ?? null,
       getText: async (_i, k) => (k === 'handoff' ? handoff() : null),
-      listAgents: async () => [{ id: 'a-res', name: 'Researcher', role: 'researcher' }, { id: 'a-cw', name: 'Copywriter', role: 'copywriter' }],
+      listAgents: async () => [{ id: 'a-res', name: 'Researcher', role: 'researcher' }, { id: 'a-cw', name: 'Copywriter', role: 'copywriter' }, { id: 'a-mgr', name: 'Manager', role: 'pm' }],
       comment: async (...a) => void calls.push(['comment', ...a]),
       update: async (...a) => void calls.push(['update', ...a]),
     },
@@ -187,5 +187,41 @@ describe('approve', () => {
     expect(f.calls.map((c) => c[0])).toEqual(['comment', 'update']);
     expect(f.calls[1][2]).toEqual({ status: 'done' });
     expect(readDecisions(ID, p.approvalDir, TOKEN)[0].content_hash.combined).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe('reject dengan routing (ADR-0004): Manager menentukan, kode menjalankan', () => {
+  const routingDir = () => path.join(makeTmp('aao-route-'), 'routing');
+  it('default: issue diserahkan ke Manager (bukan Copywriter), komentar meminta keputusan routing, permintaan ditulis dengan jendela batal', async () => {
+    const f = fake(); const dir = routingDir(); const p = base(f);
+    const r = await decide({ ...p, decision: 'rejected', note: 'Logo di slide 1 buram, warna terlalu gelap.', routing: { dir, nowMs: 5_000 } });
+    expect(r).toMatchObject({ issueStatus: 'in_progress', returnedTo: 'Manager', routed: true });
+    expect(f.calls[0][2]).toContain('Logo di slide 1 buram');
+    expect(f.calls[0][2]).toContain('revisi-routing.md');
+    expect(f.calls[1]).toEqual(['update', ID, { status: 'in_progress', assigneeAgentId: 'a-mgr' }]);
+    const req = JSON.parse(readFileSync(path.join(dir, 'EDU-30.request.json'), 'utf8'));
+    expect(req).toMatchObject({ identifier: 'EDU-30', forceStage: null, requestedAt: 5_000, readyAt: 65_000 });
+    expect(readDecisions(ID, p.approvalDir, TOKEN)[0]).toMatchObject({ decision: 'rejected' });
+  });
+  it('owner memaksa tahap: tidak membangunkan Manager (tanpa kuota), permintaan membawa forceStage', async () => {
+    const f = fake(); const dir = routingDir();
+    const r = await decide({ ...base(f), decision: 'rejected', note: 'ganti logo', routing: { dir, forceStage: 'designer', nowMs: 1 } });
+    expect(r.returnedTo).toBeNull();
+    expect(f.calls[1]).toEqual(['update', ID, { status: 'in_progress', assigneeAgentId: null }]);
+    expect(JSON.parse(readFileSync(path.join(dir, 'EDU-30.request.json'), 'utf8')).forceStage).toBe('designer');
+  });
+  it('tahap tujuan tidak sah ditolak sebelum menulis apa pun; tanpa agent Manager reject dibatalkan', async () => {
+    const f = fake(); const dir = routingDir(); const p = base(f);
+    await expect(decide({ ...p, decision: 'rejected', note: 'x', routing: { dir, forceStage: 'verifier', nowMs: 1 } })).rejects.toThrow(/tahap tujuan/);
+    const noMgr = fake(); noMgr.client.listAgents = async () => [{ id: 'a-cw', name: 'Copywriter', role: 'copywriter' }];
+    const p2 = base(noMgr);
+    await expect(decide({ ...p2, decision: 'rejected', note: 'x', routing: { dir: routingDir() } })).rejects.toThrow(/Manager tidak ditemukan/);
+    expect(readDecisions(ID, p2.approvalDir, TOKEN)).toEqual([]);
+  });
+  it('ulangi reject yang sama tidak menggeser jendela batal', async () => {
+    const f = fake(); const dir = routingDir(); const p = base(f);
+    await decide({ ...p, decision: 'rejected', note: 'sama', routing: { dir, nowMs: 100 } });
+    await decide({ ...p, decision: 'rejected', note: 'sama', routing: { dir, nowMs: 999_999 } });
+    expect(JSON.parse(readFileSync(path.join(dir, 'EDU-30.request.json'), 'utf8')).requestedAt).toBe(100);
   });
 });

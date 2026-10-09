@@ -1,3 +1,4 @@
+import { ownerDecisionPanel } from "./owner-ui.js";
 // tv.js — "TV" dashboard opened by clicking the Papan Tayang. One tab per division, each showing its OUTPUT in plain language
 // (not logs), plus the slide viewer. Data comes from /api/inspect/production (built by code from the artifacts; no LLM).
 // All agent/Paperclip text is rendered with textContent only.
@@ -104,8 +105,7 @@ function show(d) {
 function decision(d) {
   if (!d.master?.hasHandoff || d.status.key !== 'menunggu_approval') return d.status.key === 'disetujui' ? card(h('b', {}, '✔ Sudah disetujui Owner')) : null;
   const cmd = (t) => h('div', { class: 'cmd' }, h('code', {}, t), h('button', { type: 'button', onclick: async (e) => { try { await navigator.clipboard.writeText(t); e.target.textContent = 'tersalin ✔'; } catch { e.target.textContent = 'salin manual'; } } }, 'salin'));
-  return h('div', { class: 'tv-card decide' }, h('h4', {}, 'Menunggu keputusan Owner'), h('p', { class: 'sub' }, 'Lolos QA resmi dan sudah diserahkan. Jalankan di terminal (folder proyek):'),
-    cmd(`node scripts/owner-decide.mjs approve --issue ${d.master.id}`), cmd(`node scripts/owner-decide.mjs reject --issue ${d.master.id} --note "alasan"`));
+  return h('div', { class: 'tv-card decide' }, h('h4', {}, 'Menunggu keputusan Owner'), ownerDecisionPanel({ issueId: d.master.id, cmdFallback: cmd }));
 }
 
 function manager(d) {

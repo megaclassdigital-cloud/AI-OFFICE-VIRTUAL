@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { createBridge } from './bridge.mjs';
 import { createTalk } from './talk.mjs';
 import { createInspector } from './inspect.mjs';
+import { createOwner } from './owner.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..');
@@ -27,6 +28,9 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 
 const TALK = a.includes('--enable-talk');
 const talk = TALK ? createTalk({ base: PAPERCLIP, port: PORT, outputRoot: path.join(repoRoot, 'workspace', 'agent'), inboxRoot: path.join(repoRoot, 'workspace', 'inbox'), stateFile: path.join(repoRoot, 'workspace', 'orchestrator-state.json'), orchLogFile: path.join(repoRoot, 'reports', 'orchestrator.log'), netFile: path.join(repoRoot, 'workspace', 'network-state.json') }) : null;
+
+// Tombol keputusan owner (opt-in --enable-owner): Setujui/Tolak berPIN; semua keputusan tetap lewat decide() (ADR-0004).
+const owner = a.includes('--enable-owner') ? createOwner({ base: PAPERCLIP, port: PORT, repoRoot }) : null;
 
 // Inspeksi hanya-baca (memori agen, approval, berkas hasil) untuk dock UI; selalu aktif, hanya GET.
 const inspector = createInspector({ base: PAPERCLIP, outputRoot: path.join(repoRoot, 'workspace', 'agent'), stateFile: path.join(repoRoot, 'workspace', 'orchestrator-state.json') });
@@ -46,6 +50,8 @@ export const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, 'http://localhost');
     if (await inspector(req, res, u, json, sendBuffer)) return;
+    if (owner && (await owner(req, res, u, json))) return;
+    if (u.pathname === '/api/owner/info' && !owner) return json(res, 200, { enabled: false });
     if (talk && (await talk(req, res, u, json))) return;
     if (u.pathname === '/api/talk/info') return json(res, 200, { enabled: false });
     if (req.method !== 'GET') return json(res, 405, { error: 'Office View read-only' });
