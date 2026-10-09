@@ -70,7 +70,7 @@ describe('gambar kosong dan status kept', () => {
   });
 });
 
-import { hasCheckerboard, NOT_OFFICIAL_RE } from '../scripts/capture-asset.mjs';
+import { hasCheckerboard, NOT_OFFICIAL_RE, STOCK_RE } from '../scripts/capture-asset.mjs';
 describe('kotak-kotak transparansi dan hasil non-resmi', () => {
   const checker = (square, n, a = 255, b = 238) => Array.from({ length: square * n }, (_, i) => (Math.floor(i / square) % 2 === 0 ? a : b));
   it('mendeteksi pola kotak-kotak teratur beramplitudo kecil', () => {
@@ -93,5 +93,16 @@ describe('kotak-kotak transparansi dan hasil non-resmi', () => {
     expect(scoreResult(req, { t: 'ChatGPT interface UI official screenshot', murl: '', purl: '' })).toBeGreaterThan(0);
     expect(NOT_OFFICIAL_RE.test('The secret meaning behind the OpenAI logo')).toBe(false);
     expect(scoreResult({ kind: 'photo', query: 'robot concept' }, { t: 'robot concept art', murl: '', purl: '' })).toBeGreaterThan(0);
+  });
+});
+
+describe('sumber stok/watermark ditolak untuk semua jenis aset', () => {
+  it('judul atau halaman sumber dari situs stok mendapat skor 0', () => {
+    const t = '2,890 Chatgpt Interface Royalty-Free Images, Stock Photos & Pictures | Shutterstock';
+    expect(scoreResult({ kind: 'product', brand: 'ChatGPT', query: 'ChatGPT interface' }, { t, murl: '', purl: '' })).toBe(0);
+    expect(scoreResult({ kind: 'photo', query: 'robot office' }, { t: 'robot office worker', murl: '', purl: 'https://www.shutterstock.com/image-photo/x' })).toBe(0);
+    expect(scoreResult({ kind: 'photo', query: 'robot office' }, { t: 'robot office worker', murl: '', purl: 'https://example.com/robot' })).toBeGreaterThan(0);
+    expect(STOCK_RE.test('Pictures | iStock')).toBe(true);
+    expect(STOCK_RE.test('The secret meaning behind the OpenAI logo')).toBe(false);
   });
 });

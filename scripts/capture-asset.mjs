@@ -140,6 +140,8 @@ async function saveComposite(page, url, outFile) {
  */
 async function saveShot(page, outFile, shotFn, opts = {}) {
   const type = path.extname(outFile) === '.png' ? 'png' : 'jpeg';
+  // Logo/produk: file asli dari URL gambar yang ditampilkan pencarian (tanpa label/overlay UI pencarian, transparansi jadi putih) didahulukan; screenshot pratinjau menjadi cadangan.
+  if (opts.originalFirst && opts.imageUrl && (await saveComposite(page, opts.imageUrl, outFile))) return 'fetch-on-white';
   const buf = await shotFn(type);
   if (await looksBlank(page.context(), buf, 'image/' + type)) return false;
   if (opts.checkTransparency && hasCheckerboard(await edgeRows(page.context(), buf, 'image/' + type))) {
@@ -159,7 +161,10 @@ export function keywords(text) {
 /** Skor relevansi hasil terhadap permintaan: 0..1 = porsi kata kunci yang muncul di judul/URL; merek wajib memuat nama merek DAN kata logo. */
 /** Hasil yang jelas bukan tampilan/logo resmi (konsep desainer, mockup, fan art): ditolak untuk merek/produk. */
 export const NOT_OFFICIAL_RE = /concept|mock-?up|dribbble|behance|wireframe|figma|template|redesign|fan.?art|parody|clipart|vector art|ui dux|dashboard design/i;
+/** Situs foto stok / watermark: tidak boleh dipakai untuk jenis aset apa pun. */
+export const STOCK_RE = /shutterstock|istock|getty ?images|alamy|depositphotos|dreamstime|123rf|adobe stock|stock photo|royalty-?free|watermark/i;
 export function scoreResult(req, item) {
+  if (STOCK_RE.test(String(item.t ?? '')) || STOCK_RE.test(String(item.purl ?? ''))) return 0;
   if ((req.kind === 'brand' || req.kind === 'product') && NOT_OFFICIAL_RE.test(String(item.t ?? ''))) return 0;
   const hay = `${item.t} ${item.murl} ${item.purl}`.toLowerCase();
   const kws = keywords(req.kind === 'brand' ? (req.brand ?? req.query) : req.query);
@@ -206,7 +211,7 @@ async function googleOne(page, req, q, outFile) {
     await page.addStyleTag({ content: 'button, [role=button], [aria-label*=ens] { visibility: hidden !important; }' }).catch(() => {});
     await page.waitForTimeout(150);
     await page.waitForTimeout(900); // beri waktu gambar pratinjau selesai dirender
-    const saved = await saveShot(page, outFile, (type) => page.screenshot({ type, clip: { x: big.x, y: big.y, width: big.width, height: big.height } }), { checkTransparency: req.kind !== 'photo', imageUrl: big.src });
+    const saved = await saveShot(page, outFile, (type) => page.screenshot({ type, clip: { x: big.x, y: big.y, width: big.width, height: big.height } }), { checkTransparency: req.kind !== 'photo', originalFirst: req.kind !== 'photo', imageUrl: big.src });
     if (!saved) continue; // kosong / kotak-kotak tanpa file asli: coba kandidat berikutnya
     return { status: 'captured', method: saved, imageUrl: big.src.slice(0, 300), searchUrl: page.url().slice(0, 300), title: g.t.slice(0, 160) };
   }
@@ -232,7 +237,7 @@ async function bingOne(page, req, q, outFile) {
         const el = await shot.$('img');
         const dim = el ? await el.evaluate((i) => [i.naturalWidth, i.naturalHeight]) : [0, 0];
         if (!el || dim[0] < 200 || dim[1] < 120) continue;
-        const saved = await saveShot(page, outFile, (type) => el.screenshot({ type }), { checkTransparency: req.kind !== 'photo', imageUrl: it.murl });
+        const saved = await saveShot(page, outFile, (type) => el.screenshot({ type }), { checkTransparency: req.kind !== 'photo', originalFirst: req.kind !== 'photo', imageUrl: it.murl });
         if (!saved) continue; // kosong / kotak-kotak tanpa file asli: coba hasil berikutnya
         return { status: 'captured', method: saved, imageUrl: it.murl.slice(0, 300), searchUrl: it.purl.slice(0, 300), title: it.t.slice(0, 160) };
       } catch { /* coba hasil berikutnya */ }
