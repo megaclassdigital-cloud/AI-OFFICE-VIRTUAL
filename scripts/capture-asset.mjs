@@ -69,13 +69,84 @@ async function looksBlank(context, buf, mime) {
   } catch { return false; } finally { await p.close().catch(() => {}); }
 }
 
-/** Ambil screenshot sebagai buffer, tolak bila kosong, baru tulis ke berkas. */
-async function saveShot(page, outFile, shotFn) {
+/**
+ * Pola kotak-kotak transparansi (checkerboard): sepanjang garis pindai luminans terlihat LONCATAN KECIL (6-60) yang bergantian naik/turun dengan jarak teratur.
+ * rows = daftar garis pindai (array luminans 0-255). Teks/logo (tepi tajam) dan foto (landai/acak) tidak terdeteksi.
+ */
+export function hasCheckerboard(rows) {
+  for (const row of rows) {
+    const steps = [];
+    for (let i = 1; i < row.length; i++) {
+      const d = row[i] - row[i - 1];
+      if (Math.abs(d) >= 6 && Math.abs(d) <= 60 && (!steps.length || i - steps[steps.length - 1].at > 1)) steps.push({ at: i, up: d > 0 });
+    }
+    if (steps.length < 6) continue;
+    const alternating = steps.every((st, k) => k === 0 || st.up !== steps[k - 1].up);
+    const gaps = steps.slice(1).map((st, k) => st.at - steps[k].at);
+    const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+    const dev = Math.sqrt(gaps.reduce((a, g) => a + (g - mean) ** 2, 0) / gaps.length);
+    if (alternating && mean >= 4 && mean <= 60 && dev <= mean * 0.25) return true;
+  }
+  return false;
+}
+
+/** Garis pindai di dekat tepi atas/bawah gambar (tempat latar transparan biasanya terlihat). */
+async function edgeRows(context, buf, mime) {
+  const p = await context.newPage();
+  try {
+    return await p.evaluate(async ({ b64, mime }) => {
+      const img = new Image(); img.src = 'data:' + mime + ';base64,' + b64; await img.decode();
+      const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const ys = [6, 14, c.height - 14, c.height - 6].filter((y) => y >= 0 && y < c.height);
+      return ys.map((y) => { const d = g.getImageData(0, y, c.width, 1).data; const row = []; for (let i = 0; i < d.length; i += 4) row.push((d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000); return row; });
+    }, { b64: buf.toString('base64'), mime });
+  } catch { return []; } finally { await p.close().catch(() => {}); }
+}
+
+/** Ambil file gambar asli dari URL-nya dan tempelkan di atas latar putih (transparansi jadi putih, bukan kotak-kotak). */
+async function saveComposite(page, url, outFile) {
+  if (!/^https?:/.test(String(url))) return false;
+  const resp = await page.context().request.get(url, { timeout: 15000 }).catch(() => null);
+  if (!resp || !resp.ok()) return false;
+  const ct = String(resp.headers()['content-type'] ?? '').split(';')[0];
+  if (!/^image\/(png|jpeg|webp|gif)$/.test(ct)) return false; // SVG/lain: lewati
+  const body = await resp.body();
+  if (body.length < 2000 || body.length > 8 * 1024 * 1024) return false;
+  const p = await page.context().newPage();
+  try {
+    const type = path.extname(outFile) === '.png' ? 'image/png' : 'image/jpeg';
+    const out = await p.evaluate(async ({ b64, ct, type }) => {
+      const img = new Image(); img.src = 'data:' + ct + ';base64,' + b64; await img.decode();
+      const w = img.naturalWidth; const h = img.naturalHeight;
+      if (w < 200 || h < 120) return null;
+      const k = Math.min(1, 1600 / Math.max(w, h));
+      const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
+      const g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL(type, 0.92).split(',')[1];
+    }, { b64: body.toString('base64'), ct, type });
+    if (!out) return false;
+    const buf = Buffer.from(out, 'base64');
+    if (await looksBlank(page.context(), buf, type)) return false;
+    writeFileSync(outFile, buf);
+    return true;
+  } catch { return false; } finally { await p.close().catch(() => {}); }
+}
+
+/**
+ * Ambil screenshot sebagai buffer, tolak bila kosong, baru tulis ke berkas. Untuk logo/produk (opts.checkTransparency) pola kotak-kotak transparansi
+ * tidak boleh ikut: bila terdeteksi, file aslinya diambil dari opts.imageUrl dan ditempel di atas putih; gagal => kandidat ditolak.
+ * Mengembalikan false | 'screenshot' | 'fetch-on-white'.
+ */
+async function saveShot(page, outFile, shotFn, opts = {}) {
   const type = path.extname(outFile) === '.png' ? 'png' : 'jpeg';
   const buf = await shotFn(type);
   if (await looksBlank(page.context(), buf, 'image/' + type)) return false;
+  if (opts.checkTransparency && hasCheckerboard(await edgeRows(page.context(), buf, 'image/' + type))) {
+    return opts.imageUrl && (await saveComposite(page, opts.imageUrl, outFile)) ? 'fetch-on-white' : false;
+  }
   writeFileSync(outFile, buf);
-  return true;
+  return 'screenshot';
 }
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'official', 'logo', 'dan', 'yang', 'dengan', 'screenshot', 'resmi']);
@@ -86,7 +157,10 @@ export function keywords(text) {
 }
 
 /** Skor relevansi hasil terhadap permintaan: 0..1 = porsi kata kunci yang muncul di judul/URL; merek wajib memuat nama merek DAN kata logo. */
+/** Hasil yang jelas bukan tampilan/logo resmi (konsep desainer, mockup, fan art): ditolak untuk merek/produk. */
+export const NOT_OFFICIAL_RE = /concept|mock-?up|dribbble|behance|wireframe|figma|template|redesign|fan.?art|parody|clipart|vector art|ui dux|dashboard design/i;
 export function scoreResult(req, item) {
+  if ((req.kind === 'brand' || req.kind === 'product') && NOT_OFFICIAL_RE.test(String(item.t ?? ''))) return 0;
   const hay = `${item.t} ${item.murl} ${item.purl}`.toLowerCase();
   const kws = keywords(req.kind === 'brand' ? (req.brand ?? req.query) : req.query);
   if (!kws.length) return 0;
@@ -132,8 +206,9 @@ async function googleOne(page, req, q, outFile) {
     await page.addStyleTag({ content: 'button, [role=button], [aria-label*=ens] { visibility: hidden !important; }' }).catch(() => {});
     await page.waitForTimeout(150);
     await page.waitForTimeout(900); // beri waktu gambar pratinjau selesai dirender
-    if (!(await saveShot(page, outFile, (type) => page.screenshot({ type, clip: { x: big.x, y: big.y, width: big.width, height: big.height } })))) continue; // kosong: coba kandidat berikutnya
-    return { status: 'captured', imageUrl: big.src.slice(0, 300), searchUrl: page.url().slice(0, 300), title: g.t.slice(0, 160) };
+    const saved = await saveShot(page, outFile, (type) => page.screenshot({ type, clip: { x: big.x, y: big.y, width: big.width, height: big.height } }), { checkTransparency: req.kind !== 'photo', imageUrl: big.src });
+    if (!saved) continue; // kosong / kotak-kotak tanpa file asli: coba kandidat berikutnya
+    return { status: 'captured', method: saved, imageUrl: big.src.slice(0, 300), searchUrl: page.url().slice(0, 300), title: g.t.slice(0, 160) };
   }
   return { status: 'missing', reason: 'pratinjau besar tidak terbaca setelah beberapa percobaan' };
 }
@@ -157,8 +232,9 @@ async function bingOne(page, req, q, outFile) {
         const el = await shot.$('img');
         const dim = el ? await el.evaluate((i) => [i.naturalWidth, i.naturalHeight]) : [0, 0];
         if (!el || dim[0] < 200 || dim[1] < 120) continue;
-        if (!(await saveShot(page, outFile, (type) => el.screenshot({ type })))) continue; // kosong: coba hasil berikutnya
-        return { status: 'captured', imageUrl: it.murl.slice(0, 300), searchUrl: it.purl.slice(0, 300), title: it.t.slice(0, 160) };
+        const saved = await saveShot(page, outFile, (type) => el.screenshot({ type }), { checkTransparency: req.kind !== 'photo', imageUrl: it.murl });
+        if (!saved) continue; // kosong / kotak-kotak tanpa file asli: coba hasil berikutnya
+        return { status: 'captured', method: saved, imageUrl: it.murl.slice(0, 300), searchUrl: it.purl.slice(0, 300), title: it.t.slice(0, 160) };
       } catch { /* coba hasil berikutnya */ }
     }
   } finally { await shot.close().catch(() => {}); }

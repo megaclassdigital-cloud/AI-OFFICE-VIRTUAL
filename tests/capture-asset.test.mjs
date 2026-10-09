@@ -69,3 +69,29 @@ describe('gambar kosong dan status kept', () => {
     expect(isBlankStats({ colors: 400, std: 55 })).toBe(false);
   });
 });
+
+import { hasCheckerboard, NOT_OFFICIAL_RE } from '../scripts/capture-asset.mjs';
+describe('kotak-kotak transparansi dan hasil non-resmi', () => {
+  const checker = (square, n, a = 255, b = 238) => Array.from({ length: square * n }, (_, i) => (Math.floor(i / square) % 2 === 0 ? a : b));
+  it('mendeteksi pola kotak-kotak teratur beramplitudo kecil', () => {
+    expect(hasCheckerboard([checker(10, 14)])).toBe(true);
+    expect(hasCheckerboard([checker(8, 20, 240, 205)])).toBe(true);
+    expect(hasCheckerboard([[1, 2, 3], checker(12, 12)])).toBe(true);
+  });
+  it('tidak menandai teks/logo (tepi tajam), latar rata, gradasi landai, atau foto acak', () => {
+    expect(hasCheckerboard([checker(10, 14, 255, 0)])).toBe(false);
+    expect(hasCheckerboard([Array(300).fill(240)])).toBe(false);
+    expect(hasCheckerboard([Array.from({ length: 300 }, (_, i) => 100 + i * 0.3)])).toBe(false);
+    let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    expect(hasCheckerboard([Array.from({ length: 300 }, () => 100 + rnd() * 80)])).toBe(false);
+    expect(hasCheckerboard([])).toBe(false);
+  });
+  it('merek/produk: konsep, mockup, dan desain pihak ketiga ditolak; logo resmi tetap lolos', () => {
+    const req = { kind: 'product', brand: 'ChatGPT', query: 'ChatGPT interface UI official' };
+    expect(scoreResult(req, { t: 'ChatGPT Voice Interface Concept - UI Dux', murl: '', purl: '' })).toBe(0);
+    expect(scoreResult(req, { t: 'ChatGPT interface mockup on Dribbble', murl: '', purl: '' })).toBe(0);
+    expect(scoreResult(req, { t: 'ChatGPT interface UI official screenshot', murl: '', purl: '' })).toBeGreaterThan(0);
+    expect(NOT_OFFICIAL_RE.test('The secret meaning behind the OpenAI logo')).toBe(false);
+    expect(scoreResult({ kind: 'photo', query: 'robot concept' }, { t: 'robot concept art', murl: '', purl: '' })).toBeGreaterThan(0);
+  });
+});
