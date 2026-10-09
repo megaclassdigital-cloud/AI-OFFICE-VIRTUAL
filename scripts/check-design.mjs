@@ -18,8 +18,19 @@ import { validate } from '../schemas/validate.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const readJson = (f) => JSON.parse(readFileSync(f, 'utf8').replace(/^﻿/, ''));
+const TEMPLATES = (() => { try { return readJson(path.join(root, 'divisions', 'edukasiai', 'brand', 'templates.json')).templates; } catch { return {}; } })();
 
 export const ROLE_TO_TEMPLATE = { hook: 'cover', point: 'point', stat: 'stat', quote: 'quote', comparison: 'comparison', cta: 'cta' };
+// Template yang sah per peran slide (format foto/ikon v3 menambah pilihan; peran tetap menentukan keluarga template).
+export const ROLE_TEMPLATES = {
+  hook: ['cover', 'hero-cover'],
+  point: ['point', 'hero-explain', 'compare-cards', 'flow', 'icon-list'],
+  stat: ['stat'],
+  quote: ['quote'],
+  comparison: ['comparison', 'compare-cards'],
+  cta: ['cta', 'hero-cta'],
+};
+const IMAGE_PATH_RE = /^(runs\/EDU-[0-9]+\/assets\/[A-Za-z0-9._-]+\.(png|jpe?g|webp)|brand\/[A-Za-z0-9._\/-]+\.(png|jpe?g|webp))$/;
 const NUMBER_EXEMPT_SLOTS = new Set(['number']);
 const NAME_EXEMPT_SLOTS = new Set(['kicker']);
 
@@ -65,11 +76,22 @@ export function checkDesign(design, carousel, { brandName = 'EdukasiAI' } = {}) 
     if (!c) return;
     const at = `slide ${d.index}`;
     if (d.index !== c.index) errors.push(`${at}: index tidak sama dengan carousel (${c.index})`);
-    const want = ROLE_TO_TEMPLATE[c.role];
-    if (d.template !== want) errors.push(`${at}: template "${d.template}" tidak sesuai peran ${c.role} (seharusnya ${want})`);
+    const allowed = ROLE_TEMPLATES[c.role] ?? [ROLE_TO_TEMPLATE[c.role]];
+    if (!allowed.includes(d.template)) errors.push(`${at}: template "${d.template}" tidak sesuai peran ${c.role} (boleh: ${allowed.join(', ')})`);
 
     const slideNums = new Set(numbersIn(`${c.heading} ${c.body}`));
     for (const [slot, value] of Object.entries(d.slots)) {
+      const kind = TEMPLATES[d.template]?.slots?.[slot]?.type;
+      if (kind === 'icon') continue; // nama ikon dari set lokal; keberadaannya diperiksa renderer
+      if (kind === 'image') { if (!IMAGE_PATH_RE.test(String(value))) errors.push(`${at}: gambar "${value}" di slot ${slot} harus berupa runs/<ID>/assets/<berkas> atau brand/<berkas>`); continue; }
+      if (slot === 'source') {
+        const m = String(value).match(/^(?:Sumber:\s*)?(.+)$/);
+        const known = carousel.sources.map((s) => String(s.source_name).toLowerCase());
+        const acro = (n) => n.split(/s+/).map((w) => w[0]).join('');
+        known.push(...known.map(acro)); // singkatan (AP untuk Associated Press) diizinkan
+        if (!m || !m[1].split(/\s*,\s*/).every((n) => known.includes(n.toLowerCase()))) errors.push(`${at}: slot source harus \"[Sumber: ]<nama media dari daftar sumber carousel>" (dapat: ${[...new Set(known)].join(', ')})`);
+        continue;
+      }
       if (!NUMBER_EXEMPT_SLOTS.has(slot)) {
         for (const n of numbersIn(value)) {
           if (!slideNums.has(n)) errors.push(`${at}: angka "${n}" di slot ${slot} tidak ada di teks slide carousel`);

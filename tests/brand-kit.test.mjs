@@ -50,16 +50,17 @@ describe('design system v2 (owner)', () => {
 describe('ikon', () => {
   const dir = path.join(brandDir, 'icons');
   const svgs = readdirSync(dir).filter((f) => f.endsWith('.svg'));
-  it('6-10 SVG dan berkas lisensi', () => {
+  it('ikon (set inti + Lucide) dan berkas lisensi masing-masing', () => {
     expect(svgs.length).toBeGreaterThanOrEqual(6);
-    expect(svgs.length).toBeLessThanOrEqual(10);
+    expect(svgs.length).toBeLessThanOrEqual(80);
+    expect(readFileSync(path.join(dir, 'LICENSE-lucide.txt'), 'utf8')).toMatch(/ISC/);
     expect(statSync(path.join(dir, 'LICENSE.txt')).size).toBeGreaterThan(50);
     expect(readFileSync(path.join(dir, 'LICENSE.txt'), 'utf8')).toMatch(/CC0/);
   });
   it('setiap SVG berwarna currentColor, tanpa script, tanpa referensi eksternal', () => {
     for (const f of svgs) {
       const t = readFileSync(path.join(dir, f), 'utf8');
-      expect(t, f).toMatch(/^<svg [^>]*viewBox="0 0 24 24"/);
+      expect(t, f).toMatch(/^(<!--[^>]*-->\s*)?<svg\s[^>]*viewBox="0 0 24 24"/);
       expect(t, f).toContain('currentColor');
       expect(t, f).not.toMatch(/<script|href=|url\(|on[a-z]+=/i);
     }

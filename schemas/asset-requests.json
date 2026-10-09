@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-agent-office.local/schemas/asset-requests.json",
+  "title": "Permintaan aset gambar dari Designer",
+  "description": "Daftar gambar yang dibutuhkan slide bertemplate foto. Yang mengambil gambar adalah KODE (screenshot hasil pencarian gambar), bukan LLM. Merek wajib diambil yang asli.",
+  "type": "object",
+  "required": [
+    "requests"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "requests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": [
+          "slide",
+          "file",
+          "query",
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "slide": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "file": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+[.](png|jpe?g|webp)$",
+            "description": "Nama berkas di runs/<ID>/assets/ (harus sama dengan nama di slot image desain)."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "photo",
+              "brand",
+              "product"
+            ],
+            "description": "photo = ilustrasi topik; brand = logo/merek asli; product = tampilan produk/rilis asli."
+          },
+          "query": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120,
+            "description": "Kata kunci pencarian gambar. Untuk merek/produk sertakan nama resminya."
+          },
+          "brand": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Nama merek/produk yang harus tampak asli pada gambar (bila ada)."
+          }
+        }
+      }
+    }
+  }
+}

@@ -15,7 +15,7 @@
 
 import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -114,6 +114,33 @@ const H = design.canvas?.height ?? brand.canvas.height;
 const minFontPx = brand.typography.minFontPx;
 const minContrast = brand.minContrastRatio;
 
+// ── Ikon dan aset gambar (hanya berkas lokal; renderer tidak pernah mengambil apa pun dari jaringan) ──
+const iconCache = new Map();
+function iconSvg(name) {
+  if (!/^[a-z0-9-]+$/.test(String(name))) return null;
+  if (iconCache.has(name)) return iconCache.get(name);
+  const fp = path.join(brandDir, brand.iconDir, `${name}.svg`);
+  let svg = null;
+  if (existsSync(fp)) svg = readFileSync(fp, 'utf8').replace(/<!--[\s\S]*?-->/g, '').replace(/\s(width|height|class)="[^"]*"/g, '').trim();
+  iconCache.set(name, svg);
+  return svg;
+}
+const IMAGE_EXT = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
+const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+/** "brand/x.png" -> brand kit assets/; selain itu relatif ke workspace/agent/. Mengembalikan { file } atau { error }. */
+function resolveAsset(value) {
+  const v = String(value ?? '');
+  const base = v.startsWith('brand/') ? path.join(brandDir, 'assets') : path.join(repoRoot, 'workspace', 'agent');
+  const rel = v.startsWith('brand/') ? v.slice('brand/'.length) : v;
+  const abs = path.resolve(base, rel);
+  if (abs !== base && !abs.startsWith(path.resolve(base) + path.sep)) return { error: 'path di luar folder aset yang diizinkan' };
+  const mime = IMAGE_EXT[path.extname(abs).toLowerCase()];
+  if (!mime) return { error: 'ekstensi gambar harus png/jpg/webp' };
+  if (!existsSync(abs)) return { error: 'berkas tidak ada' };
+  if (statSync(abs).size > MAX_IMAGE_BYTES) return { error: 'gambar lebih dari 6 MB' };
+  return { file: abs, mime };
+}
+
 // ── Validasi SEBELUM render (gagal cepat, pesan jelas) ───────────────────────
 // AC1.6: teks terlalu panjang ditolak di sini, tidak dipotong diam-diam.
 
@@ -133,6 +160,15 @@ for (const slide of design.slides ?? []) {
       preErrors.push(`slide ${slide.index}: slot "${name}" tidak dikenal untuk template "${slide.template}"`);
       continue;
     }
+    if (def.type === 'icon') {
+      if (!iconSvg(value)) preErrors.push(`slide ${slide.index}: ikon "${value}" di slot "${name}" tidak ada di set ikon brand kit`);
+      continue;
+    }
+    if (def.type === 'image') {
+      const r = resolveAsset(value);
+      if (r.error) preErrors.push(`slide ${slide.index}: gambar "${value}" di slot "${name}" ditolak: ${r.error}`);
+      continue;
+    }
     const len = String(value).length;
     if (len > def.maxChars) {
       preErrors.push(
@@ -147,7 +183,8 @@ for (const slide of design.slides ?? []) {
     }
   }
   for (const word of slide.emphasis ?? []) {
-    const inSlots = Object.values(slide.slots ?? {}).some((v) => String(v).includes(word));
+    const textSlots = Object.entries(slide.slots ?? {}).filter(([k]) => !tpl.slots[k]?.type).map(([, v]) => v);
+    const inSlots = textSlots.some((v) => String(v).includes(word));
     if (!inSlots) {
       preErrors.push(`slide ${slide.index}: kata tekanan "${word}" tidak ada di slot mana pun`);
     }
@@ -236,12 +273,26 @@ try {
     await page.addStyleTag({ content: vars });
     await page.addStyleTag({ path: path.join(brandDir, 'templates', 'base.css') });
 
+    // Ikon (slot bertipe icon + [data-icon] statis) dan gambar (slot bertipe image) disiapkan di sisi Node.
+    const icons = {}; const images = {};
+    for (const [name, value] of Object.entries(slide.slots ?? {})) {
+      const def = tpl.slots[name];
+      if (def?.type === 'icon') icons[name] = iconSvg(value);
+      if (def?.type === 'image') { const r = resolveAsset(value); images[name] = `data:${r.mime};base64,${readFileSync(r.file).toString('base64')}`; }
+    }
+    const staticIcons = {};
+    for (const m of rawHtml.matchAll(/data-icon="([a-z0-9-]+)"/g)) staticIcons[m[1]] = iconSvg(m[1]) ?? '';
     // Isi slot. Kosongkan elemen yang slotnya tidak diisi agar tidak ada sisa markup.
     await page.evaluate(
-      ({ slots, emphasisHtml, brandmark, counter }) => {
+      ({ slots, emphasisHtml, brandmark, counter, icons, images, staticIcons }) => {
+        document.querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = staticIcons[el.getAttribute('data-icon')] ?? ''; });
         document.querySelectorAll('[data-slot]').forEach((el) => {
           const name = el.getAttribute('data-slot');
-          if (Object.prototype.hasOwnProperty.call(emphasisHtml, name)) {
+          if (Object.prototype.hasOwnProperty.call(icons, name)) {
+            el.innerHTML = icons[name] ?? '';
+          } else if (Object.prototype.hasOwnProperty.call(images, name)) {
+            el.setAttribute('src', images[name]);
+          } else if (Object.prototype.hasOwnProperty.call(emphasisHtml, name)) {
             el.innerHTML = emphasisHtml[name];
           } else if (Object.prototype.hasOwnProperty.call(slots, name)) {
             el.textContent = slots[name];
@@ -255,13 +306,17 @@ try {
       {
         slots: slide.slots ?? {},
         emphasisHtml: Object.fromEntries(
-          Object.entries(slide.slots ?? {}).map(([k, v]) => [k, applyEmphasis(escapeHtml(v), slide.emphasis)])
+          Object.entries(slide.slots ?? {}).filter(([k]) => !tpl.slots[k]?.type).map(([k, v]) => [k, applyEmphasis(escapeHtml(v), slide.emphasis)])
         ),
+        icons,
+        images,
+        staticIcons,
         brandmark: brand.logo.text,
         counter: brand.slideCounter === false ? '' : `${slide.index}/${total}`,
       }
     );
 
+    await page.evaluate(() => Promise.all([...document.images].map((im) => im.decode().catch(() => {}))));
     await page.evaluate(() => document.fonts.ready);
     const loadedFonts = await page.evaluate(() =>
       [...document.fonts].filter((f) => f.status === 'loaded').map((f) => `${f.family.replace(/['"]/g, '')} ${f.weight}`)

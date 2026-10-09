@@ -4,10 +4,18 @@
   "title": "Spesifikasi desain carousel dari Designer",
   "description": "Designer hanya memilih template dan mengisi slot (F1.7). Tidak ada HTML, CSS, atau koordinat bebas di sini — itu disengaja (ADR-0002).",
   "type": "object",
-  "required": ["createdAt", "brand", "canvas", "slides"],
+  "required": [
+    "createdAt",
+    "brand",
+    "canvas",
+    "slides"
+  ],
   "additionalProperties": false,
   "properties": {
-    "createdAt": { "type": "string", "format": "date-time" },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "brand": {
       "type": "string",
       "const": "edukasiai",
@@ -15,30 +23,62 @@
     },
     "canvas": {
       "type": "object",
-      "required": ["width", "height"],
+      "required": [
+        "width",
+        "height"
+      ],
       "additionalProperties": false,
       "properties": {
-        "width": { "type": "integer", "const": 1080 },
-        "height": { "type": "integer", "const": 1350 }
+        "width": {
+          "type": "integer",
+          "const": 1080
+        },
+        "height": {
+          "type": "integer",
+          "const": 1350
+        }
       }
     },
     "slides": {
       "type": "array",
       "minItems": 6,
       "maxItems": 10,
-      "items": { "$ref": "#/$defs/designSlide" }
+      "items": {
+        "$ref": "#/$defs/designSlide"
+      }
     }
   },
   "$defs": {
     "designSlide": {
       "type": "object",
-      "required": ["index", "template", "slots"],
+      "required": [
+        "index",
+        "template",
+        "slots"
+      ],
       "additionalProperties": false,
       "properties": {
-        "index": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "index": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
         "template": {
           "type": "string",
-          "enum": ["cover", "point", "stat", "quote", "comparison", "cta"],
+          "enum": [
+            "cover",
+            "point",
+            "stat",
+            "quote",
+            "comparison",
+            "cta",
+            "hero-cover",
+            "hero-explain",
+            "compare-cards",
+            "flow",
+            "icon-list",
+            "hero-cta"
+          ],
           "description": "Harus ada di templates.json brand kit."
         },
         "colorVariant": {
@@ -52,14 +92,20 @@
         "emphasis": {
           "type": "array",
           "maxItems": 3,
-          "items": { "type": "string", "minLength": 2, "maxLength": 40 },
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40
+          },
           "description": "Kata yang ditekankan. Renderer menandainya; kata harus ada di salah satu slot."
         },
         "slots": {
           "type": "object",
           "description": "Isi slot teks. Nama slot dan batas karakternya didefinisikan templates.json. Renderer menolak slot yang tidak dikenal atau melebihi batas.",
           "minProperties": 1,
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     }

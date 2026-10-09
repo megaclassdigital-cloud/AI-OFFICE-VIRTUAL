@@ -201,7 +201,12 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
         const st = abs ? await stat(abs).catch(() => null) : null;
         if (!abs) r = { status: 403, body: { error: 'path ditolak' } };
         else if (!st || !st.isFile() || st.size > MAX_IMG) r = { status: 404, body: { error: 'tidak ada atau terlalu besar' } };
-        else { sendBuffer(res, 200, 'image/png', await readFile(abs)); return true; }
+        else {
+          // ?download=1 -> diunduh sebagai SATU berkas gambar (nama: <produksi>-slide-NN.png), bukan gabungan.
+          const name = path.basename(abs); const prodId = (q('path').match(/^runs[/](EDU-[0-9]+)[/]/) ?? [])[1];
+          sendBuffer(res, 200, 'image/png', await readFile(abs), q('download') === '1' ? `${prodId ? prodId + '-' : ''}${name}` : undefined);
+          return true;
+        }
       } else r = { status: 404, body: { error: 'rute tidak ada' } };
       json(res, r.status, r.body);
     } catch (e) { json(res, 502, { error: String(e?.message ?? e) }); }

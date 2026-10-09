@@ -14,6 +14,9 @@ function h(tag, attrs = {}, ...kids) {
 function setKids(el, ...kids) { el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false)); }
 const jget = (u) => fetch(u, { cache: 'no-store' }).then((r) => r.json());
 const img = (p) => `/api/inspect/image?path=${encodeURIComponent(p)}`;
+const dlUrl = (p) => `${img(p)}&download=1`;
+// Unduh SATU gambar per slide (bukan gabungan): tiap berkas diunduh terpisah dengan jeda singkat agar browser tidak memblokir.
+async function downloadAll(slides) { for (const s of slides) { const a = document.createElement('a'); a.href = dlUrl(s.image); a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((r) => setTimeout(r, 450)); } }
 const TABS = [['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA']];
 
 const st = { prod: null, tab: 'show', data: null, slide: 0, sig: '' };
@@ -92,7 +95,10 @@ function show(d) {
     cp ? card(h('b', {}, cp.heading), h('p', {}, cp.body)) : null,
     d.caption ? card(h('h4', {}, 'Caption'), h('p', { class: 'pre' }, d.caption), !hasTags && d.hashtags?.length ? h('p', { class: 'sub' }, d.hashtags.join(' ')) : null) : null,
     d.sources?.length ? card(h('h4', {}, 'Sumber'), h('ul', {}, d.sources.map((s) => h('li', {}, h('a', { href: s.url, target: '_blank', rel: 'noopener' }, s.name ?? s.url), s.title ? ` — ${s.title}` : '')))) : null);
-  return h('div', { class: 'tv-show' }, h('div', { class: 'tv-stage' }, viewer, thumbs), side);
+  const dl = h('div', { class: 'tv-dl' },
+    h('a', { class: 'btn', href: dlUrl(cur.image), download: '' }, `⬇ Unduh slide ${cur.index}`),
+    h('button', { type: 'button', class: 'btn', onclick: () => downloadAll(slides) }, `⬇ Unduh semua ${slides.length} slide (satu per satu)`));
+  return h('div', { class: 'tv-show' }, h('div', { class: 'tv-stage' }, viewer, thumbs, dl), side);
 }
 // Keputusan tetap dijalankan Owner di terminalnya; TV hanya menyiapkan perintah.
 function decision(d) {
@@ -129,7 +135,7 @@ function designer(d) {
   const x = d.design; if (!x) return empty();
   return h('div', {}, lead(`Designer memilih tampilan ${x.variants.join(', ')} untuk ${x.slides.length} slide (hanya dari template brand kit).`),
     h('div', { class: 'tv-grid' }, x.slides.map((s) => card(s.image ? h('img', { class: 'tv-mini', src: img(s.image), alt: `Slide ${s.index}`, loading: 'lazy' }) : null,
-      h('b', {}, `${s.index}. ${s.template}`), h('p', { class: 'sub' }, s.variant + (s.icon ? ` · ikon ${s.icon}` : '')), s.emphasis.length ? h('p', { class: 'sub' }, 'Ditekankan: ' + s.emphasis.join(', ')) : null))));
+      h('b', {}, `${s.index}. ${s.template}`, s.image ? h('a', { class: 'dlx', href: dlUrl(s.image), download: '', title: 'Unduh gambar slide ini' }, ' ⬇') : null), h('p', { class: 'sub' }, s.variant + (s.icon ? ` · ikon ${s.icon}` : '')), s.emphasis.length ? h('p', { class: 'sub' }, 'Ditekankan: ' + s.emphasis.join(', ')) : null))));
 }
 function qa(d) {
   const q = d.qa; if (!q) return empty();

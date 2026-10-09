@@ -101,3 +101,58 @@ mark { background: none; color: var(--accent); font-weight: inherit; }
   border-radius: 999px;
 }
 .sources { font-size: var(--fs-kicker); color: var(--muted); line-height: 1.4; }
+
+/* ───────── Format referensi (v3): foto besar + kartu ikon + diagram + footer sumber ─────────
+   Semua warna tetap dari variabel brand.json (--accent, --kicker, --text, --muted); tidak ada nilai warna baru di sini. */
+
+.hero-img {
+  position: absolute; left: 0; top: 0; width: 100%; height: var(--hero-h, 660px); object-fit: cover; z-index: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 58%, transparent 100%); mask-image: linear-gradient(to bottom, #000 58%, transparent 100%);
+}
+.hero-img.short { --hero-h: 520px; }
+.counter { position: absolute; top: 46px; right: var(--safe-margin); z-index: 3; font-size: var(--fs-kicker); font-weight: 600; color: var(--text); text-shadow: 0 2px 12px #000c; }
+.frame { position: relative; z-index: 1; }
+.spacer { flex: none; height: calc(var(--hero-h, 660px) - 150px); }
+.spacer.short { height: calc(520px - 150px); }
+.main.end { justify-content: flex-end; flex: 1; gap: 22px; padding-bottom: 28px; }
+.kicker.plain { color: var(--kicker); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.kicker.plain::before { display: none; }
+.kicker.top { margin-top: 36px; }
+.hl { font-size: 76px; font-weight: 800; line-height: 1.1; text-transform: uppercase; letter-spacing: -.005em; }
+.hl.md { font-size: 62px; }
+.sub-it { font-size: 34px; line-height: 1.35; font-style: italic; color: var(--muted); }
+.lede { font-size: 40px; line-height: 1.5; color: var(--text); font-weight: 400; }
+.lede.wide { margin-top: 26px; }
+.src { font-size: var(--fs-kicker); color: var(--muted); font-weight: 500; text-align: right; }
+
+.ic { color: var(--accent); display: grid; place-items: center; }
+.ic svg { width: 100%; height: 100%; stroke-width: 1.6; }
+.cards { display: grid; grid-template-columns: 1fr 64px 1fr; align-items: stretch; gap: 8px; }
+.card { background: #101018; border: 1px solid #ffffff1a; border-radius: 24px; padding: 26px 22px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.card .ct { font-size: 30px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; }
+.card .ic { width: 150px; height: 150px; }
+.card p { font-size: 32px; line-height: 1.4; color: var(--text); }
+.arrow { width: 64px; height: 64px; align-self: center; }
+
+.flowbox { position: relative; height: 560px; margin-bottom: 8px; }
+.flowlines { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: var(--accent); stroke-width: 3; opacity: .75; }
+.node { position: absolute; width: 270px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.node .ic.ring { width: 118px; height: 118px; padding: 24px; border: 3px solid var(--accent); border-radius: 50%; background: #0c0c13; }
+.node .nl { font-size: 32px; font-weight: 600; line-height: 1.2; }
+.n1 { left: 0; top: 120px; } .n2 { left: 333px; top: 10px; } .n3 { left: 666px; top: 120px; }
+.n4 { left: 466px; top: 380px; } .n5 { left: 0; top: 380px; }
+
+.rows { display: flex; flex-direction: column; gap: 16px; }
+.row { display: grid; grid-template-columns: 92px 1fr; gap: 22px; align-items: center; background: #101018; border-radius: 22px; padding: 22px 26px; }
+.row .ic { width: 80px; height: 80px; }
+.row .rt { font-size: 36px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+.row p { font-size: 30px; line-height: 1.35; color: var(--text); margin-top: 4px; }
+
+.cta2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; border-top: 1px solid #ffffff22; border-bottom: 1px solid #ffffff22; padding: 26px 0; margin-top: 8px; }
+.cta2 .col { display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: start; }
+.cta2 .ic.sm { width: 64px; height: 64px; }
+.cta2 .ctt { font-size: 34px; font-weight: 800; color: var(--accent); text-transform: uppercase; }
+.cta2 p { font-size: 30px; line-height: 1.35; margin-top: 4px; }
+.support { display: grid; grid-template-columns: 52px 1fr; gap: 14px; align-items: center; }
+.support .ic.xs { width: 52px; height: 52px; }
+.support p { font-size: 32px; line-height: 1.3; }

@@ -208,7 +208,7 @@ async function openProd(prod) {
   const imgs = files.filter((f) => f.kind === 'image').sort((p, q) => (q.path.includes('contact-sheet') ? 1 : 0) - (p.path.includes('contact-sheet') ? 1 : 0));
   const texts = files.filter((f) => f.kind === 'text');
   setKids(apprTab, back(), h('h4', { class: 'grp' }, `Paket produksi ${prod}`),
-    imgs.length ? h('div', { class: 'gallery' }, imgs.map((f) => h('a', { href: `/api/inspect/image?path=${encodeURIComponent(f.path)}`, target: '_blank', rel: 'noopener', title: f.path }, h('img', { loading: 'lazy', src: `/api/inspect/image?path=${encodeURIComponent(f.path)}`, alt: f.path })))) : null,
+    imgs.length ? h('div', { class: 'gallery' }, imgs.map((f) => h('a', { href: `/api/inspect/image?path=${encodeURIComponent(f.path)}&download=1`, download: '', title: `Unduh ${f.path}${f.path.includes('contact-sheet') ? ' (pratinjau gabungan, bukan untuk diunggah)' : ''}` }, h('img', { loading: 'lazy', src: `/api/inspect/image?path=${encodeURIComponent(f.path)}`, alt: f.path })))) : null,
     texts.length ? h('div', { class: 'files' }, texts.map((f) => fileRow(f))) : h('p', { class: 'hint' }, files.length ? '' : 'Belum ada berkas.'));
 }
 // Keputusan tetap dijalankan Owner di terminalnya (token owner di .env); UI hanya menyiapkan perintah, tidak pernah memutuskan.

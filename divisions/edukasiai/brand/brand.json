@@ -45,6 +45,13 @@
     ]
   },
   "variants": {
+    "model": {
+      "text": "#FFFFFF",
+      "muted": "#C4C7D0",
+      "accent": "#A78BFA",
+      "kicker": "#A78BFA",
+      "background": "radial-gradient(900px 520px at 80% -8%, rgba(139,92,246,.30), transparent 62%), radial-gradient(700px 480px at 6% 10%, rgba(124,58,237,.18), transparent 64%), linear-gradient(180deg, #050505 0%, #0b0b10 100%)"
+    },
     "editorial": {
       "text": "#FFFFFF",
       "muted": "#C4C7D0",

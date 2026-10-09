@@ -143,3 +143,7 @@ details.card summary { cursor: pointer; font-weight: 700; } .row2 { margin-top: 
 .tv-kpi div { background: #121a2b; border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; text-align: center; } .tv-kpi b { display: block; font-size: 15px; } .tv-kpi small { color: var(--muted); font-size: 11px; }
 .tv-warn { background: #78350f; color: #fff; border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; font-weight: 600; }
 .tv-side .cmd { display: flex; gap: 6px; align-items: center; margin: 4px 0; } .tv-side .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; background: #0a0f1a; padding: 5px 8px; border-radius: 6px; font: 11.5px Consolas, monospace; }
+
+.tv-dl { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.tv-dl .btn { display: inline-block; text-decoration: none; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer; }
+.tv-dl .btn:hover { border-color: #fff8; } .dlx { color: #93c5fd; text-decoration: none; margin-left: 6px; }
