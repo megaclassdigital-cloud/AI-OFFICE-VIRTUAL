@@ -163,6 +163,25 @@ async function tidyStageIssues(production, activeJob) {
   if (n) log('rapi-rapi: ' + n + ' issue tahap basi dibatalkan' + (production ? ' (produksi ' + production + ')' : ''));
 }
 
+// Paperclip bisa membalik issue tahap menjadi "blocked" setelah run yang menggantung dihentikan, sehingga agen tampak "butuh manusia" di UI.
+// Dipanggil berkala: issue tahap blocked milik produksi yang SUDAH SELESAI dikembalikan ke in_review (menunggu approval, tetap tampil di tab Approval);
+// milik produksi lain yang tidak aktif dibatalkan. Issue tahap job yang sedang berjalan tidak disentuh.
+let lastTidyMs = 0;
+async function tidyBlocked(state) {
+  if (Date.now() - lastTidyMs < 60_000) return;
+  lastTidyMs = Date.now();
+  const doneProds = new Set([...(state.history ?? []), ...(state.job ? [state.job] : [])].filter((x) => x.phase === 'done').map((x) => x.identifier));
+  const issues = await j(`/companies/${company.id}/issues`);
+  let restored = 0; let cancelled = 0;
+  for (const i of issues) {
+    const m = String(i.title).match(/^(EDU-[0-9]+) · [A-Za-z]+/);
+    if (!m || i.status !== 'blocked' || (state.job?.phase === 'running' && i.id === state.job.stageIssueId)) continue;
+    if (doneProds.has(m[1])) { await j('/issues/' + i.id, jb('PATCH', { status: 'in_review' })).catch(() => {}); restored += 1; }
+    else { await j('/issues/' + i.id, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {}); cancelled += 1; }
+  }
+  if (restored || cancelled) log('rapi-rapi berkala: ' + restored + ' issue tahap dikembalikan ke in_review, ' + cancelled + ' dibatalkan');
+}
+
 const comment = (issueId, text) => j(`/issues/${issueId}/comments`, jb('POST', { body: `[Orkestrator] ${text}` }));
 
 async function gatherFacts(job, state) {
@@ -272,6 +291,7 @@ async function applyActions(job, actions, facts) {
 async function once() {
   const state = readState();
   const net = await checkNetwork(state.job);
+  try { await tidyBlocked(state); } catch { /* pembersihan hanya kosmetik; jangan pernah mengganggu alur */ }
   if (!state.job || ['done', 'blocked'].includes(state.job.phase)) {
     if (state.job) { state.history.push({ ...state.job, endedMs: Date.now() }); state.job = null; }
     const made = await ingest();

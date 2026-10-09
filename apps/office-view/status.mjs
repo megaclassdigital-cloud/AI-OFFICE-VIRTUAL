@@ -41,6 +41,8 @@ export function buildStatusText(f) {
   const j = f.job;
   if (!j) {
     lines.push('🏭 Tidak ada produksi berjalan.' + (f.queue ? ` Antrean brief: ${f.queue}.` : ''));
+    if (f.lastJob?.phase === 'done') lines.push(`✔ Produksi terakhir ${f.lastJob.identifier} SELESAI: paket menunggu keputusanmu (tab Approval, klik kotak approval di meja Manager).`);
+    else if (f.lastJob?.phase === 'blocked') lines.push(`⚠ Produksi terakhir ${f.lastJob.identifier} terblokir; lihat log orkestrator atau tanyakan "manager:".`);
   } else {
     const idx = j.stageIndex;
     const stageName = idx >= 0 ? STAGE_AGENT[STAGES[idx]] : null;

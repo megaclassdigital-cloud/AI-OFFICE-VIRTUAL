@@ -44,6 +44,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     const readJson = async (f) => { try { return JSON.parse((await readFile(f, 'utf8')).replace(/^\uFEFF/, '')); } catch { return null; } };
     const st = stateFile ? await readJson(stateFile) : null;
     const job = st?.job ? { identifier: st.job.identifier, phase: st.job.phase, stageIndex: st.job.stageIndex, stageStartedMs: st.job.stageStartedMs } : null;
+    const lastJob = !job && st?.history?.length ? { identifier: st.history[st.history.length - 1].identifier, phase: st.history[st.history.length - 1].phase } : null;
     let queue = 0; try { queue = (await readdir(inboxRoot)).filter((n) => /\.(md|txt|json)$/i.test(n)).length; } catch { /* tanpa inbox */ }
     const ns = netFile ? await readJson(netFile) : null;
     const net = ns && nowMs - (ns.updatedAtMs ?? 0) < 120_000 ? { offline: ns.hold === true, since: ns.since } : null;
@@ -62,7 +63,7 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
     if (job?.phase === 'blocked' && orchLogFile) {
       try { const l = (await readFile(orchLogFile, 'utf8')).split(/\r?\n/).reverse().find((x) => x.includes('DIBLOKIR')); lastBlockLine = l ? l.replace(/^\S+\s+/, '').slice(0, 200) : null; } catch { /* tanpa log */ }
     }
-    return { nowMs, job, agents, net, activity, lastBlockLine, queue };
+    return { nowMs, job, lastJob, agents, net, activity, lastBlockLine, queue };
   }
 
   const sameOrigin = (req) => {

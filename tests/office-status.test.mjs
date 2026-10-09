@@ -38,6 +38,7 @@ describe('buildStatusText', () => {
     const b = buildStatusText({ ...base, job: { identifier: 'EDU-27', phase: 'blocked', stageIndex: 2 }, lastBlockLine: 'tahap Copywriter gagal: kuota' });
     expect(b).toContain('DIBLOKIR di tahap Copywriter'); expect(b).toContain('kuota');
     expect(buildStatusText({ ...base, job: null, queue: 2 })).toContain('Tidak ada produksi berjalan. Antrean brief: 2');
+    expect(buildStatusText({ ...base, job: null, lastJob: { identifier: 'EDU-27', phase: 'done' } })).toContain('Produksi terakhir EDU-27 SELESAI');
   });
   it('perencanaan oleh Manager', () => {
     expect(buildStatusText({ ...base, job: { identifier: 'EDU-9', phase: 'planning', stageIndex: -1 } })).toContain('Manager sedang menyusun work order');
