@@ -50,7 +50,9 @@ export function planReplyText({ action, identifier, note = '', others = [] }) {
 }
 
 const PAUSE_RE = /^(jeda|pause|istirahat(?:kan)?|hentikan sementara|tahan semua)\b/i;
-const RESUME_RE = /^(kerja lagi|lanjut kerja|resume|teruskan kerja|aktifkan lagi|mulai kerja lagi)\b/i;
+const RESUME_RE = /^(kerja lagi|lanjut(?:kan)? (?:kerja|pekerjaan|kerjaan|produksi|proses|semua)|resume|teruskan(?: kerja| pekerjaan)?|aktifkan lagi|mulai kerja lagi)\b/i;
+/** "lanjutkan" polos: untuk rencana bila ada rencana menunggu, selain itu (tidak ada rencana) berarti melanjutkan pekerjaan yang dijeda. */
+export const isBareContinue = (text) => /^(lanjut(?:kan)?|teruskan)\s*[.!]*$/i.test(String(text ?? "").trim());
 /** Perintah kendali pekerjaan di chat: 'pause' | 'resume' | null. Kata sengaja khusus agar tidak bentrok dengan "setuju/lanjutkan" untuk rencana. */
 export function classifyControl(text) {
   const t = String(text ?? '').trim();

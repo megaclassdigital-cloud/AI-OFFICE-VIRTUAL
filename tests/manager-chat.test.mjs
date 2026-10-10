@@ -87,3 +87,16 @@ describe('jeda dan lanjut pekerjaan', () => {
     expect(buildStatusText({ ...base, paused: false })).not.toMatch(/DIJEDA/);
   });
 });
+
+import { isBareContinue } from '../scripts/owner-reply.mjs';
+describe('lanjutkan pekerjaan yang dijeda lewat chat', () => {
+  it('frasa lanjut dengan objek pekerjaan = resume; jeda pekerjaan = pause', () => {
+    for (const t of ['lanjutkan pekerjaan', 'Lanjutkan produksi', 'lanjut kerja', 'lanjutkan semua', 'teruskan pekerjaan']) expect(classifyControl(t), t).toBe('resume');
+    expect(classifyControl('jeda pekerjaan')).toBe('pause');
+  });
+  it('"lanjutkan" polos dikenali terpisah (rencana didahulukan di server); kalimat lain tidak', () => {
+    expect(isBareContinue('lanjutkan')).toBe(true); expect(isBareContinue('Lanjut.')).toBe(true);
+    expect(isBareContinue('lanjutkan EDU-61')).toBe(false); expect(isBareContinue('setuju')).toBe(false);
+    expect(classifyControl('lanjutkan')).toBeNull();
+  });
+});

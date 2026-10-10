@@ -5,7 +5,7 @@ import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isStatusQuestion, buildStatusText, lastActivityFromLog, isResearchQuestion, buildResearchText, buildBriefAck } from './status.mjs';
 import { STAGES, STAGE_AGENT } from '../../scripts/orchestrator-core.mjs';
-import { decidePlanAction, planReplyText, classifyControl } from '../../scripts/owner-reply.mjs';
+import { decidePlanAction, planReplyText, classifyControl, isBareContinue } from '../../scripts/owner-reply.mjs';
 import { readOutbox } from '../../scripts/manager-outbox.mjs';
 
 const MAX_TEXT = 4000;
@@ -215,6 +215,8 @@ export function createTalk({ base, port, managerName = 'Manager', companyMatch =
         if (!issueId && isStatusQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildStatusText(await gatherStatus()) }); return true; }
         if (!issueId && outputRoot) { const ctl = classifyControl(msg); if (ctl) { json(res, 200, { kind: 'plan', answer: await handleControl(ctl) }); return true; } }
         if (!issueId && !/^manager\s*:/i.test(msg)) { const reply = await handlePlanReply(msg); if (reply) { json(res, 200, { kind: 'plan', answer: reply }); return true; } }
+        // "lanjutkan" polos tanpa rencana yang menunggu = lanjutkan pekerjaan yang dijeda (bukan brief baru ke Manager).
+        if (!issueId && outputRoot && isBareContinue(msg)) { json(res, 200, { kind: 'plan', answer: await handleControl('resume') }); return true; }
         // Pertanyaan tentang hasil riset (kandidat, untuk berapa konten) juga dijawab dari berkas nyata, bukan oleh LLM Manager.
         if (!issueId && outputRoot && isResearchQuestion(msg)) { json(res, 200, { kind: 'status', answer: buildResearchText(await gatherResearch()) }); return true; }
         msg = msg.replace(/^manager\s*:\s*/i, '');
