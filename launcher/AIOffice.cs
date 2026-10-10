@@ -44,6 +44,7 @@ namespace AIOffice
         readonly ToolStripMenuItem statusItem, pauseItem;
         Process supervisor;
         string lastOverall = "";
+        readonly DateTime started = DateTime.Now;
         bool paused;
         string ui = "http://127.0.0.1:3190";
 
@@ -157,7 +158,16 @@ namespace AIOffice
             try
             {
                 var file = Path.Combine(root, "workspace", "launcher-status.json");
-                if (!File.Exists(file)) return;
+                // Status basi (pengawas belum menulis ulang sejak dinyalakan): jangan percaya, apalagi menutup diri karena "mati" sisa sesi lalu.
+                // "Fresh" = ditulis SETELAH exe ini dinyalakan dan masih baru; status dari sesi sebelumnya (mis. "mati" setelah shutdown) tidak dihitung.
+                bool fresh = File.Exists(file) && File.GetLastWriteTime(file) >= started && (DateTime.Now - File.GetLastWriteTime(file)).TotalSeconds < 25;
+                if (!fresh)
+                {
+                    bool supervisorGone = supervisor == null || supervisor.HasExited;
+                    if (supervisorGone && (DateTime.Now - started).TotalSeconds > 30) { Quit(); return; }
+                    tray.Text = "AI Office: memulai…";
+                    return;
+                }
                 var json = File.ReadAllText(file);
                 string overall = Field(json, "overall");
                 string summary = Field(json, "summary");

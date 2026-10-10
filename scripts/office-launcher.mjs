@@ -113,6 +113,9 @@ function startPaperclip(why) {
   p.unref();
 }
 
+// Detak jantung milik proses yang sudah mati (sesi sebelumnya) tidak boleh terbaca sebagai "hidup".
+const liveHeartbeat = (key, alive) => { const h = readHeartbeat(ROOT, key); return h && !alive[key] && h.pid !== undefined && !pidAlive(h.pid) ? null : h; };
+
 // ───────── probe ─────────
 async function probe() {
   const nowMs = Date.now();
@@ -138,7 +141,7 @@ async function probe() {
   try { const r = await fetchJson(`${UI}/api/status`, 5000); if (r.data) officeView = { reachable: true, connected: r.data.connected }; } catch { /* UI belum menjawab */ }
 
   const alive = { orchestrator: isAlive(comp.get('orchestrator')), failover: isAlive(comp.get('failover')) };
-  return { pcOk, input: { nowMs, paperclip, plugin, agents, officeView, orchestrator: readHeartbeat(ROOT, 'orchestrator'), failover: readHeartbeat(ROOT, 'failover'), alive } };
+  return { pcOk, input: { nowMs, paperclip, plugin, agents, officeView, orchestrator: liveHeartbeat('orchestrator', alive), failover: liveHeartbeat('failover', alive), alive } };
 }
 
 let lastStatusSig = '';
