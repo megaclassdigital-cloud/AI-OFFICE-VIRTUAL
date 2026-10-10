@@ -127,6 +127,8 @@ async function main() {
   }
   if (qa?.action !== 'pass') { console.log(JSON.stringify({ ok: false, step: 'qa_submit_result', qa })); return 1; }
   // 5. hand-off
+  // Selama render/QA berjalan (bisa puluhan detik), pemulihan eksekusi Paperclip dapat memblokir issue karena penerimanya (QA) sengaja dipause: pastikan in_progress tepat sebelum handoff.
+  await fetch(`${API}/issues/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assigneeAgentId: qaAgent.id, status: 'in_progress' }) });
   const ho = await tool('handoff_to_owner', { issueId: id }, 'QA');
   log(`handoff_to_owner: ${JSON.stringify(ho).slice(0, 260)}`);
   if (ho.ok === true) {
