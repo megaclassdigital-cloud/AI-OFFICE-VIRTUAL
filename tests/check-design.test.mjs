@@ -104,3 +104,12 @@ describe('format foto/ikon v3', () => {
     expectFail(r, /slot source/);
   });
 });
+
+describe('label tetap slide CTA tidak diperiksa sebagai nama entitas', () => {
+  it('SIMPAN/IKUTI di saveTitle/followTitle diterima; nama asing di slot teks biasa tetap ditolak', async () => {
+    const mod = await import('../scripts/check-design.mjs');
+    expect(mod.properNamesIn('SIMPAN')).toBeTruthy(); // terdeteksi sebagai kandidat nama, tetapi slotnya dikecualikan
+    const src = (await import('node:fs')).readFileSync(new URL('../scripts/check-design.mjs', import.meta.url), 'utf8');
+    for (const slot of ['saveTitle', 'saveText', 'followTitle', 'followText']) expect(src).toContain(`'${slot}'`);
+  });
+});

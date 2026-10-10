@@ -77,7 +77,9 @@ function assetGate(job, design, designPath) {
   const manFile = path.join(runDir, 'assets-manifest.json');
   const sig = inboxSignature(ROOT, runKeyOf(job));
   const files = used.map((u) => u.file);
-  const prev = readHold(holdFile);
+  let prev = readHold(holdFile);
+  // Aset yang sudah lengkap di manifest (mis. owner menyelesaikan CAPTCHA lalu capture dijalankan manual) membatalkan hold basi.
+  if (prev) { try { if (manifestVerdict(JSON.parse(readFileSync(manFile, 'utf8')), files).complete) { writeHold(holdFile, null); prev = null; } } catch { /* manifest belum ada */ } }
   if (prev && !shouldRetryCapture(prev, sig, Date.now())) return { ok: false, hold: true, missing: prev.missing, errors: [holdMessage(runKeyOf(job), prev.missing)] };
   markBusy('ambil-aset', 430_000);
   spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'capture-asset.mjs'), '--issue', runKeyOf(job)], { encoding: 'utf8', timeout: 420_000 });

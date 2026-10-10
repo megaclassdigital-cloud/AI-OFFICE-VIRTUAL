@@ -117,3 +117,12 @@ describe('status kept tidak diterima tanpa bukti', () => {
     expect(manifestVerdict({ assets: [{ file: 'a.png', status: 'kept' }] }, ['a.png']).complete).toBe(false);
   });
 });
+
+describe('pemakaian ulang logo merek di slide lain', () => {
+  it('logo merek boleh dipakai di sampul dan CTA dengan satu permintaan; aset non-merek tetap harus cocok slide', async () => {
+    const { matchRequests } = await import('../scripts/asset-gate.mjs');
+    const used = [{ slide: 1, file: 'logo.png' }, { slide: 6, file: 'logo.png' }];
+    expect(matchRequests(used, { requests: [{ slide: 1, file: 'logo.png', kind: 'brand' }] })).toEqual([]);
+    expect(matchRequests(used, { requests: [{ slide: 1, file: 'logo.png', kind: 'product' }] })).toHaveLength(1);
+  });
+});

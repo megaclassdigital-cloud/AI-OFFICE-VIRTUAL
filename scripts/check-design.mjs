@@ -32,7 +32,8 @@ export const ROLE_TEMPLATES = {
 };
 const IMAGE_PATH_RE = /^(runs\/EDU-[0-9]+(?:\/revision-[0-9]+)?\/assets\/[A-Za-z0-9._-]+\.(png|jpe?g|webp)|brand\/[A-Za-z0-9._\/-]+\.(png|jpe?g|webp))$/;
 const NUMBER_EXEMPT_SLOTS = new Set(['number']);
-const NAME_EXEMPT_SLOTS = new Set(['kicker']);
+// Label tetap template (kicker, judul/isi tombol Simpan & Ikuti di slide CTA) bukan klaim fakta: tidak diperiksa sebagai nama entitas.
+const NAME_EXEMPT_SLOTS = new Set(['kicker', 'saveTitle', 'saveText', 'followTitle', 'followText']);
 
 const numbersIn = (s) => (String(s).match(/\d+(?:[.,]\d+)?/g) ?? []).map((n) => String(Number(n.replace(',', '.'))));
 
@@ -87,7 +88,7 @@ export function checkDesign(design, carousel, { brandName = 'EdukasiAI' } = {}) 
       if (slot === 'source') {
         const m = String(value).match(/^(?:Sumber:\s*)?(.+)$/);
         const known = carousel.sources.map((s) => String(s.source_name).toLowerCase());
-        const acro = (n) => n.split(/s+/).map((w) => w[0]).join('');
+        const acro = (n) => n.split(/\s+/).map((w) => w[0]).join('');
         known.push(...known.map(acro)); // singkatan (AP untuk Associated Press) diizinkan
         if (!m || !m[1].split(/\s*,\s*/).every((n) => known.includes(n.toLowerCase()))) errors.push(`${at}: slot source harus \"[Sumber: ]<nama media dari daftar sumber carousel>" (dapat: ${[...new Set(known)].join(', ')})`);
         continue;

@@ -32,7 +32,8 @@ export function matchRequests(used, requestsDoc) {
   for (const u of used) {
     const r = byFile.get(u.file);
     if (!r) errors.push(`slide ${u.slide}: gambar "${u.file}" belum ada di asset-requests.json (tulis permintaannya: slide, file, kind, query)`);
-    else if (r.slide !== u.slide) errors.push(`asset-requests.json: "${u.file}" bertanda slide ${r.slide}, tetapi dipakai di slide ${u.slide}`);
+    // Logo merek yang sama boleh dipakai ulang di slide lain (mis. sampul dan CTA); aset bukan-merek tetap terikat pada satu slide.
+    else if (r.slide !== u.slide && !(r.kind === 'brand' && used.some((x) => x.file === u.file && x.slide === r.slide))) errors.push(`asset-requests.json: "${u.file}" bertanda slide ${r.slide}, tetapi dipakai di slide ${u.slide}`);
   }
   return errors;
 }
