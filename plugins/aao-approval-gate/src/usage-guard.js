@@ -43,6 +43,9 @@ export function startOfLocalDay(nowMs, offsetMinutes) {
  * @param runs  [{ agentId, startedAt, finishedAt? }]  (ISO string). Run tanpa startedAt diabaikan.
  * @returns Map agentId -> { runs, minutes }
  */
+/** Satu run tidak mungkin memakai lebih dari ini (timeout adapter 10 mnt + margin). Run yatim (tanpa finishedAt, sisa shutdown/lag/tidur) tidak boleh dihitung ratusan menit. */
+export const MAX_RUN_MINUTES = 15;
+
 export function summarizeRuns(runs, nowMs, limits) {
   const dayStart = startOfLocalDay(nowMs, limits.timezoneOffsetMinutes);
   const out = new Map();
@@ -55,7 +58,7 @@ export function summarizeRuns(runs, nowMs, limits) {
     const end = Number.isFinite(f) ? Math.min(Math.max(f, s), nowMs) : nowMs;
     const cur = out.get(r.agentId) ?? { runs: 0, minutes: 0 };
     cur.runs += 1;
-    cur.minutes += (end - s) / 60_000;
+    cur.minutes += Math.min((end - s) / 60_000, MAX_RUN_MINUTES);
     out.set(r.agentId, cur);
   }
   return out;

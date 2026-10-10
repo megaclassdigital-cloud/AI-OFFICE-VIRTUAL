@@ -50,14 +50,14 @@ describe('evaluate', () => {
     expect(v).toHaveLength(1);
     expect(v[0].reasons[0]).toMatch(/run 6\/6/);
   });
-  it('durasi 60 menit total -> melanggar walau hanya 2 run', () => {
-    const v = evaluate(summarizeRuns([run('a1', '2026-10-08T01:00:00Z', 30), run('a1', '2026-10-08T02:00:00Z', 30)], NOW, L), L);
+  it('durasi 60 menit total -> melanggar dengan 4 run panjang', () => {
+    const v = evaluate(summarizeRuns([run('a1', '2026-10-08T01:00:00Z', 15), run('a1', '2026-10-08T02:00:00Z', 15), run('a1', '2026-10-08T03:00:00Z', 15), run('a1', '2026-10-08T04:00:00Z', 15)], NOW, L), L);
     expect(v[0].reasons.join()).toMatch(/durasi 60\.0\/60/);
   });
-  it('run yang masih berjalan dihitung sampai sekarang', () => {
+  it('run yang masih berjalan dihitung sampai sekarang (maksimal batas wajar satu run)', () => {
     const s = summarizeRuns([{ agentId: 'a1', startedAt: '2026-10-08T03:00:00Z' }], NOW, L);
-    expect(s.get('a1').minutes).toBeCloseTo(120, 5);
-    expect(evaluate(s, L)).toHaveLength(1);
+    expect(s.get('a1').minutes).toBeCloseTo(15, 5);
+    expect(evaluate(s, L)).toHaveLength(0);
   });
   it('agent dihitung terpisah', () => {
     const rs = Array.from({ length: 6 }, (_, i) => run('boros', `2026-10-08T0${i}:00:00Z`, 1));
@@ -109,5 +109,15 @@ describe('enforce', () => {
     const { deps: d } = deps(six.slice(0, 2));
     const r = await enforce({ companyId: 'co1', nowMs: NOW, limitsRaw: { maxRunsPerAgentPerDay: 2 }, deps: d });
     expect(r.paused).toEqual(['a1']);
+  });
+});
+
+describe('run yatim tidak menghabiskan kuota durasi', () => {
+  it('satu run tanpa finishedAt yang "berjalan" 7 jam dihitung maksimal MAX_RUN_MINUTES', async () => {
+    const { MAX_RUN_MINUTES } = await import('../plugins/aao-approval-gate/src/usage-guard.js');
+    const now = Date.parse('2026-10-10T06:00:00Z');
+    const s = summarizeRuns([{ agentId: 'a1', startedAt: '2026-10-09T23:00:00Z' }, { agentId: 'a1', startedAt: '2026-10-10T05:00:00Z', finishedAt: '2026-10-10T05:05:00Z' }], now, { timezoneOffsetMinutes: 420 });
+    expect(s.get('a1').runs).toBe(2);
+    expect(s.get('a1').minutes).toBe(MAX_RUN_MINUTES + 5);
   });
 });
