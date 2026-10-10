@@ -4,6 +4,7 @@
 //
 // Build:  launcher\build.ps1   (hasil: AIOffice.exe di akar repo)
 using System;
+using System.Reflection;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -12,6 +13,13 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 
+[assembly: AssemblyTitle("AI Office")]
+[assembly: AssemblyDescription("AI Office: menyalakan dan menjaga Paperclip, agent, dan Office View dari satu aplikasi")]
+[assembly: AssemblyCompany("Mega Class Digital")]
+[assembly: AssemblyProduct("AI Office")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
+
 namespace AIOffice
 {
     static class Program
@@ -19,6 +27,7 @@ namespace AIOffice
         [STAThread]
         static void Main(string[] args)
         {
+            if (Array.IndexOf(args, "--make-shortcuts") >= 0) { var r = TrayApp.ResolveRootStatic(); TrayApp.MakeShortcut(TrayApp.StartMenuPath(), r); TrayApp.MakeShortcut(TrayApp.DesktopPath(), r); return; }
             bool created;
             using (var mutex = new Mutex(true, "AIOffice.SingleInstance", out created))
             {
@@ -41,7 +50,7 @@ namespace AIOffice
         readonly string nodeExe;
         readonly NotifyIcon tray;
         readonly System.Windows.Forms.Timer timer;
-        readonly ToolStripMenuItem statusItem, pauseItem;
+        readonly ToolStripMenuItem statusItem, pauseItem, autoItem;
         Process supervisor;
         string lastOverall = "";
         readonly DateTime started = DateTime.Now;
@@ -50,7 +59,7 @@ namespace AIOffice
 
         public TrayApp(string[] args)
         {
-            root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+            root = ResolveRoot();
             nodeExe = FindNode();
             if (nodeExe == null)
             {
@@ -69,16 +78,50 @@ namespace AIOffice
             menu.Items.Add("Mulai ulang Office View", null, (s, e) => SendCommand("restart", "office-view"));
             menu.Items.Add("Mulai ulang Orkestrator", null, (s, e) => SendCommand("restart", "orchestrator"));
             menu.Items.Add(new ToolStripSeparator());
+            autoItem = new ToolStripMenuItem("Mulai otomatis bersama Windows", null, (s, e) => ToggleAutostart());
+            autoItem.Checked = File.Exists(StartupLnk());
+            menu.Items.Add(autoItem);
+            menu.Items.Add("Buat pintasan di Desktop", null, (s, e) => { MakeShortcut(DesktopLnk(), root); tray.ShowBalloonTip(2000, "AI Office", "Pintasan dibuat di Desktop.", ToolTipIcon.Info); });
+            menu.Items.Add("Buka folder log", null, (s, e) => { try { Process.Start("explorer.exe", Path.Combine(root, "reports")); } catch { } });
+            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Matikan semua dengan aman (jeda dulu, tunggu agent selesai)", null, (s, e) => SafeShutdown());
             menu.Items.Add("Keluar sekarang (komponen dihentikan)", null, (s, e) => ExitNow());
 
             tray = new NotifyIcon { Icon = MakeIcon(Color.Gray), Visible = true, Text = "AI Office: memulai", ContextMenuStrip = menu };
             tray.DoubleClick += (s, e) => OpenUi();
 
+            FirstRunSetup();
             StartSupervisor(args);
             timer = new System.Windows.Forms.Timer { Interval = 3000 };
             timer.Tick += (s, e) => Refresh();
             timer.Start();
+        }
+
+        static string DataDir()
+        {
+            var d = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AIOffice");
+            Directory.CreateDirectory(d);
+            return d;
+        }
+
+        static bool IsRoot(string p) { return !string.IsNullOrEmpty(p) && File.Exists(Path.Combine(p, "scripts", "office-launcher.mjs")); }
+
+        static string ResolveRoot()
+        {
+            var here = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+            if (IsRoot(here)) { try { File.WriteAllText(Path.Combine(DataDir(), "root.txt"), here); } catch { } return here; }
+            try { var saved = File.ReadAllText(Path.Combine(DataDir(), "root.txt")).Trim(); if (IsRoot(saved)) return saved; } catch { }
+            using (var dlg = new FolderBrowserDialog { Description = "Pilih folder AI-Agent-Office (yang berisi folder scripts)" })
+            {
+                if (dlg.ShowDialog() == DialogResult.OK && IsRoot(dlg.SelectedPath))
+                {
+                    File.WriteAllText(Path.Combine(DataDir(), "root.txt"), dlg.SelectedPath);
+                    return dlg.SelectedPath;
+                }
+            }
+            MessageBox.Show("Folder AI Office tidak ditemukan.", "AI Office", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Environment.Exit(3);
+            return null;
         }
 
         static string FindNode()
@@ -103,6 +146,47 @@ namespace AIOffice
             catch (Exception ex) { MessageBox.Show("Gagal menyalakan pengawas: " + ex.Message, "AI Office", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
+        static string DesktopLnk() { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "AI Office.lnk"); }
+        static string StartupLnk() { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "AI Office.lnk"); }
+        static string StartMenuLnk() { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "AI Office.lnk"); }
+
+        internal static string ResolveRootStatic() { return ResolveRoot(); }
+        internal static string DesktopPath() { return DesktopLnk(); }
+        internal static string StartMenuPath() { return StartMenuLnk(); }
+
+        internal static void MakeShortcut(string lnk, string root)
+        {
+            try
+            {
+                var exe = Application.ExecutablePath;
+                var ps = "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('" + lnk.Replace("'", "''") + "');$s.TargetPath='" + exe.Replace("'", "''") + "';$s.WorkingDirectory='" + root.Replace("'", "''") + "';$s.IconLocation='" + exe.Replace("'", "''") + ",0';$s.Description='AI Office';$s.Save()";
+                var p = Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -WindowStyle Hidden -Command \"" + ps.Replace("\"", "\\\"") + "\"") { CreateNoWindow = true, UseShellExecute = false });
+                p.WaitForExit(8000);
+            }
+            catch { }
+        }
+
+        void ToggleAutostart()
+        {
+            if (File.Exists(StartupLnk())) { try { File.Delete(StartupLnk()); } catch { } }
+            else MakeShortcut(StartupLnk(), root);
+            autoItem.Checked = File.Exists(StartupLnk());
+        }
+
+        void FirstRunSetup()
+        {
+            var marker = Path.Combine(DataDir(), "setup.done");
+            if (File.Exists(marker)) return;
+            MakeShortcut(StartMenuLnk(), root);
+            if (MessageBox.Show("Pasang AI Office seperti aplikasi biasa?\n\n- Pintasan di Desktop dan Start Menu\n- Mulai otomatis saat Windows menyala (bisa diubah di menu ikon)\n\nSelama komputer mati, pekerjaan agent berhenti; Paperclip butuh beberapa menit untuk siap setelah dinyalakan.", "AI Office — pengaturan awal", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                MakeShortcut(DesktopLnk(), root);
+                MakeShortcut(StartupLnk(), root);
+                autoItem.Checked = File.Exists(StartupLnk());
+            }
+            try { File.WriteAllText(marker, DateTime.Now.ToString("o")); } catch { }
+        }
+
         void RunNode(string args)
         {
             try
@@ -120,6 +204,11 @@ namespace AIOffice
 
         void OpenUi()
         {
+            foreach (var edge in new[] { @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", @"C:\Program Files\Microsoft\Edge\Application\msedge.exe" })
+            {
+                if (!File.Exists(edge)) continue;
+                try { Process.Start(new ProcessStartInfo(edge, "--app=" + ui) { UseShellExecute = false }); return; } catch { }
+            }
             try { Process.Start(new ProcessStartInfo(ui) { UseShellExecute = true }); } catch { }
         }
 

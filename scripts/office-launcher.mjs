@@ -8,6 +8,7 @@
 //   node scripts/office-launcher.mjs --status                                 tampilkan status terakhir
 //   node scripts/office-launcher.mjs --command shutdown|stop-now|open|restart [komponen]   kirim perintah ke pengawas yang berjalan
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
+import net from 'node:net';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync, truncateSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,6 +66,9 @@ const DEFS = [
   { key: 'failover', label: 'Failover model', needsPaperclip: true, match: 'scripts/manager-failover.mjs', args: ['scripts/manager-failover.mjs', '--watch'] },
 ];
 const comp = new Map(DEFS.map((d) => [d.key, { def: d, child: null, pid: null, adopted: false, restarts: [], nextStartAt: 0, badSince: null, failed: false }]));
+let pcMisses = 0; let lastGoodPaperclip = null;
+/** Port terbuka = prosesnya masih ada (mungkin hanya lambat): jangan pernah meluncurkan Paperclip kedua. */
+const tcpOpen = (port) => new Promise((resolve) => { const s = net.connect({ host: '127.0.0.1', port, timeout: 2000 }); s.once('connect', () => { s.destroy(); resolve(true); }); s.once('error', () => resolve(false)); s.once('timeout', () => { s.destroy(); resolve(false); }); });
 let stopping = false; let paperclipRestartAt = 0; let paperclipDownSince = null; let opened = false; const startedAt = Date.now();
 // Paperclip butuh beberapa menit untuk start (pemulihan Postgres tertanam); jangan diluncurkan ulang selama masa tunggu ini.
 const PAPERCLIP_STARTUP_GRACE_MS = 8 * 60_000;
@@ -120,7 +124,9 @@ const liveHeartbeat = (key, alive) => { const h = readHeartbeat(ROOT, key); retu
 async function probe() {
   const nowMs = Date.now();
   let paperclip = { reachable: false };
-  try { const r = await fetchJson(`${API}/api/health`, 5000); if (r.data) paperclip = { reachable: true, status: r.data.status, version: r.data.version }; } catch { /* tidak terjangkau */ }
+  // Lag sesaat (PC berat) jangan langsung dihitung putus: 12 dtk per percobaan, dan 2 kegagalan beruntun masih memakai hasil terakhir yang baik.
+  try { const r = await fetchJson(`${API}/api/health`, 12000); if (r.data) { paperclip = { reachable: true, status: r.data.status, version: r.data.version }; pcMisses = 0; lastGoodPaperclip = paperclip; } else pcMisses++; } catch { pcMisses++; }
+  if (!paperclip.reachable && pcMisses < 3 && lastGoodPaperclip) paperclip = lastGoodPaperclip;
   const pcOk = paperclip.reachable && paperclip.status === 'ok';
 
   let plugin = { ready: null }; let agents = { count: null, expected: 6 };
@@ -205,7 +211,7 @@ async function cycle() {
   // Paperclip: bila tidak terjangkau cukup lama, nyalakan ulang (dengan jeda agar tidak berulang-ulang).
   if (!input.paperclip.reachable) {
     paperclipDownSince ??= nowMs;
-    if (nowMs - paperclipDownSince > 15_000 && nowMs - paperclipRestartAt > PAPERCLIP_STARTUP_GRACE_MS) startPaperclip('tidak terjangkau');
+    if (nowMs - paperclipDownSince > 30_000 && nowMs - paperclipRestartAt > PAPERCLIP_STARTUP_GRACE_MS) { if (await tcpOpen(3177)) log('Paperclip lambat tetapi prosesnya hidup (port 3177 terbuka): tidak diluncurkan ulang'); else startPaperclip('tidak terjangkau'); }
   } else paperclipDownSince = null;
 
   // Komponen: nyalakan yang belum berjalan, pulihkan yang mati/tidak terhubung.
