@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { writeHeartbeat, isConnectionError, acquireLock, releaseLock } from './heartbeat.mjs';
 import { laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
@@ -78,6 +79,7 @@ function assetGate(job, design, designPath) {
   const files = used.map((u) => u.file);
   const prev = readHold(holdFile);
   if (prev && !shouldRetryCapture(prev, sig, Date.now())) return { ok: false, hold: true, missing: prev.missing, errors: [holdMessage(runKeyOf(job), prev.missing)] };
+  markBusy('ambil-aset', 430_000);
   spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'capture-asset.mjs'), '--issue', runKeyOf(job)], { encoding: 'utf8', timeout: 420_000 });
   let manifest = null;
   try { manifest = JSON.parse(readFileSync(manFile, 'utf8')); } catch { /* dianggap belum ada */ }
@@ -117,6 +119,7 @@ function checkOutput(job, stageName) {
     const held = assetGate(job, data, p);
     if (held) return held;
     const outDir = path.join(path.dirname(p), 'render');
+    markBusy('render', 190_000);
     const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'render.mjs'), '--design', p, '--out', outDir], { encoding: 'utf8', timeout: 180_000 });
     let qa = null;
     try { qa = JSON.parse(readFileSync(path.join(outDir, 'visual-qa.json'), 'utf8')); } catch { /* handled below */ }
@@ -531,6 +534,7 @@ async function applyActions(job, actions, facts) {
     else if (act.type === 'finish') {
       // Manager bertanggung jawab sebagai pengelola: paket diserahkan ke Manager (satu run) untuk laporan akhir, lalu menunggu keputusan Owner.
       // Finalisasi deterministik: dokumen + catatan verify_candidate + segel render + qa_submit_result + handoff_to_owner pada SATU issue produksi (kode, bukan LLM).
+      markBusy('finalisasi', 490_000);
       const fin = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'finalize-production.mjs'), job.identifier, '--run', runKeyOf(job)], { encoding: 'utf8', timeout: 480_000 });
       const lastLine = String(fin.stdout || '').trim().split(String.fromCharCode(10)).map((x) => x.trim()).filter(Boolean).pop() ?? '';
       if (fin.status !== 0) {
@@ -612,6 +616,8 @@ async function planAhead(state, offline, review = false) {
   if (extraBuffer.length) state.pending.push(...extraBuffer.splice(0));
 }
 
+/** Detak jantung 'sibuk sampai': pengawas tidak boleh mengira orkestrator macet saat ia menjalankan panggilan sinkron yang lama. */
+const markBusy = (what, ms) => writeHeartbeat(ROOT, 'orchestrator', { ok: true, paperclipOk: true, busy: what, busyUntil: Date.now() + ms });
 const isFinished = (j) => ['done', 'blocked'].includes(j.phase);
 
 /**
@@ -733,6 +739,14 @@ if (a.includes('--tidy')) {
   console.log(`Selesai/terblokir sebelumnya: ${s.history.length}`);
 } else if (a.includes('--watch')) {
   const ms = Number(arg('--interval', 15)) * 1000;
+  const lock = acquireLock(ROOT, 'orchestrator');
+  if (!lock.ok) { console.error('orkestrator lain sudah berjalan (pid ' + lock.pid + '); keluar'); process.exit(3); }
+  process.on('exit', () => releaseLock(lock.file));
   log('watch dimulai (inbox: workspace/inbox)');
-  for (;;) { try { await once(); } catch (e) { log(`galat: ${e.message}`); } await new Promise((r) => setTimeout(r, ms)); }
+  for (;;) {
+    let ok = true; let error = null;
+    try { await once(); } catch (e) { ok = false; error = String(e?.message ?? e); log(`galat: ${e.message}`); }
+    writeHeartbeat(ROOT, 'orchestrator', { ok, paperclipOk: !(error && isConnectionError(error)), error: error ? error.slice(0, 160) : null, intervalMs: ms });
+    await new Promise((r) => setTimeout(r, ms));
+  }
 } else await once();

@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } fr
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isOffline, readNetworkState, isNetworkError } from './netcheck.mjs';
+import { writeHeartbeat, isConnectionError } from './heartbeat.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FAIL_RE = /acpx_session_init_failed|ensure_session|internal error|quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|capacity|terminal service failure|acpx_turn_failed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
@@ -223,6 +224,11 @@ async function main() {
     mkdirSync(path.dirname(lockFile), { recursive: true });
     writeFileSync(lockFile, String(process.pid));
     log(`watch dimulai untuk: ${names.join(', ')}`);
-    for (;;) { for (const name of names) { try { await once(name); } catch (e) { log(`galat ${name}: ${e.message}`); } } await new Promise((r) => setTimeout(r, ms)); }
+    for (;;) {
+      let connOk = true; let err = null;
+      for (const name of names) { try { await once(name); } catch (e) { log(`galat ${name}: ${e.message}`); err = String(e?.message ?? e); if (isConnectionError(err)) connOk = false; } }
+      writeHeartbeat(ROOT, 'failover', { ok: err === null, paperclipOk: connOk, error: err ? err.slice(0, 160) : null, intervalMs: ms });
+      await new Promise((r) => setTimeout(r, ms));
+    }
   } else for (const name of names) await once(name);
 }
