@@ -35,3 +35,21 @@ export function acquireLock(root, name, alive = (p) => { try { process.kill(p, 0
   } catch { return { ok: true, pid: process.pid, file }; }
 }
 export function releaseLock(file) { try { if (readFileSync(file, 'utf8').trim() === String(process.pid)) unlinkSync(file); } catch { /* sudah hilang */ } }
+
+/**
+ * Tunggu sampai Paperclip menjawab /api/health (status ok). Dipakai watcher saat start agar TIDAK crash (exit 1) bila Paperclip belum siap
+ * atau sedang dinyalakan ulang; pengawas tidak perlu memutar restart berulang. maxMs=0 -> tidak menunggu (CLI sekali jalan).
+ */
+export async function waitForPaperclip(api, { log = () => {}, maxMs = 20 * 60_000, pollMs = 5000 } = {}) {
+  if (!maxMs) return true;
+  const t0 = Date.now(); let said = false;
+  for (;;) {
+    try {
+      const r = await fetch(api + '/api/health', { signal: AbortSignal.timeout(8000) });
+      if (r.ok && (await r.json())?.status === 'ok') return true;
+    } catch { /* belum siap */ }
+    if (!said) { log('Paperclip belum siap; menunggu (tidak keluar)'); said = true; }
+    if (Date.now() - t0 > maxMs) return false;
+    await new Promise((res) => setTimeout(res, pollMs));
+  }
+}

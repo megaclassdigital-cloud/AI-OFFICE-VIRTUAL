@@ -123,11 +123,11 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
     const dir = path.join(runDirOf(outputRoot, runKey), 'render');
     return (await readdir(dir).catch(() => [])).filter((f) => /[.](png|json)$/.test(f)).map((f) => `runs/${runKey}/render/${f}`);
   }
-  async function masterOf(masterIdentifier) {
+  async function masterOf(masterIdentifier, issues = null) {
     const { companyId } = await ctx();
-    const master = (await api(`/companies/${companyId}/issues`)).find((i) => i.identifier === masterIdentifier) ?? null;
+    const master = (issues ?? (await api(`/companies/${companyId}/issues`))).find((i) => i.identifier === masterIdentifier) ?? null;
     let handoff = null;
-    if (master) {
+    if (master && (!issues || !['cancelled', 'backlog'].includes(master.status))) {
       try { const dl = await api(`/issues/${master.id}/documents`); const d = (Array.isArray(dl) ? dl : dl.documents ?? []).find((x) => x.key === 'handoff'); if (d) { try { handoff = JSON.parse(d.body); } catch { handoff = {}; } } } catch { /* tanpa dokumen */ }
     }
     return { master, handoff };
@@ -163,23 +163,31 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
     return { status: 200, body: { ...view, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
   }
   /** Papan Tayang: tiga konten terbaru (versi terbaru tiap konten) dengan sampul dan status. */
-  async function boardView() {
+  async function boardView(limit = 0) {
     const dirs = (await readdir(path.join(outputRoot, 'runs'), { withFileTypes: true }).catch(() => [])).filter((e) => e.isDirectory() && CONTENT_RE.test(e.name));
     const withTime = await Promise.all(dirs.map(async (e) => {
       const key = latestRunKey(outputRoot, e.name);
       return { prod: e.name, runKey: key, t: (await stat(runDirOf(outputRoot, key)).catch(() => ({ mtimeMs: 0 }))).mtimeMs };
     }));
     const items = [];
-    for (const { prod, runKey } of withTime.sort((a, b) => b.t - a.t).slice(0, 3)) {
+    // Daftar penuh: SEMUA konten (tidak ada yang hilang dari TV), terbaru dibuat di atas. limit>0 = hanya yang paling baru aktif (papan di kanvas).
+    let issueList = null;
+    if (!limit) { try { const { companyId } = await ctx(); issueList = await api(`/companies/${companyId}/issues`); } catch { issueList = null; } }
+    const ordered = withTime.sort((a, b) => b.t - a.t);
+    for (const { prod, runKey } of limit ? ordered.slice(0, limit) : ordered) {
       const masterIdentifier = masterIdentifierOf(outputRoot, runKey);
       const render = await listRender(runKey);
       const slides = render.filter((f) => /slide-[0-9]+[.]png$/.test(f)).sort();
       const carousel = await readJsonSafe(path.join(runDirOf(outputRoot, runKey), 'carousel.json'));
       const order = await readJsonSafe(path.join(outputRoot, 'orders', `${masterIdentifier}.json`));
       let master = null; let handoff = null; let unknown = false;
-      try { ({ master, handoff } = await masterOf(masterIdentifier)); } catch { unknown = true; }
-      items.push({ prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown }) });
+      try { ({ master, handoff } = await masterOf(masterIdentifier, issueList)); } catch { unknown = true; }
+      const runStat = await stat(runDirOf(outputRoot, runKey)).catch(() => null);
+      const orderStat = await stat(path.join(outputRoot, 'orders', `${masterIdentifier}.json`)).catch(() => null);
+      const createdMs = Date.parse(master?.createdAt ?? '') || orderStat?.birthtimeMs || orderStat?.mtimeMs || runStat?.birthtimeMs || runStat?.mtimeMs || 0;
+      items.push({ createdAt: createdMs ? new Date(createdMs).toISOString() : null,  prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown }) });
     }
+    if (!limit) items.sort((a, b) => Date.parse(b.createdAt ?? 0) - Date.parse(a.createdAt ?? 0));
     return { status: 200, body: { items } };
   }
 
@@ -214,7 +222,7 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
       else if (p === '/api/inspect/approvals') r = await approvalsView();
       else if (p === '/api/inspect/issue') r = await issueView(q('id'));
       else if (p === '/api/inspect/files') r = await filesView(q('prod'), q('rev'));
-      else if (p === '/api/inspect/board') r = await boardView();
+      else if (p === '/api/inspect/board') r = await boardView(Math.min(50, Math.max(0, parseInt(q('limit'), 10) || 0)));
       else if (p === '/api/inspect/production') r = await productionView(q('prod'), q('rev'));
       else if (p === '/api/inspect/file') {
         const abs = safeJoin(outputRoot, q('path'), TEXT_EXT);

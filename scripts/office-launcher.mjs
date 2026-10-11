@@ -72,6 +72,7 @@ const tcpOpen = (port) => new Promise((resolve) => { const s = net.connect({ hos
 let stopping = false; let paperclipRestartAt = 0; let paperclipDownSince = null; let opened = false; const startedAt = Date.now();
 // Paperclip butuh beberapa menit untuk start (pemulihan Postgres tertanam); jangan diluncurkan ulang selama masa tunggu ini.
 const PAPERCLIP_STARTUP_GRACE_MS = 8 * 60_000;
+const STARTUP_WARMUP_MS = 90_000;
 
 /** Proses node yang sudah berjalan (mis. dinyalakan manual): diadopsi, bukan digandakan. */
 function listNodeProcs() {
@@ -91,7 +92,7 @@ function spawnComponent(c) {
   const fd = openSync(outFile, 'a');
   const child = spawn(NODE, c.def.args, { cwd: ROOT, windowsHide: true, stdio: ['ignore', fd, fd], env: { ...process.env, AAO_API_BASE: API } });
   closeSync(fd);
-  c.child = child; c.pid = child.pid; c.adopted = false; c.badSince = null;
+  c.child = child; c.pid = child.pid; c.adopted = false; c.badSince = null; c.startedAt = Date.now();
   c.restarts.push(Date.now()); c.restarts = c.restarts.filter((t) => Date.now() - t < 10 * 60_000);
   log(`${c.def.label} dinyalakan (pid ${child.pid})`);
   child.on('exit', (code) => {
@@ -231,6 +232,8 @@ async function cycle() {
       spawnComponent(c);
       continue;
     }
+    // Masa pemanasan: komponen yang baru dinyalakan (apalagi saat PC berat) butuh waktu sebelum menjawab; jangan dibunuh karena belum menjawab.
+    if (c.startedAt && nowMs - c.startedAt < STARTUP_WARMUP_MS && h.state !== 'ok') { c.badSince = null; continue; }
     const d = shouldRestart({ state: h.state, sinceMs: c.badSince, nowMs, paperclipOk: pcOk });
     if (d.restart && !c.failed) { log(`${c.def.label}: dimulai ulang (${d.why})`); killComponent(c); c.nextStartAt = nowMs + 2000; }
   }

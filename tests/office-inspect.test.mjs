@@ -156,3 +156,37 @@ describe('endpoint Papan Tayang (board) dan production', () => {
     expect((await call('/api/inspect/production?prod=../x')).code).toBe(400);
   });
 });
+
+describe('board: semua konten tampil dengan tanggal dibuat', () => {
+  let root2; let mock2; let base2;
+  beforeAll(async () => {
+    root2 = mkdtempSync(path.join(os.tmpdir(), 'aao-board-all-'));
+    mkdirSync(path.join(root2, 'orders'), { recursive: true });
+    for (const n of [1, 2, 3, 4, 5]) mkdirSync(path.join(root2, 'runs', `EDU-${n}`, 'render'), { recursive: true });
+    const created = { 'EDU-1': '2026-10-01T03:00:00Z', 'EDU-2': '2026-10-03T03:00:00Z', 'EDU-3': '2026-10-02T03:00:00Z', 'EDU-4': '2026-10-05T03:00:00Z', 'EDU-5': '2026-10-04T03:00:00Z' };
+    mock2 = http.createServer((req, res) => {
+      const out = (j) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(j)); };
+      if (req.url === '/api/companies') return out([{ id: 'c1', name: 'EdukasiAI' }]);
+      if (req.url === '/api/companies/c1/agents') return out([]);
+      if (req.url === '/api/companies/c1/issues') return out(Object.entries(created).map(([id, createdAt], i) => ({ id: 'm' + i, identifier: id, title: id, status: 'done', createdAt })));
+      res.writeHead(404); res.end('{}');
+    });
+    await new Promise((r) => mock2.listen(0, '127.0.0.1', r));
+    base2 = `http://127.0.0.1:${mock2.address().port}`;
+  });
+  afterAll(() => mock2.close());
+  const call2 = async (url) => {
+    const res = { code: 0, body: null };
+    await createInspector({ base: base2, outputRoot: root2 })({ method: 'GET' }, res, new URL(url, 'http://x'), (r, c, b) => { r.code = c; r.body = b; }, () => {});
+    return res;
+  };
+  it('tanpa limit: SEMUA konten, terbaru dibuat di atas, masing-masing punya createdAt', async () => {
+    const r = await call2('/api/inspect/board');
+    expect(r.body.items.map((i) => i.prod)).toEqual(['EDU-4', 'EDU-5', 'EDU-2', 'EDU-3', 'EDU-1']);
+    expect(r.body.items.every((i) => /^2026-10-0[1-5]T03:00:00/.test(i.createdAt))).toBe(true);
+  });
+  it('limit=3 (papan di kanvas) hanya tiga, tidak memengaruhi daftar penuh', async () => {
+    expect((await call2('/api/inspect/board?limit=3')).body.items).toHaveLength(3);
+    expect((await call2('/api/inspect/board')).body.items).toHaveLength(5);
+  });
+});

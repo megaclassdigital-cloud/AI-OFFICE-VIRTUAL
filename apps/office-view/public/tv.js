@@ -18,9 +18,9 @@ const img = (p) => `/api/inspect/image?path=${encodeURIComponent(p)}`;
 const dlUrl = (p) => `${img(p)}&download=1`;
 // Unduh SATU gambar per slide (bukan gabungan): tiap berkas diunduh terpisah dengan jeda singkat agar browser tidak memblokir.
 async function downloadAll(slides) { for (const s of slides) { const a = document.createElement('a'); a.href = dlUrl(s.image); a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((r) => setTimeout(r, 450)); } }
-const TABS = [['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA']];
+const TABS = [['all', '📚 Semua Konten'], ['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA']];
 
-const st = { prod: null, rev: '', tab: 'show', data: null, slide: 0, sig: '' };
+const st = { prod: null, rev: '', tab: 'all', data: null, slide: 0, sig: '', board: [] };
 const sel = h('select', { id: 'tvProd', 'aria-label': 'Pilih produksi', onchange: () => { st.prod = sel.value; st.rev = ''; st.slide = 0; load(true); } });
 const revSel = h('select', { id: 'tvRev', 'aria-label': 'Pilih versi', hidden: true, onchange: () => { st.rev = revSel.value; st.slide = 0; load(true); } });
 const chip = h('span', { class: 'tv-chip' });
@@ -49,8 +49,9 @@ setInterval(() => { if (!overlay.hidden) load(false); }, 8000);
 async function load(force) {
   let board = { items: [] };
   try { board = await jget('/api/inspect/board'); } catch { /* pakai pilihan lama */ }
+  st.board = board.items ?? [];
   if (force || !sel.options.length) {
-    setKids(sel, ...board.items.map((i) => h('option', { value: i.prod }, `${i.label ?? i.prod} · ${i.title}`.slice(0, 70))));
+    setKids(sel, ...board.items.map((i) => h('option', { value: i.prod }, `${i.label ?? i.prod} · ${tgl(i.createdAt).split(',')[0]} · ${i.title}`.slice(0, 80))));
     if (!st.prod || !board.items.some((i) => i.prod === st.prod)) st.prod = board.items[0]?.prod ?? null;
     sel.value = st.prod ?? '';
   }
@@ -66,6 +67,7 @@ async function load(force) {
   render();
 }
 
+const tgl = (iso) => { const t = Date.parse(iso ?? ''); return Number.isFinite(t) ? new Date(t).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace('.', ':') : 'tanggal tidak diketahui'; };
 const hhmm = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
 const card = (...k) => h('div', { class: 'tv-card' }, ...k);
 const empty = (t = 'Belum ada hasil dari divisi ini untuk produksi ini.') => h('p', { class: 'tv-empty' }, t);
@@ -77,10 +79,25 @@ function render() {
   const d = st.data;
   chip.textContent = d?.status?.label ?? ''; chip.className = `tv-chip ${d?.status?.tone ?? ''}`;
   setKids(stages, ...(d?.stages ?? []).map((s) => h('div', { class: `stg ${s.state}`, title: s.label }, h('span', { class: 'dot' }), h('b', {}, s.agent), h('small', {}, s.state === 'done' && s.doneAt ? `selesai ${hhmm(s.doneAt)}` : s.state === 'running' ? 'sedang bekerja' : s.state === 'blocked' ? 'terblokir' : s.label))));
+  if (st.tab === 'all') { setKids(main, allContents()); return; }
   if (!d) { setKids(main, empty(st.prod ? 'Memuat…' : 'Belum ada produksi yang bisa ditayangkan.')); return; }
   const view = { show, manager, researcher, verifier, copywriter, designer, qa }[st.tab];
   // replaceChildren(null) menulis teks "null": susun daftar anak tanpa nilai kosong.
   setKids(main, ...[d.paperclipOk === false ? h('div', { class: 'tv-warn' }, '⚠ Paperclip tidak terhubung: status produksi mungkin belum akurat. Hasil kerja di bawah dibaca langsung dari berkas.') : null, view(d)].filter(Boolean));
+}
+
+// Daftar SEMUA konten (tidak ada yang disembunyikan), terbaru dibuat di atas, lengkap dengan tanggal dibuat dan status.
+function allContents() {
+  const items = st.board ?? [];
+  if (!items.length) return empty('Belum ada konten.');
+  return h('div', {}, lead(`${items.length} konten. Klik kartu untuk membuka tayangannya.`),
+    h('div', { class: 'tv-all' }, items.map((i) => h('button', { type: 'button', class: 'tv-item', onclick: () => { st.prod = i.prod; st.rev = ''; st.slide = 0; st.tab = 'show'; sel.value = i.prod; load(true); }, title: i.title },
+      i.cover ? h('img', { src: img(i.cover), alt: '', loading: 'lazy' }) : h('div', { class: 'ph' }, 'belum ada gambar'),
+      h('div', { class: 'meta' },
+        h('div', { class: 'row' }, h('b', {}, i.label ?? i.prod), h('span', { class: `tv-chip ${i.status?.tone ?? ''}` }, i.status?.label ?? '')),
+        h('div', { class: 'ttl' }, i.title),
+        h('div', { class: 'sub' }, `📅 Dibuat ${tgl(i.createdAt)}`),
+        h('div', { class: 'sub' }, i.slides ? `${i.slides} slide` : 'belum ada slide'))))));
 }
 
 function show(d) {

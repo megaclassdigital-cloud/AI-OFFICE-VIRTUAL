@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } fr
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isOffline, readNetworkState, isNetworkError } from './netcheck.mjs';
-import { writeHeartbeat, isConnectionError } from './heartbeat.mjs';
+import { writeHeartbeat, waitForPaperclip, isConnectionError } from './heartbeat.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FAIL_RE = /acpx_session_init_failed|ensure_session|internal error|quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|capacity|terminal service failure|acpx_turn_failed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
@@ -83,6 +83,7 @@ async function main() {
 
   const j = async (p, o) => { const r = await fetch(API + p, o); const t = await r.text(); try { return JSON.parse(t); } catch { return t; } };
   const jb = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(body)) });
+  if (!(await waitForPaperclip(API, { log, maxMs: a.includes('--watch') ? 20 * 60_000 : 0 })) && a.includes('--watch')) { log('Paperclip tidak siap dalam 20 menit; keluar agar pengawas memulai ulang'); process.exit(1); }
   const company = (await j('/companies')).find((c) => /edukasi/i.test(c.name));
   const agentOf = async (name) => (await j(`/companies/${company.id}/agents`)).find((x) => x.name === name);
   const idxOf = (name, agent) => {

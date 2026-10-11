@@ -318,7 +318,7 @@ async function init() {
   app.sprites = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(im); im.src = `/assets/characters/char_${i}.png`; })));
   await startLive();
   setInterval(pollLive, 1000);
-  const pollBoard = async () => { try { app.boardItems = (await jget('/api/inspect/board')).items ?? []; } catch { /* TV tetap menampilkan data terakhir */ } };
+  const pollBoard = async () => { try { app.boardItems = (await jget('/api/inspect/board?limit=3')).items ?? []; } catch { /* TV tetap menampilkan data terakhir */ } };
   pollBoard(); setInterval(pollBoard, 10000);
   requestAnimationFrame(frame);
 }

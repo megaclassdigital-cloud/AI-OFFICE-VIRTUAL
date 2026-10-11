@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { writeHeartbeat, isConnectionError, acquireLock, releaseLock } from './heartbeat.mjs';
+import { writeHeartbeat, waitForPaperclip, isConnectionError, acquireLock, releaseLock } from './heartbeat.mjs';
 import { laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
@@ -41,6 +41,7 @@ const jb = (method, body) => ({ method, headers: { 'content-type': 'application/
 const readState = () => (existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : { job: null, history: [], pending: [] });
 const writeState = (s) => { mkdirSync(path.dirname(STATE), { recursive: true }); writeFileSync(STATE, JSON.stringify(s, null, 2)); };
 
+if (!(await waitForPaperclip(API, { log, maxMs: a.includes('--watch') ? 20 * 60_000 : 0 })) && a.includes('--watch')) { log('Paperclip tidak siap dalam 20 menit; keluar agar pengawas memulai ulang'); process.exit(1); }
 const company = (await j('/companies')).find((c) => /edukasi/i.test(c.name));
 if (!company) throw new Error('company EdukasiAI tidak ditemukan');
 const agents = await j(`/companies/${company.id}/agents`);
