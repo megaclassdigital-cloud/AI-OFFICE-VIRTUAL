@@ -40,7 +40,16 @@ const DRY = a.includes('--dry-run');
 const log = (m) => { const l = `${new Date().toISOString()} ${m}`; console.log(l); mkdirSync(path.dirname(LOG), { recursive: true }); appendFileSync(LOG, l + '\n'); };
 const j = async (p, o) => { const r = await fetch(API + p, o); const t = await r.text(); try { return JSON.parse(t); } catch { return t; } };
 const jb = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(body), 'utf8') });
-const readState = () => (existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : { job: null, history: [], pending: [] });
+// Pilih job terblokir untuk --recheck/--retry/--resume: identitas eksplisit (mis. "--retry EDU-85") menang; tanpa itu ambil yang TERBARU dan
+// tolak bila ada job lain yang sedang berjalan (jangan menimpa job aktif). Job batal/selesai tidak pernah dipilih.
+function pickBlocked(s, needStage) {
+  if (s.job && s.job.phase !== 'blocked') return null;
+  const want = process.argv.slice(2).find((x) => /^EDU-[0-9]+$/.test(x));
+  const ok = (x) => x.phase === 'blocked' && (!needStage || x.stageIndex >= 0) && (!want || x.identifier === want);
+  if (s.job && ok(s.job)) return s.job;
+  return [...(s.history ?? [])].filter(ok).sort((a, b) => (b.createdMs ?? 0) - (a.createdMs ?? 0))[0] ?? null;
+}
+const readState = () =>(existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : { job: null, history: [], pending: [] });
 const writeState = (s) => { mkdirSync(path.dirname(STATE), { recursive: true }); writeFileSync(STATE, JSON.stringify(s, null, 2)); };
 
 if (!(await waitForPaperclip(API, { log, maxMs: a.includes('--watch') ? 20 * 60_000 : 0 })) && a.includes('--watch')) { log('Paperclip tidak siap dalam 20 menit; keluar agar pengawas memulai ulang'); process.exit(1); }
@@ -566,8 +575,12 @@ async function applyActions(job, actions, facts) {
       // Manager bertanggung jawab sebagai pengelola: paket diserahkan ke Manager (satu run) untuk laporan akhir, lalu menunggu keputusan Owner.
       // Finalisasi deterministik: dokumen + catatan verify_candidate + segel render + qa_submit_result + handoff_to_owner pada SATU issue produksi (kode, bukan LLM).
       markBusy('finalisasi', 490_000);
-      const fin = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'finalize-production.mjs'), job.identifier, '--run', runKeyOf(job)], { encoding: 'utf8', timeout: 480_000 });
-      const lastLine = String(fin.stdout || '').trim().split(String.fromCharCode(10)).map((x) => x.trim()).filter(Boolean).pop() ?? '';
+      const runFinalize = () => spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'finalize-production.mjs'), job.identifier, '--run', runKeyOf(job)], { encoding: 'utf8', timeout: 480_000 });
+      const lastOf = (r) => String(r.stdout || '').trim().split(String.fromCharCode(10)).map((x) => x.trim()).filter(Boolean).pop() ?? '';
+      let fin = runFinalize();
+      // Segel render bisa belum selesai ditulis pada laptop lambat/habis tidur: ulangi SEKALI (render sudah ada, cukup menunggu segelnya) sebelum memblokir.
+      if (fin.status !== 0 && /belum ada hasil render|segel/i.test(lastOf(fin))) { log(`${job.identifier} segel render belum siap; finalisasi diulang sekali`); fin = runFinalize(); }
+      const lastLine = lastOf(fin);
       if (fin.status !== 0) {
         log(`${job.identifier} finalisasi GAGAL: ${lastLine.slice(0, 300)}`);
         await comment(job.masterIssueId, `DIBLOKIR pada finalisasi: ${lastLine.slice(0, 400)}`);
@@ -745,7 +758,7 @@ if (a.includes('--tidy')) {
 } else if (a.includes('--recheck')) {
   // Evaluasi ulang job terblokir TANPA mengulang tahap (mis. keluaran sudah ada tetapi status issue tidak berubah).
   const s = readState();
-  const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked' && x.stageIndex >= 0);
+  const blocked = pickBlocked(s, true);
   if (!blocked) { console.log('Tidak ada job terblokir.'); process.exit(1); }
   s.history = s.history.filter((x) => x.masterIssueId !== blocked.masterIssueId);
   s.job = { ...blocked, phase: 'running' }; // stageStartedMs asli dipertahankan: keluaran yang ditulis selama tahap ini tetap dihitung "segar"
@@ -755,7 +768,7 @@ if (a.includes('--tidy')) {
 } else if (a.includes('--retry')) {
   // Ulangi tahap yang terblokir (mis. gangguan penyedia model): buat ulang issue tahap itu dan lanjutkan.
   const s = readState();
-  const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked' && x.stageIndex >= 0);
+  const blocked = pickBlocked(s, true);
   if (blocked && s.job !== blocked) { s.history = s.history.filter((x) => x.masterIssueId !== blocked.masterIssueId); s.job = blocked; delete blocked.endedMs; delete blocked.abandoned; }
   if (!blocked || blocked.stageIndex < 0) { console.log('Tidak ada job terblokir pada suatu tahap.'); process.exit(1); }
   const stageName = STAGES[blocked.stageIndex];
@@ -767,7 +780,7 @@ if (a.includes('--tidy')) {
 } else if (a.includes('--resume')) {
   // Lanjutkan job terblokir (terakhir) bila work order-nya kini valid: kembali ke fase planning, orkestrator memulai tahap 1.
   const s = readState();
-  const blocked = s.job?.phase === 'blocked' ? s.job : [...s.history].reverse().find((x) => x.phase === 'blocked');
+  const blocked = pickBlocked(s, false);
   if (!blocked) { console.log('Tidak ada job terblokir.'); process.exit(0); }
   const ord = existsSync(orderPathFor(blocked.identifier)) ? validateOrder(JSON.parse(readFileSync(orderPathFor(blocked.identifier), 'utf8').replace(/^﻿/, ''))) : null;
   if (!ord?.ok) { console.log('Work order belum valid: ' + (ord ? ord.errors.join('; ') : 'file tidak ada')); process.exit(1); }

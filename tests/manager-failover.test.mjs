@@ -3,7 +3,7 @@ import { isFailoverError, nextIndex, shouldReset, dayKey } from '../scripts/mana
 
 describe('manager failover', () => {
   it('mengganti model hanya untuk kuota/auth, bukan galat tugas biasa', () => {
-    for (const t of ['You exhausted your daily quota on this model', '429 Too Many Requests', 'Authentication required', 'usage limit reached', 'not logged in']) expect(isFailoverError(t)).toBe(true);
+    for (const t of ['You exhausted your daily quota on this model', '429 Too Many Requests', 'Authentication required', 'usage limit reached', 'not logged in', 'This model is currently experiencing high demand. Spikes in demand are usually temporary']) expect(isFailoverError(t)).toBe(true);
     for (const t of ['Process exited with code 1', 'timeout after 600s', 'schema validation failed', '', null]) expect(isFailoverError(t)).toBe(false);
   });
   it('urutan ChatGPT -> Gemini -> Claude lalu habis', () => {
