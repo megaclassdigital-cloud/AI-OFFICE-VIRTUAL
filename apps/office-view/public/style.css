@@ -168,3 +168,5 @@ details.card summary { cursor: pointer; font-weight: 700; } .row2 { margin-top: 
 .tv-item .ttl{font-weight:600;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
 .owner-form{display:grid;gap:8px;margin-top:10px}.owner-form label{margin:0}
+
+.fulltext { white-space: pre-wrap; word-break: break-word; }

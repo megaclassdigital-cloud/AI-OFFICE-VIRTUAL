@@ -77,7 +77,7 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
       body: {
         agent: { name: agent.name, role: agent.role, title: agent.title, status: agent.status, adapterType: agent.adapterType, model: agent.adapterConfig?.model ?? null, pauseReason: agent.pauseReason ?? null },
         working: active ? { runId: active.id, startedAt: active.startedAt, elapsedMs: now() - Date.parse(active.startedAt ?? now()) } : null,
-        issue: current ? { id: current.id, identifier: current.identifier, title: current.title, status: current.status } : null,
+        issue: current ? { id: current.id, identifier: current.identifier, title: current.title, status: current.status, description: String(current.description ?? '').slice(0, 4000) } : null,
         timeline,
         timelineFrom: logRun ? { runId: logRun.id, status: logRun.status, live: !!active } : null,
         runs: runs.filter((r) => r.status !== 'scheduled_retry').slice(0, 8).map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, finishedAt: r.finishedAt, error: r.error ? String(r.error).slice(0, 160) : null })),

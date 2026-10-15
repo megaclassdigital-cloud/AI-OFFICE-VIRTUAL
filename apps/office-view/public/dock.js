@@ -167,7 +167,7 @@ async function loadAgent() {
       h('div', { class: 'sub' }, `${a.title ?? a.role} · ${a.adapterType}${a.model ? ' · ' + a.model : ''}`),
       a.pauseReason ? h('div', { class: 'sub bad' }, `Dijeda: ${a.pauseReason}`) : null));
   const now = h('div', { class: 'card' }, h('h4', {}, 'Sedang mengerjakan'),
-    d.issue ? h('div', {}, h('b', {}, d.issue.identifier), ' ', d.issue.title, h('div', { class: 'sub' }, `status issue: ${d.issue.status}${d.working ? ` · run berjalan ${Math.round(d.working.elapsedMs / 60000)} menit` : ''}`)) : h('div', { class: 'sub' }, 'Tidak ada tugas aktif.'));
+    d.issue ? h('div', {}, h('b', {}, d.issue.identifier), ' ', h('span', { class: 'fulltext' }, /^Arahan owner:/.test(d.issue.title ?? '') && d.issue.description ? `Arahan owner: ${d.issue.description}` : d.issue.title), h('div', { class: 'sub' }, `status issue: ${d.issue.status}${d.working ? ` · run berjalan ${Math.round(d.working.elapsedMs / 60000)} menit` : ''}`)) : h('div', { class: 'sub' }, 'Tidak ada tugas aktif.'));
   const tl = (d.timeline ?? []).slice().reverse();
   const timeline = h('div', { class: 'card' }, h('h4', {}, d.timelineFrom?.live ? '🟢 Aktivitas langsung' : 'Aktivitas run terakhir', d.timeline?.length ? h('span', { class: 'sub' }, ` (${d.timeline.length})`) : null),
     tl.length ? h('ol', { class: 'tl' }, tl.map((e) => h('li', {}, h('time', {}, hhmmss(e.ts)), h('span', { class: `tool ${e.kind}` }, e.tool), h('span', { class: 'lbl', title: e.label }, e.label)))) : h('div', { class: 'sub' }, 'Belum ada jejak aktivitas.'));
