@@ -50,7 +50,7 @@ if (a.includes('--command')) {
   const cmd = arg('--command');
   if (!['shutdown', 'stop-now', 'open', 'restart'].includes(cmd)) { console.error('perintah: shutdown | stop-now | open | restart [komponen]'); process.exit(64); }
   mkdirSync(path.dirname(COMMAND_FILE), { recursive: true });
-  writeFileSync(COMMAND_FILE, JSON.stringify({ cmd, key: a[a.indexOf('--command') + 2] ?? null, at: Date.now() }) + NL);
+  appendFileSync(COMMAND_FILE, JSON.stringify({ cmd, key: a[a.indexOf('--command') + 2] ?? null, at: Date.now() }) + NL); // antre: beberapa perintah beruntun semuanya dijalankan
   console.log(`Perintah "${cmd}" dikirim.`);
   process.exit(0);
 }
@@ -199,9 +199,11 @@ function stopAll(stopPaperclipToo) {
   process.exit(0);
 }
 async function handleCommand() {
-  const c = readJson(COMMAND_FILE);
-  if (!c) return;
+  let raw; try { raw = readFileSync(COMMAND_FILE, 'utf8'); } catch { return; }
   try { unlinkSync(COMMAND_FILE); } catch { /* sudah hilang */ }
+  for (const line of raw.split(/\r?\n/).filter(Boolean)) { let c = null; try { c = JSON.parse(line); } catch { continue; } await runCommand(c); }
+}
+async function runCommand(c) {
   log(`perintah dari tray: ${c.cmd}${c.key ? ' ' + c.key : ''}`);
   if (c.cmd === 'open') spawn('cmd', ['/c', 'start', '', UI], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   else if (c.cmd === 'restart') { const x = c.key ? comp.get(c.key) : null; if (x) { killComponent(x); x.nextStartAt = 0; x.failed = false; } else if (c.key === 'paperclip') startPaperclip('perintah owner'); }
