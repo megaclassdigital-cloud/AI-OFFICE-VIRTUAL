@@ -12,7 +12,18 @@ export function writeJsonAtomic(file, data) {
   writeFileSync(tmp, JSON.stringify(data, null, 2));
   // Simpan versi utama yang masih terbaca sebagai cadangan sebelum diganti.
   try { if (existsSync(file)) { JSON.parse(strip(readFileSync(file, 'utf8'))); copyFileSync(file, `${file}.bak`); } } catch { /* utama sudah rusak: pertahankan cadangan lama */ }
-  try { renameSync(tmp, file); } catch (e) { try { unlinkSync(tmp); } catch { /* sudah hilang */ } throw e; }
+  // Windows: rename ke berkas yang sedang dibuka proses lain (pemindai antivirus, pembaca TV) bisa gagal EPERM/EBUSY sesaat -> coba ulang.
+  let lastErr = null;
+  for (let i = 0; i < 8; i++) {
+    try { renameSync(tmp, file); return; } catch (e) {
+      lastErr = e;
+      if (!['EPERM', 'EBUSY', 'EACCES'].includes(e?.code)) break;
+      const until = Date.now() + 40 * (i + 1); while (Date.now() < until) { /* jeda singkat sinkron */ }
+    }
+  }
+  // Tetap gagal: tulis langsung (kehilangan atomisitas, tetapi cadangan .bak sudah ada) daripada menjatuhkan orkestrator.
+  try { writeFileSync(file, JSON.stringify(data, null, 2)); } catch { throw lastErr; }
+  try { unlinkSync(tmp); } catch { /* sudah hilang */ }
 }
 
 /** Baca JSON; bila rusak pakai .bak; bila keduanya tidak ada/rusak kembalikan fallback. */

@@ -540,8 +540,17 @@ async function createStage(job, stage, feedback = null) {
     }),
     status: 'todo', projectId: project.id, assigneeAgentId: ag.id,
   }));
-  log(`tahap ${STAGE_AGENT[stage]} -> issue ${issue.identifier}`);
-  return issue.id;
+  // Jawaban POST kadang tidak memuat id/identifier (Paperclip sedang memulihkan diri): tanpa id, issue tahap menjadi yatim dan dibatalkan pembersih berkala.
+  let made = issue;
+  if (!made?.id) {
+    const wantTitle = `${job.identifier} · ${STAGE_AGENT[stage]} (`;
+    const all = await j(`/companies/${company.id}/issues`).catch(() => []);
+    made = (Array.isArray(all) ? all : all?.issues ?? []).filter((x) => String(x.title ?? '').startsWith(wantTitle) && !['cancelled', 'done'].includes(x.status))
+      .sort((a, b) => Date.parse(b.createdAt ?? 0) - Date.parse(a.createdAt ?? 0))[0];
+    if (!made?.id) throw new Error(`issue tahap ${STAGE_AGENT[stage]} untuk ${job.identifier} tidak terbaca setelah dibuat`);
+  }
+  log(`tahap ${STAGE_AGENT[stage]} -> issue ${made.identifier}`);
+  return made.id;
 }
 
 async function applyActions(job, actions, facts) {
