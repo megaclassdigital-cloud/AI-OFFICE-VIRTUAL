@@ -17,6 +17,7 @@ const getJson = async (path) => { try { return await (await fetch(path)).json();
 
 const STAGE_OPTIONS = [
   ['', 'Manager yang menentukan (disarankan)'],
+  ['researcher', 'Paksa: riset ulang dari awal (isi/referensi tidak valid)'],
   ['copywriter', 'Paksa: mulai dari Copywriter (teks)'],
   ['designer', 'Paksa: mulai dari Designer (visual/aset)'],
 ];

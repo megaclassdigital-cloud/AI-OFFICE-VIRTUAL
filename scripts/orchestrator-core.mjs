@@ -198,7 +198,7 @@ export function checkOrderStructure(order) {
 }
 
 /**
- * Brief revisi: front matter `mode: revisi`, `dari: EDU-n` (run sumber), `mulai: copywriter|designer`.
+ * Brief revisi: front matter `mode: revisi`, `dari: EDU-n` (run sumber), `mulai: researcher|copywriter|designer` (researcher = riset diulang dari awal).
  * Tahap sebelum `mulai` memakai artefak run sumber (tanpa memanggil agent/kuota). Mengembalikan { from, start, startIndex, notes } atau null.
  */
 export function parseRevisionBrief(brief) {
@@ -208,7 +208,7 @@ export function parseRevisionBrief(brief) {
   if (String(meta.mode ?? '').toLowerCase() !== 'revisi') return null;
   const from = meta.dari;
   const start = String(meta.mulai ?? 'designer').toLowerCase();
-  if (!/^EDU-[0-9]+(?:\/revision-[0-9]+)?$/.test(from ?? '') || !['copywriter', 'designer'].includes(start)) return null;
+  if (!/^EDU-[0-9]+(?:\/revision-[0-9]+)?$/.test(from ?? '') || !['researcher', 'copywriter', 'designer'].includes(start)) return null;
   return { from, start, startIndex: STAGES.indexOf(start), notes: m[2].trim() };
 }
 

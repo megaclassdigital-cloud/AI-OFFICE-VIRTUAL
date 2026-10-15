@@ -330,7 +330,9 @@ async function ingestRevision(f, full, brief, rev, title) {
     }
     for (const n of ['assets-manifest.json', 'asset-requests.json']) if (existsSync(path.join(srcDir, n))) copyFileSync(path.join(srcDir, n), path.join(runDir, n));
   }
-  const note = `REVISI ${labelOf(runKey)} dari ${labelOf(fromKey)} (hasil tahap sebelumnya dipakai apa adanya; jangan mengulang riset/verifikasi). Gambar memakai path runs/${runKey}/assets/<berkas>. Catatan owner (data rujukan):\n${rev.notes.slice(0, 3000)}`;
+  const note = rev.start === 'researcher'
+    ? `REVISI RISET ${labelOf(runKey)} dari ${labelOf(fromKey)}: bahan lama DITOLAK owner. Lakukan riset BARU dari awal (jangan memakai ulang sumber yang ditolak), sesuai catatan owner di bawah. Gambar memakai path runs/${runKey}/assets/<berkas>. Catatan owner (data rujukan):\n${rev.notes.slice(0, 3000)}`
+    : `REVISI ${labelOf(runKey)} dari ${labelOf(fromKey)} (hasil tahap sebelumnya dipakai apa adanya; jangan mengulang riset/verifikasi). Gambar memakai path runs/${runKey}/assets/<berkas>. Catatan owner (data rujukan):\n${rev.notes.slice(0, 3000)}`;
   const order = { title: `Revisi ${title}`.slice(0, 120), stages: Object.fromEntries(STAGES.map((s, i) => [s, i < rev.startIndex ? `Dilewati (revisi): memakai hasil ${labelOf(fromKey)}.` : note])) };
   mkdirSync(ORDERS, { recursive: true });
   writeFileSync(orderPathFor(issue.identifier), JSON.stringify(order, null, 2) + '\n', 'utf8');

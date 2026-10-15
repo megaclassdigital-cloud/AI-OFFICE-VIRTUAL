@@ -20,9 +20,10 @@ Pilih tahap **paling awal** yang salah. Tahap sesudahnya otomatis ikut diulang k
 | Kalimat, gaya, angle, terlalu teknis/bertele, judul, caption, isi slide | `copywriter` |
 | Teks dan visual sama-sama bermasalah | `copywriter` (desain ikut diulang) |
 | Hanya tampilan: warna, font, tata letak, logo, foto, ikon, aset, kontras | `designer` |
-| Fakta, angka, tanggal, sumber salah | `copywriter`, dan tulis di `summary` bahwa **Owner perlu memberi perintah riset baru** (revisi tidak mengulang riset/verifikasi) |
+| Isi/referensi tidak valid, topik perlu bahan baru, sumber utama salah | `researcher` (seluruh alur diulang dari riset di folder revisi; paling mahal, pakai hanya bila bahannya memang salah) |
+| Angka/tanggal salah ketik tetapi sumber benar | `copywriter` (riset tidak diulang) |
 
-Hanya `copywriter` dan `designer` yang sah. `researcher`, `verifier`, atau `qa` sebagai tahap awal akan ditolak kode.
+Hanya `researcher`, `copywriter`, dan `designer` yang sah. `verifier` atau `qa` sebagai tahap awal akan ditolak kode.
 
 ## Format keputusan (JSON)
 

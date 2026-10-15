@@ -22,7 +22,8 @@ describe('validateRouting (Manager hanya mengusulkan; kode memvalidasi)', () => 
     expect(r.ok).toBe(true); expect(r.value.startStage).toBe('designer');
   });
   it('menolak tahap yang tidak sah, kolom asing, dan arahan ke tahap yang tidak dijalankan', () => {
-    expect(validateRouting({ startStage: 'researcher', summary: 'riset ulang' }).ok).toBe(false);
+    expect(validateRouting({ startStage: 'verifier', summary: 'riset ulang' }).ok).toBe(false);
+    expect(validateRouting({ startStage: 'researcher', summary: 'isi tidak valid, riset ulang' }).ok).toBe(true);
     expect(validateRouting({ startStage: 'qa', summary: 'langsung qa' }).ok).toBe(false);
     expect(validateRouting({ startStage: 'designer', summary: 'ok ya', assignTo: 'Verifier' }).errors.join()).toMatch(/assignTo/);
     expect(validateRouting({ startStage: 'designer', summary: 'ok ya', instructions: { copywriter: 'ubah teks' } }).errors.join()).toMatch(/sebelum startStage/);
@@ -69,5 +70,13 @@ describe('buildRevisionBrief dan teks untuk Manager', () => {
     const BS = String.fromCharCode(92);
     const t = managerRoutingRequestText({ identifier: 'EDU-49', reason: 'logo buram', file: ['D:', 'x', 'routing', 'EDU-49.json'].join(BS) });
     expect(t).toContain('D:/x/routing/EDU-49.json'); expect(t.includes(':' + BS)).toBe(false); expect(t).toContain('logo buram');
+  });
+});
+
+describe('revisi riset (isi/referensi tidak valid)', () => {
+  it('kata kunci "tidak valid"/"referensi" mengarah ke researcher; fakta ketik biasa tetap copywriter', () => {
+    expect(keywordRoute('Isi kontennya tidak valid. Ambil referensi dari pembahasan ChatGPT Astra')).toMatchObject({ startStage: 'researcher', escalate: false });
+    expect(keywordRoute('cari sumber lain, topiknya salah')).toMatchObject({ startStage: 'researcher' });
+    expect(keywordRoute('angka di slide 2 salah, sumbernya tidak benar')).toMatchObject({ startStage: 'copywriter', escalate: true });
   });
 });

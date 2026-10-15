@@ -6,8 +6,9 @@
 // Modul ini murni (tanpa I/O kecuali helper path) agar bisa dites.
 import path from 'node:path';
 
-export const ROUTE_STAGES = ['copywriter', 'designer'];
-const STAGE_ORDER = ['copywriter', 'designer', 'qa'];
+// 'researcher' = revisi RISET: seluruh alur diulang di folder revisi (riset baru berdasarkan catatan owner), bukan memakai ulang bahan lama.
+export const ROUTE_STAGES = ['researcher', 'copywriter', 'designer'];
+const STAGE_ORDER = ['researcher', 'copywriter', 'designer', 'qa'];
 export const UNDO_WINDOW_MS = 60_000;
 export const MANAGER_WAIT_MS = 10 * 60_000;
 export const MAX_INSTRUCTION = 1500;
@@ -20,6 +21,8 @@ export const doneFile = (dir, identifier) => path.join(dir, `${identifier}.done`
 
 const VISUAL_RE = /\b(visual|desain|warna|font|huruf|tata letak|layout|logo|gambar|foto|ikon|icon|kontras|template|tampilan|terpotong|tumpang tindih|kartu|footer)\b/i;
 const TEXT_RE = /\b(kalimat|teks|kata|bahasa|gaya|nada|judul|headline|caption|angle|paragraf|teknis|bertele|tulisan|isi slide|narasi)\b/i;
+// Sinyal tegas bahwa BAHAN/riset yang salah (bukan sekadar redaksi): riset diulang, bukan hanya teks.
+const RESEARCH_RE = /\b(tidak valid|referensi|riset ulang|cari (ulang|sumber|referensi)|ganti (sumber|topik)|topik(nya)? (salah|beda|kurang)|ambil (referensi|sumber|data))\b/i;
 const FACT_RE =/\b(sumber|fakta|angka|tanggal|hoaks|tidak benar|salah data|riset|verifikasi|klaim)\b/i;
 
 /**
@@ -31,6 +34,7 @@ export function keywordRoute(reason) {
   const visual = VISUAL_RE.test(t);
   const fact = FACT_RE.test(t);
   const text = TEXT_RE.test(t);
+  if (RESEARCH_RE.test(t)) return { startStage: 'researcher', source: 'kata-kunci', escalate: false, why: 'alasan menyangkut isi/referensi yang tidak valid (riset diulang dengan catatan owner)' };
   if (visual && !fact && !text) return { startStage: 'designer', source: 'kata-kunci', escalate: false, why: 'alasan menyangkut tampilan/visual' };
   return { startStage: 'copywriter', source: 'kata-kunci', escalate: fact, why: fact ? 'alasan menyangkut fakta/sumber (mungkin butuh riset ulang)' : 'alasan menyangkut teks' };
 }
@@ -97,9 +101,9 @@ export function managerRoutingRequestText({ identifier, reason, file }) {
     `Owner MENOLAK paket ${identifier}. Kamu bertanggung jawab menentukan siapa yang merevisi (SOP: divisions/edukasiai/sop/revisi-routing.md).`,
     '', 'Alasan owner (baca utuh):', String(reason).trim(), '',
     `Tulis keputusan ke ${f} (buat folder bila belum ada) berformat JSON persis:`,
-    '{"startStage":"copywriter|designer","summary":"satu kalimat alasan pilihanmu","instructions":{"copywriter":"arahan konkret (opsional)","designer":"arahan konkret (opsional)"}}',
-    'startStage = tahap PALING AWAL yang salah (tahap sesudahnya otomatis ikut diulang; sebelumnya dipakai ulang tanpa kuota). Teks/angle/kalimat: copywriter. Hanya tampilan/visual/aset: designer.',
-    'Jika masalahnya fakta atau sumber (butuh riset ulang), pilih copywriter dan tulis di summary bahwa owner perlu memberi perintah riset baru. Baca ulang file setelah menulis, lalu komentar satu kalimat dengan say.',
+    '{"startStage":"researcher|copywriter|designer","summary":"satu kalimat alasan pilihanmu","instructions":{"copywriter":"arahan konkret (opsional)","designer":"arahan konkret (opsional)"}}',
+    'startStage = tahap PALING AWAL yang salah (tahap sesudahnya otomatis ikut diulang; sebelumnya dipakai ulang tanpa kuota). Isi/referensi/sumber tidak valid atau topik perlu bahan baru: researcher (riset diulang dari awal dengan catatan owner). Teks/angle/kalimat: copywriter. Hanya tampilan/visual/aset: designer.',
+    'Riset ulang memakan kuota paling banyak: pilih researcher hanya bila bahan/sumbernya memang salah. Baca ulang file setelah menulis, lalu komentar satu kalimat dengan say.',
     'Owner dapat membatalkan dalam 60 detik. Kamu tidak membuat issue dan tidak menugaskan agent; kode yang menjalankan revisi.',
   ].join('\n');
 }
