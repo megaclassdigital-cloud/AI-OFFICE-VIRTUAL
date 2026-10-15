@@ -457,9 +457,13 @@ async function tidyBlocked(state) {
     const m = String(i.title).match(/^(EDU-[0-9]+) · [A-Za-z]+/);
     if (!m || i.status !== 'blocked' || liveStageIds.has(i.id)) continue;
     // Blokir yang SENGAJA dari agen (mis. disposisi QA "fail") tidak boleh dibalik: hanya blokir akibat pemulihan otomatis Paperclip yang dipulihkan.
-    const cm = await j('/issues/' + i.id + '/comments').catch(() => []);
-    const lastC = Array.isArray(cm) ? cm[0] : null;
-    if (lastC && lastC.authorAgentId) continue;
+    // Pengecualian: produksi yang SUDAH SELESAI. Komentar terakhir agen di situ hanyalah laporan selesai tahapnya (bukan blokir sengaja); blokir datang belakangan dari
+    // pemulihan Paperclip (mis. setelah laptop tidur) dan membuat agen terjebak di Pojok Bug, jadi tetap dikembalikan ke in_review.
+    if (!doneProds.has(m[1])) {
+      const cm = await j('/issues/' + i.id + '/comments').catch(() => []);
+      const lastC = Array.isArray(cm) ? cm[0] : null;
+      if (lastC && lastC.authorAgentId) continue;
+    }
     if (doneProds.has(m[1])) { await j('/issues/' + i.id, jb('PATCH', { status: 'in_review' })).catch(() => {}); restored += 1; }
     else { await j('/issues/' + i.id, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {}); cancelled += 1; }
   }
