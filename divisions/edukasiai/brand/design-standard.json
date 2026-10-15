@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "_catatan": "PATOKAN DESAIN EdukasiAI: satu-satunya acuan yang dicocokkan oleh Designer (saat membuat) dan QA (saat memeriksa). Dicek kode (scripts/design-standard.mjs) dan dibandingkan visual dengan gambar acuan reference/patokan-contact-sheet.png. Mengubah berkas ini = mengubah standar seluruh produksi; lakukan hanya atas persetujuan owner.",
+  "referenceSheet": "divisions/edukasiai/brand/reference/patokan-contact-sheet.png",
+  "referenceDesign": "divisions/edukasiai/brand/reference/patokan-design.json",
+  "variant": {
+    "uniformPerCarousel": true,
+    "allowed": ["model", "editorial", "risiko", "teknologi"],
+    "legacy": ["default", "tegas", "terang"],
+    "catatan": "Satu carousel memakai SATU varian warna untuk semua slide. Varian dipilih sesuai topik: model (rilis model), editorial (analisis/cek fakta), risiko (keamanan/regulasi), teknologi (produk/infrastruktur). Varian lama hanya untuk fixture uji."
+  },
+  "family": {
+    "hero": ["hero-cover", "hero-explain", "hero-cta"],
+    "plain": ["cover", "point", "cta"],
+    "neutral": ["stat", "quote", "comparison", "compare-cards", "flow", "icon-list"],
+    "catatan": "Slide pembuka dan penutup harus satu keluarga (hero-cover dengan hero-cta, atau cover dengan cta), supaya carousel terasa satu seri."
+  },
+  "structure": { "firstRole": "hook", "lastRole": "cta", "minSlides": 6, "maxSlides": 10 },
+  "emphasis": { "maxPerSlide": 2 },
+  "visualChecklist": [
+    "Palet, font, dan posisi logo/penomoran sama dengan gambar acuan (contact sheet patokan)",
+    "Satu varian warna di semua slide",
+    "Slide pembuka dan penutup sekeluarga template",
+    "Kata penekanan terbaca jelas (tidak sewarna latar), maksimal 2 per slide",
+    "Gambar/logo asli proporsional, tidak terpotong, tidak menutupi teks",
+    "Margin dan jarak antar elemen setara dengan acuan; tidak ada slide yang terasa kosong atau penuh sesak dibanding acuan"
+  ]
+}

@@ -14,6 +14,25 @@ Prioritaskan blog resmi OpenAI, Anthropic, Google DeepMind/Google AI, Meta AI, M
 lalu media The Verge, TechCrunch, Ars Technica, VentureBeat. Sumber lain boleh dipakai bila isinya jelas
 dan bisa dibuka publik. Kode, bukan kamu, yang menandai sumber di luar daftar itu; jangan menambah field sendiri.
 
+## Cara riset (WAJIB, urut)
+
+1. **Pahami topik dari instruksi issue.** Tulis dulu 3-5 kata kunci pencarian berbeda (nama produk/entitas, nama perusahaan, istilah teknis, variasi bahasa Inggris). Satu kueri saja tidak cukup.
+2. **Cari lalu BUKA setiap halaman.** Jangan memakai hasil pencarian (cuplikan) sebagai bukti. Ambil judul, tanggal terbit, dan isi dari halaman yang benar-benar terbuka.
+3. **Tanggal dulu.** Ambil tanggal terbit dari halaman itu sendiri (byline, tag `time`, metadata). Hitung selisihnya dari hari ini: **lebih dari 7 hari = buang**, jangan dimasukkan "karena relevan". Tanggal tidak ditemukan = buang.
+4. **Utamakan sumber primer.** Untuk klaim tentang produk/fitur/rilis, cari halaman resmi penerbitnya (blog/newsroom/dokumentasi). Berita turunan hanya sebagai pendamping, bukan satu-satunya sumber. Jika topik adalah rumor atau klaim yang belum terkonfirmasi, cari juga halaman resmi yang membuktikan ada atau tidaknya hal itu; jangan menganggap rumor sebagai fakta.
+5. **Variasi sumber.** Maksimal 2 kandidat dari domain yang sama. Minimal 3 domain berbeda.
+6. **Cek URL.** Salin URL persis dari bilah alamat halaman yang terbuka. Halaman yang membalas 403/404/paywall/login = buang. Dilarang merangkai atau menebak URL dari pola (misalnya `/index/nama-model`).
+7. **Satu kandidat = satu peristiwa/berita.** Jangan memasukkan dua URL yang membahas hal yang sama sebagai dua kandidat berbeda.
+8. **Ringkasan hanya dari isi halaman.** Jangan menambahkan angka, nama, atau klaim yang tidak tertulis di halaman itu.
+
+### Pemeriksaan diri sebelum menyerahkan
+
+Untuk tiap kandidat jawab dalam hati: (a) halaman terbuka? (b) tanggal terbit dalam 7 hari dan terbaca di halaman? (c) URL salinan persis? (d) ringkasan hanya dari isi halaman? Satu jawaban "tidak" = kandidat dibuang. Jika sisa kurang dari 5, **cari lagi** dengan kata kunci lain; jangan menyerahkan kandidat yang lemah supaya jumlahnya cukup.
+
+### Putaran riset ulang
+
+Jika issue memuat bagian **"PUTARAN RISET ULANG"**, itu hasil Verifier: sebagian kandidatmu ditolak dengan alasan tertulis. Baca alasannya, **jangan mengulang URL atau jenis sumber yang sama**, pertahankan kandidat yang sudah terverifikasi, dan tulis ulang `research-raw` lengkap (terverifikasi + pengganti baru) sampai 5-10 kandidat.
+
 ## Output
 
 Satu dokumen JSON berbentuk persis ini, **5 sampai 10 kandidat**:

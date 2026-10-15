@@ -96,7 +96,7 @@ describe('konfigurasi rantai: Claude/ChatGPT hanya untuk Manager', () => {
     expect(cfg.agents.Manager.map((e) => e.id)).toEqual(['chatgpt', 'claude', 'gemini']);
     for (const [name, chain] of Object.entries(cfg.agents)) {
       if (name === 'Manager') continue;
-      for (const e of chain) expect(['chatgpt', 'claude'].includes(e.provider ?? e.id), `${name}/${e.id}`).toBe(false);
+      for (const e of chain) expect(['chatgpt', 'claude'].includes(e.provider ?? e.id), `${name}/${e.id}`).toBe(false); // Haiku pakai provider claude-haiku (non-eksklusif)
     }
   });
 });
@@ -106,5 +106,19 @@ describe('galat inisialisasi sesi (limit ChatGPT desktop) memicu pindah ke Claud
     expect(isFailoverError('Internal error acpx_session_init_failed')).toBe(true);
     expect(isFailoverError('ensure_session RequestError: Internal error')).toBe(true);
     expect(blockDurationMs('Internal error acpx_session_init_failed')).toBe(3 * HOUR_MS);
+  });
+});
+
+describe('Haiku untuk peran penilaian (Researcher, Verifier, QA)', () => {
+  it('Haiku 4.5 OAuth effort medium jadi prioritas utama, tidak eksklusif, dan tidak mengunci Manager', async () => {
+    const { readFileSync } = await import('node:fs');
+    const cfg = JSON.parse(readFileSync(new URL('../divisions/edukasiai/agent-models.json', import.meta.url), 'utf8'));
+    for (const name of ['Researcher', 'Verifier', 'QA']) {
+      const first = cfg.agents[name][0];
+      expect(first, name).toMatchObject({ id: 'haiku', adapterType: 'claude_local', adapterConfig: { model: 'claude-haiku-4-5', effort: 'medium' } });
+      expect(cfg.exclusiveProviders.includes(first.provider)).toBe(false);
+      expect(cfg.agents[name].length).toBeGreaterThan(1); // cadangan gratis tetap ada
+    }
+    for (const name of ['Copywriter', 'Designer']) expect(cfg.agents[name].some((e) => e.id === 'haiku')).toBe(false);
   });
 });

@@ -4,11 +4,13 @@
 //   Drop a brief (.md/.txt/.json) into workspace/inbox/  (or upload it in the Office View panel), then:
 //   node scripts/orchestrator.mjs --watch [--interval 15]     |  --once  |  --dry-run  |  --status
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, appendFileSync, copyFileSync, unlinkSync } from 'node:fs';
+import { checkDesign } from './check-design.mjs';
+import { checkDateWindow } from '../plugins/aao-approval-gate/src/url-check.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { writeHeartbeat, waitForPaperclip, isConnectionError, acquireLock, releaseLock } from './heartbeat.mjs';
-import { laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { summarizeVerification, laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
@@ -111,6 +113,12 @@ function checkOutput(job, stageName) {
     try {
       const norm = normalizeResearch(data);
       writeFileSync(artifactPathFor(runKeyOf(job), 'researcher'), JSON.stringify(norm, null, 2) + '\n', 'utf8');
+      // Pra-saringan deterministik (tanpa jaringan, tanpa LLM): tanggal terbit harus dalam jendela. Researcher diberi SATU kesempatan memperbaiki
+      // sebelum Verifier dibebani kandidat basi; setelah itu lanjut (Verifier + putaran riset ulang yang menilai).
+      const stale = norm.candidates.map((c) => ({ c, d: checkDateWindow(c.published_at, { windowDays: norm.windowDays ?? 7 }) })).filter((x) => !x.d.ok);
+      if (norm.candidates.length - stale.length < MIN_FRESH_CANDIDATES && (job.stageRetries ?? 0) < 1) {
+        return { ok: false, errors: [`hanya ${norm.candidates.length - stale.length} kandidat dengan tanggal terbit dalam ${norm.windowDays ?? 7} hari (minimal ${MIN_FRESH_CANDIDATES}). Ganti kandidat basi ini dengan berita yang benar-benar terbit dalam jendela: ` + stale.slice(0, 8).map((x) => `${x.c.url} (${x.d.error ?? 'tanggal bermasalah'}, tgl ${x.d.publishedAt || '-'})`).join('; ')] };
+      }
     } catch (e) { return { ok: false, errors: [(e.errors ? e.errors.slice(0, 6).map((x) => `${x.path || '(root)'}: ${x.message}`) : [e.message]).join('; ')] }; }
     return { ok: true, errors: [] };
   }
@@ -119,6 +127,12 @@ function checkOutput(job, stageName) {
     if (!r.ok) return { ok: false, errors: r.errors.slice(0, 8).map((e) => `${e.path || '(root)'}: ${e.message}`) };
   }
   if (stageName === 'designer') {
+    // PATOKAN DESAIN: penyimpangan dari acuan tunggal ditolak di gerbang Designer (lebih murah daripada baru ketahuan di QA).
+    try {
+      const car = JSON.parse(readFileSync(artifactPathFor(runKeyOf(job), 'copywriter'), 'utf8').replace(/^\uFEFF/, ''));
+      const off = checkDesign(data, car, {}).errors.filter((e) => e.startsWith('patokan'));
+      if (off.length) return { ok: false, errors: off };
+    } catch { /* carousel belum terbaca: pemeriksaan QA tetap berlaku */ }
     const held = assetGate(job, data, p);
     if (held) return held;
     const outDir = path.join(path.dirname(p), 'render');
@@ -132,6 +146,7 @@ function checkOutput(job, stageName) {
 }
 
 // Contoh berkas valid (fixture golden) per tahap, supaya agent meniru bentuknya alih-alih menebak.
+const MIN_FRESH_CANDIDATES = 5;
 const EXAMPLES = { researcher: '01-research-output.json', verifier: '02-verification-result.json', copywriter: '03-carousel.json', designer: '04-carousel-design.json' };
 const exampleFor = (stage) => (EXAMPLES[stage] ? path.join(ROOT, 'fixtures', 'golden', 'valid', EXAMPLES[stage]) : null);
 
@@ -491,11 +506,17 @@ async function gatherFacts(job, state) {
     if (output?.ok) { try { const p = outPathFor(runKeyOf(job), STAGES[job.stageIndex]); if (!existsSync(p + '.accepted')) writeFileSync(p + '.accepted', readFileSync(p)); } catch { /* kosmetik */ } }
   }
   if (job.phase === 'planning' && managerFailed && !order?.ok) return { order, managerFinished: false, managerFailedError: managerFailed.error ?? managerFailed.status, succeeded, stage, nowMs: now };
-  return { order, managerFinished, succeeded, stage, output, nowMs: now };
+  // Ringkasan hasil Verifier (hanya saat tahap itu selesai & lolos gerbang) untuk keputusan kembali ke Researcher.
+  let verification = null;
+  if (job.phase === 'running' && STAGES[job.stageIndex] === 'verifier' && output?.ok) {
+    try { verification = summarizeVerification(JSON.parse(readFileSync(artifactPathFor(runKeyOf(job), 'verifier'), 'utf8').replace(/^\uFEFF/, '')), (() => { try { return JSON.parse(readFileSync(orderPathFor(job.identifier), 'utf8').replace(/^\uFEFF/, '')); } catch { return null; } })()); } catch { verification = null; }
+  }
+  return { order, managerFinished, succeeded, stage, output, verification, nowMs: now };
 }
 
-async function createStage(job, stage) {
-  const order = JSON.parse(readFileSync(orderPathFor(job.identifier), 'utf8'));
+async function createStage(job, stage, feedback = null) {
+  let order = JSON.parse(readFileSync(orderPathFor(job.identifier), 'utf8'));
+  if (feedback) order = { ...order, stages: { ...order.stages, [stage]: String(order.stages?.[stage] ?? '') + '\n\n' + feedback } };
   const ag = agentByName(STAGE_AGENT[stage]);
   const issue = await j(`/companies/${company.id}/issues`, jb('POST', {
     title: `${job.identifier} · ${STAGE_AGENT[stage]} (${new Date().toISOString().slice(11, 19)}): ${order.title}`,
@@ -514,7 +535,12 @@ async function applyActions(job, actions, facts) {
   for (const act of actions) {
     if (DRY) { log(`[dry-run] ${JSON.stringify(act)}`); continue; }
     if (act.type === 'comment') await comment(job.masterIssueId, act.text);
-    else if (act.type === 'createStage') { job.stageIssueId = await createStage(job, act.stage); if (act.stage === STAGES[0]) { await onPlanAccepted(job); await parkMaster(job); } }
+    else if (act.type === 'createStage') {
+      // Putaran riset ulang: buang salinan .accepted & keluaran lama tahap Researcher/Verifier supaya hasil baru yang dinilai (bukan yang lama).
+      if (act.feedback) for (const st of ['researcher', 'verifier']) for (const sfx of ['.accepted', '']) { try { unlinkSync(outPathFor(runKeyOf(job), st) + sfx); } catch { /* belum ada */ } }
+      job.stageIssueId = await createStage(job, act.stage, act.feedback ?? null);
+      if (act.stage === STAGES[0] && !act.feedback) { await onPlanAccepted(job); await parkMaster(job); }
+    }
     else if (act.type === 'rewakeManager') { job.handledRuns = facts.succeeded; await comment(job.masterIssueId, `Work order belum valid: ${act.errors.join('; ')}. Perbaiki file ${orderPathFor(job.identifier)}, baca ulang, lalu complete_stage lagi.`); }
     else if (act.type === 'retryStage') {
       // Galat sementara penyedia model: pulihkan agent bila status error, tunggu sebentar, lalu buat issue tahap baru.
@@ -642,9 +668,21 @@ async function advanceJob(job, net, occupied, state) {
   return merged;
 }
 
+const SLEEP_GAP_MS = 4 * 60_000;
 async function once() {
   const state = readState();
   state.pending ??= []; state.followers ??= [];
+  // Laptop tidur/standby: selang antar tick yang sangat panjang BUKAN waktu kerja agent. Geser jam tahap/perencanaan sebesar selang itu
+  // supaya batas waktu tidak habis karena tidur (sebelumnya memblokir produksi yang sedang berjalan).
+  const tickNow = Date.now();
+  if (state.lastOnceMs && tickNow - state.lastOnceMs > SLEEP_GAP_MS) {
+    const shift = (j) => ({ ...j, ...step(j, { offline: true, nowMs: tickNow }).job });
+    if (state.job && !isFinished(state.job)) state.job = shift(state.job);
+    state.followers = state.followers.map((j) => (isFinished(j) ? j : shift(j)));
+    state.pending = state.pending.map((p) => (p.ready || p.hold ? p : shift(p)));
+    log('Selang ' + Math.round((tickNow - state.lastOnceMs) / 60_000) + ' menit sejak tick terakhir (laptop tidur/standby?): jam tahap digeser, batas waktu tidak dihitung selama itu');
+  }
+  state.lastOnceMs = tickNow;
   const settings = readJsonLoose(SETTINGS_FILE) ?? {};
   if (settings.paused === true) {
     // JEDA owner: tidak ada pekerjaan baru; jam tahap/perencanaan dibekukan (seperti offline) supaya tidak ada batas waktu yang lewat; agent yang sedang bekerja menyelesaikan run-nya sendiri.

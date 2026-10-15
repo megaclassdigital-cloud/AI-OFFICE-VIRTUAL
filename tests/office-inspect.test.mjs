@@ -190,3 +190,40 @@ describe('board: semua konten tampil dengan tanggal dibuat', () => {
     expect((await call2('/api/inspect/board')).body.items).toHaveLength(5);
   });
 });
+
+describe('board: riwayat tidak hilang saat Paperclip error atau berkas tak terbaca', () => {
+  let root3; let cache; let mock3; let base3;
+  beforeAll(async () => {
+    root3 = mkdtempSync(path.join(os.tmpdir(), 'aao-board-cache-'));
+    cache = path.join(root3, 'board-cache.json');
+    for (const n of [1, 2]) mkdirSync(path.join(root3, 'runs', `EDU-${n}`, 'render'), { recursive: true });
+    mkdirSync(path.join(root3, 'orders'), { recursive: true });
+    mock3 = http.createServer((req, res) => {
+      const out = (j) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(j)); };
+      if (req.url === '/api/companies') return out([{ id: 'c1', name: 'EdukasiAI' }]);
+      if (req.url === '/api/companies/c1/agents') return out([]);
+      if (req.url === '/api/companies/c1/issues') return out([{ id: 'm1', identifier: 'EDU-1', title: 'a', status: 'in_review', createdAt: '2026-10-01T00:00:00Z' }, { id: 'm2', identifier: 'EDU-2', title: 'b', status: 'in_review', createdAt: '2026-10-02T00:00:00Z' }]);
+      if (req.url.endsWith('/documents')) return out([{ key: 'handoff', body: '{}' }]);
+      res.writeHead(404); res.end('{}');
+    });
+    await new Promise((r) => mock3.listen(0, '127.0.0.1', r));
+    base3 = `http://127.0.0.1:${mock3.address().port}`;
+  });
+  afterAll(() => mock3.close());
+  const call3 = async (b, outputRoot, url = '/api/inspect/board') => {
+    const res = { code: 0, body: null };
+    await createInspector({ base: b, outputRoot, cacheFile: cache })({ method: 'GET' }, res, new URL(url, 'http://x'), (r, c, bd) => { r.code = c; r.body = bd; }, () => {});
+    return res;
+  };
+  it('Paperclip mati: konten tetap tampil dan status memakai snapshot terakhir (bukan "tidak diketahui")', async () => {
+    const ok = await call3(base3, root3);
+    expect(ok.body.items).toHaveLength(2); expect(ok.body.items[0].status.key).toBe('menunggu_approval');
+    const down = await call3('http://127.0.0.1:1', root3);
+    expect(down.body.items).toHaveLength(2);
+    expect(down.body.items.every((i) => i.status.key === 'menunggu_approval' && i.status.stale)).toBe(true);
+  });
+  it('berkas run tak terbaca sama sekali: kembalikan snapshot dengan penanda stale, tidak daftar kosong', async () => {
+    const gone = await call3(base3, path.join(root3, 'tidak-ada'));
+    expect(gone.body.stale).toBe(true); expect(gone.body.items).toHaveLength(2);
+  });
+});

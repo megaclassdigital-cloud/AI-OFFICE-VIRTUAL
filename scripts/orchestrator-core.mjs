@@ -3,7 +3,7 @@
 
 export const STAGES = ['researcher', 'verifier', 'copywriter', 'designer', 'qa'];
 export const STAGE_AGENT = { researcher: 'Researcher', verifier: 'Verifier', copywriter: 'Copywriter', designer: 'Designer', qa: 'QA' };
-export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxStageAttempts: 3, maxNetRetries: 20, maxText: 4000 });
+export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxStageAttempts: 3, maxNetRetries: 20, maxText: 4000, maxResearchLoops: 2, minVerified: 3 });
 
 /** Galat jaringan (permintaan agent tidak sampai ke penyedia): ditangani sebagai "tunggu online", bukan kegagalan tahap. */
 export const isNetworkError = (text) => /cannot connect to api|unable to connect|socket connection was closed|econnreset|enotfound|etimedout|eai_again|fetch failed|getaddrinfo|network|typo in the url|connection (was )?(refused|reset)/i.test(String(text ?? ''));
@@ -41,6 +41,33 @@ export function checkQaResult(data) {
   return { ok: true, errors: [] };
 }
 const DONE_STATUSES = new Set(['in_review', 'done']);
+
+/**
+ * Ringkas hasil Verifier untuk keputusan "kembali ke Researcher". Murni dan deterministik.
+ * minVerified: dari work order (field opsional `minVerified`, 1-10) atau LIMITS.minVerified.
+ */
+export function summarizeVerification(vr, order = null) {
+  const rs = Array.isArray(vr?.results) ? vr.results : [];
+  const asked = Number(order?.minVerified);
+  const minVerified = Number.isInteger(asked) && asked >= 1 && asked <= 10 ? asked : LIMITS.minVerified;
+  return {
+    total: rs.length, minVerified,
+    verified: rs.filter((r) => r.status === 'verified').length,
+    verifiedUrls: rs.filter((r) => r.status === 'verified').map((r) => r.url).filter(Boolean),
+    rejected: rs.filter((r) => r.status !== 'verified').map((r) => ({ candidateId: r.candidateId, url: r.url, reason: String(r.reason ?? 'ditolak tanpa alasan').slice(0, 200) })),
+  };
+}
+
+/** Pesan umpan balik untuk Researcher saat Verifier menolak terlalu banyak kandidat. */
+export function researchFeedbackText(v, round) {
+  const lines = v.rejected.slice(0, 12).map((r) => `- ${r.url ?? r.candidateId}: ${r.reason}`);
+  return [
+    `PUTARAN RISET ULANG ${round} (dari Verifier): hanya ${v.verified} dari ${v.total} kandidat terverifikasi; dibutuhkan minimal ${v.minVerified}.`,
+    'Kandidat yang DITOLAK (jangan ulangi URL atau sumber yang sama):', ...lines,
+    v.verifiedUrls.length ? 'Kandidat yang sudah terverifikasi (pertahankan di daftar, jangan hapus):\n' + v.verifiedUrls.map((u) => '- ' + u).join('\n') : '',
+    'Tugasmu: tulis ulang research-raw.json berisi kandidat terverifikasi di atas DITAMBAH kandidat pengganti baru sampai total 5-10. Buka tiap halaman sungguhan, ambil tanggal terbit dari halamannya (maks. 7 hari), dan jangan menebak URL. Utamakan halaman resmi (blog/newsroom penerbit) daripada pemberitaan turunan.',
+  ].filter(Boolean).join('\n');
+}
 
 /** Validate a Manager work order. Returns { ok, errors }. Every problem is reported, not just the first. */
 export const MAX_EXTRA_CONTENTS = 2;
@@ -292,6 +319,18 @@ export function step(job, facts) {
         else if ((j.stageRetries ?? 0) >= LIMITS.maxStageRetries) block(`keluaran tahap ${STAGE_AGENT[stageName]} tetap tidak lolos: ${facts.output.errors.join('; ')}`);
         else { j.stageRetries = (j.stageRetries ?? 0) + 1; actions.push({ type: 'rejectStage', errors: facts.output.errors }); }
         return { job: j, actions };
+      }
+      // Hasil Verifier terlalu sedikit yang valid: KEMBALI ke Researcher (maks. LIMITS.maxResearchLoops putaran), bukan lanjut dengan bahan tipis.
+      if (stageName === 'verifier' && facts.verification && facts.verification.verified < facts.verification.minVerified) {
+        const v = facts.verification; const loops = j.researchLoops ?? 0;
+        if (loops < LIMITS.maxResearchLoops) {
+          j.researchLoops = loops + 1; j.stageRetries = 0; j.stageIndex = 0; j.stageIssueId = null; j.stageStartedMs = facts.nowMs; j.stageAttempts = 1;
+          actions.push({ type: 'comment', text: `Verifier: ${v.verified}/${v.total} kandidat terverifikasi (minimal ${v.minVerified}). Kembali ke Researcher untuk riset ulang (putaran ${j.researchLoops} dari ${LIMITS.maxResearchLoops}).` });
+          actions.push({ type: 'createStage', stage: 'researcher', feedback: researchFeedbackText(v, j.researchLoops) });
+          return { job: j, actions };
+        }
+        if (v.verified < 1) { block(`tidak ada kandidat terverifikasi setelah ${loops} putaran riset ulang`); return { job: j, actions }; }
+        actions.push({ type: 'comment', text: `Batas putaran riset ulang tercapai; lanjut dengan ${v.verified} kandidat terverifikasi (di bawah target ${v.minVerified}). QA/owner perlu menilai kecukupan bahan.` });
       }
       j.stageRetries = 0; j.assetHoldNotified = false;
       if (j.stageIndex + 1 >= STAGES.length) {

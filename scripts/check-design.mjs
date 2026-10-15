@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validate } from '../schemas/validate.mjs';
+import { loadStandard, checkStandard } from './design-standard.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const readJson = (f) => JSON.parse(readFileSync(f, 'utf8').replace(/^﻿/, ''));
@@ -105,6 +106,8 @@ export function checkDesign(design, carousel, { brandName = 'EdukasiAI' } = {}) 
       }
     }
   });
+  // PATOKAN DESAIN: satu varian per carousel, pembuka-penutup sekeluarga, struktur, batas penekanan (scripts/design-standard.mjs).
+  try { errors.push(...checkStandard(design, carousel, loadStandard(), { defaultVariant: 'editorial' }).errors); } catch (e) { errors.push(`patokan desain tidak terbaca: ${e.message}`); }
   return { ok: errors.length === 0, errors };
 }
 

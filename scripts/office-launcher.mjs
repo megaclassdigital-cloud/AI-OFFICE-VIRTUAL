@@ -73,6 +73,8 @@ let stopping = false; let paperclipRestartAt = 0; let paperclipDownSince = null;
 // Paperclip butuh beberapa menit untuk start (pemulihan Postgres tertanam); jangan diluncurkan ulang selama masa tunggu ini.
 const PAPERCLIP_STARTUP_GRACE_MS = 8 * 60_000;
 const STARTUP_WARMUP_MS = 90_000;
+const PAPERCLIP_HUNG_MS = 30 * 60_000;
+let slowLogAt = 0;
 
 /** Proses node yang sudah berjalan (mis. dinyalakan manual): diadopsi, bukan digandakan. */
 function listNodeProcs() {
@@ -204,15 +206,34 @@ async function handleCommand() {
 }
 
 // ───────── siklus utama ─────────
+let lastCycleAt = Date.now();
 async function cycle() {
   const nowMs = Date.now();
+  // Bangun dari tidur/standby: selang siklus >45 dtk (normalnya 5 dtk). Semua koneksi lama basi; beri masa pemanasan dan jangan menilai komponen gagal
+  // atau meluncurkan ulang Paperclip karena jam melompat.
+  if (nowMs - lastCycleAt > 45_000) {
+    log('Laptop bangun dari tidur/standby (selang ' + Math.round((nowMs - lastCycleAt) / 1000) + ' dtk): menyegarkan koneksi, masa pemanasan dimulai');
+    pcMisses = 0; paperclipDownSince = null; paperclipRestartAt = nowMs - PAPERCLIP_STARTUP_GRACE_MS + 120_000;
+    for (const c of comp.values()) { c.badSince = null; if (isAlive(c)) c.startedAt = nowMs; }
+  }
+  lastCycleAt = nowMs;
   const { pcOk, input } = await probe();
   const health = evaluateHealth(input);
 
   // Paperclip: bila tidak terjangkau cukup lama, nyalakan ulang (dengan jeda agar tidak berulang-ulang).
   if (!input.paperclip.reachable) {
     paperclipDownSince ??= nowMs;
-    if (nowMs - paperclipDownSince > 30_000 && nowMs - paperclipRestartAt > PAPERCLIP_STARTUP_GRACE_MS) { if (await tcpOpen(3177)) log('Paperclip lambat tetapi prosesnya hidup (port 3177 terbuka): tidak diluncurkan ulang'); else startPaperclip('tidak terjangkau'); }
+    if (nowMs - paperclipDownSince > 30_000 && nowMs - paperclipRestartAt > PAPERCLIP_STARTUP_GRACE_MS) {
+      const procs = listNodeProcs().filter((p) => /paperclipai/.test(p.cmd));
+      if (await tcpOpen(3177)) { if (nowMs - slowLogAt > 300_000) { slowLogAt = nowMs; log('Paperclip lambat tetapi prosesnya hidup (port 3177 terbuka): tidak diluncurkan ulang'); } }
+      else if (procs.length && nowMs - paperclipRestartAt < PAPERCLIP_HUNG_MS) {
+        // Proses Paperclip ADA tetapi belum membuka port: masih memulai (pemulihan database bisa lama setelah laptop tidur). Meluncurkan lagi hanya menumpuk proses yang berebut database.
+        if (nowMs - slowLogAt > 300_000) { slowLogAt = nowMs; log('Paperclip masih memulai (proses ada, port belum terbuka): menunggu, tidak diluncurkan ulang'); }
+      } else {
+        if (procs.length) { log('Paperclip macet >' + Math.round(PAPERCLIP_HUNG_MS / 60_000) + ' menit tanpa membuka port: dihentikan lalu dinyalakan ulang'); try { spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', f('scripts', 'start-paperclip.ps1'), '-Stop'], { cwd: ROOT, windowsHide: true, timeout: 60_000 }); } catch { /* lanjut menyalakan */ } }
+        startPaperclip('tidak terjangkau');
+      }
+    }
   } else paperclipDownSince = null;
 
   // Komponen: nyalakan yang belum berjalan, pulihkan yang mati/tidak terhubung.

@@ -33,7 +33,7 @@ const talk = TALK ? createTalk({ base: PAPERCLIP, port: PORT, outputRoot: path.j
 const owner = a.includes('--enable-owner') ? createOwner({ base: PAPERCLIP, port: PORT, repoRoot }) : null;
 
 // Inspeksi hanya-baca (memori agen, approval, berkas hasil) untuk dock UI; selalu aktif, hanya GET.
-const inspector = createInspector({ base: PAPERCLIP, outputRoot: path.join(repoRoot, 'workspace', 'agent'), stateFile: path.join(repoRoot, 'workspace', 'orchestrator-state.json') });
+const inspector = createInspector({ cacheFile: path.join(repoRoot, 'workspace', 'board-cache.json'), base: PAPERCLIP, outputRoot: path.join(repoRoot, 'workspace', 'agent'), stateFile: path.join(repoRoot, 'workspace', 'orchestrator-state.json') });
 const sendBuffer = (res, code, type, buf, filename) => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', ...(filename ? { 'content-disposition': `attachment; filename="${String(filename).replace(/[^A-Za-z0-9._-]/g, '_')}"` } : {}) }); res.end(buf); };
 
 export const bridge = createBridge({ base: PAPERCLIP, log: (m) => console.error(m) });

@@ -1,0 +1,45 @@
+{
+  "createdAt": "2026-10-15T00:00:00Z",
+  "brand": "edukasiai",
+  "canvas": { "width": 1080, "height": 1350 },
+  "slides": [
+    {
+      "index": 1, "template": "hero-cover", "colorVariant": "editorial", "emphasis": ["jelas"],
+      "slots": {
+        "image": "brand/edukasiai-logo.png",
+        "kicker": "KATEGORI · Label singkat",
+        "headline": "Judul utama carousel yang jelas dan singkat",
+        "subtitle": "Satu kalimat pendukung yang menjelaskan isi carousel ini kepada pembaca.",
+        "source": "Nama Sumber"
+      }
+    },
+    {
+      "index": 2, "template": "point", "colorVariant": "editorial", "emphasis": ["poin"],
+      "slots": { "number": "01", "heading": "Poin pertama yang paling penting", "body": "Penjelasan poin pertama dalam dua sampai tiga kalimat pendek, ditulis netral dan hanya berisi fakta dari sumber." }
+    },
+    {
+      "index": 3, "template": "comparison", "colorVariant": "editorial", "emphasis": ["Perbandingan"],
+      "slots": { "heading": "Perbandingan dua hal", "leftLabel": "Sebelum", "leftBody": "Keadaan atau klaim pertama yang dibandingkan.", "rightLabel": "Sesudah", "rightBody": "Keadaan atau klaim kedua yang dibandingkan." }
+    },
+    {
+      "index": 4, "template": "point", "colorVariant": "editorial", "emphasis": ["kedua"],
+      "slots": { "number": "02", "heading": "Poin kedua yang mendukung cerita", "body": "Penjelasan poin kedua dengan panjang yang sama seperti poin pertama supaya ritme slide terjaga." }
+    },
+    {
+      "index": 5, "template": "point", "colorVariant": "editorial", "emphasis": ["Kesimpulan"],
+      "slots": { "number": "03", "heading": "Kesimpulan yang bisa dibawa pulang", "body": "Ringkasan satu paragraf pendek yang menjawab pertanyaan awal carousel ini." }
+    },
+    {
+      "index": 6, "template": "hero-cta", "colorVariant": "editorial", "emphasis": ["EDUKASIAI"],
+      "slots": {
+        "image": "brand/edukasiai-logo.png",
+        "kicker": "KESIMPULAN & CTA",
+        "headline": "IKUTI EDUKASIAI UNTUK INFO AI TERVERIFIKASI",
+        "saveTitle": "SIMPAN", "saveText": "Simpan postingan ini agar mudah ditemukan lagi.",
+        "followTitle": "IKUTI", "followText": "Follow @edukasiai untuk update berita AI yang sudah diperiksa.",
+        "support": "Sumber ditautkan pada keterangan postingan",
+        "source": "Nama Sumber"
+      }
+    }
+  ]
+}

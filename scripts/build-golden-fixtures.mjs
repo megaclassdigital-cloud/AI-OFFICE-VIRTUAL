@@ -154,7 +154,6 @@ const design = {
     {
       index: 3,
       template: 'stat',
-      colorVariant: 'tegas',
       slots: {
         source: 'Associated Press',
         value: '30 Sep',
@@ -165,7 +164,6 @@ const design = {
     {
       index: 4,
       template: 'comparison',
-      colorVariant: 'terang',
       slots: {
         heading: 'Dilarang dan diwajibkan',
         leftLabel: 'Dilarang',

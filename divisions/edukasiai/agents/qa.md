@@ -37,6 +37,16 @@ Jika `visual-qa.json` memuat satu saja kegagalan → gagal. Tidak ada pengecuali
 
 Kode (`check-design`, gerbang aset, finalisasi) sudah menolak yang bisa dihitung; tugasmu menilai **relevansi dan keaslian visual** dengan membuka PNG hasil render slide yang memakai gambar, bukan hanya membaca laporan.
 
+**PATOKAN DESAIN (wajib dicocokkan setiap kali, satu acuan saja):**
+
+Acuan tunggal: `divisions/edukasiai/brand/design-standard.json` (aturan) dan gambar acuan
+`divisions/edukasiai/brand/reference/patokan-contact-sheet.png` (contact sheet carousel standar). Kode sudah menolak
+yang bisa dihitung (satu varian warna per carousel, slide pembuka dan penutup sekeluarga, struktur, batas kata penekanan).
+Bagianmu: **buka gambar acuan dan contact sheet hasil render** (`runs/<ID>/render/contact-sheet.png`), bandingkan berdampingan,
+lalu jawab tiap butir `visualChecklist` di `design-standard.json`. Satu butir tidak sesuai = `designOk: false`, dan catatan
+per slide harus menyebut butir mana yang menyimpang. Jangan membandingkan dengan carousel lain, dan jangan menilai selera;
+patokannya hanya gambar acuan dan daftar itu.
+
 **Cek LLM (bagianmu):**
 
 - Nada sesuai audiens, kalimat jelas

@@ -1,37 +1,238 @@
 {
-  "_catatan": "Rantai model per agent, urut prioritas. scripts/manager-failover.mjs (nama lama, kini untuk semua agent) berpindah ke entri berikutnya HANYA saat run gagal karena kuota/autentikasi/model tidak tersedia, dan tidak pernah saat agent sedang menjalankan run. Hari baru (WIB) kembali ke prioritas utama. Kuota gratis Gemini 20 request/hari per MODEL, jadi model berbeda dipakai berurutan.",
-  "exclusiveProviders": ["chatgpt", "claude"],
+  "_catatan": "Rantai model per agent, urut prioritas. scripts/manager-failover.mjs (nama lama, kini untuk semua agent) berpindah ke entri berikutnya HANYA saat run gagal karena kuota/autentikasi/model tidak tersedia, dan tidak pernah saat agent sedang menjalankan run. Hari baru (WIB) kembali ke prioritas utama. Kuota gratis Gemini 20 request/hari per MODEL, jadi model berbeda dipakai berurutan. Researcher, Verifier, dan QA memakai Claude Haiku 4.5 (OAuth, effort medium) sebagai prioritas utama; model gratis di bawahnya menjadi cadangan saat kuota/autentikasi gagal. Copywriter dan Designer tetap di model gratis.",
+  "exclusiveProviders": [
+    "chatgpt",
+    "claude"
+  ],
   "agents": {
     "Manager": [
-      { "id": "chatgpt", "provider": "chatgpt", "label": "ChatGPT (OAuth)", "adapterType": "codex_local", "adapterConfig": {} },
-      { "id": "claude", "provider": "claude", "label": "Claude (OAuth)", "adapterType": "claude_local", "adapterConfig": { "model": "claude-sonnet-5" } },
-      { "id": "gemini", "label": "Gemini", "adapterType": "gemini_local", "adapterConfig": { "model": "auto", "env": { "GEMINI_MODEL": "gemini-3.7-flash", "GEMINI_CLI_TRUST_WORKSPACE": "true", "ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS": "120000" } }, "envFromDotenv": ["GEMINI_API_KEY"] }
+      {
+        "id": "chatgpt",
+        "provider": "chatgpt",
+        "label": "ChatGPT (OAuth)",
+        "adapterType": "codex_local",
+        "adapterConfig": {}
+      },
+      {
+        "id": "claude",
+        "provider": "claude",
+        "label": "Claude (OAuth)",
+        "adapterType": "claude_local",
+        "adapterConfig": {
+          "model": "claude-sonnet-5"
+        }
+      },
+      {
+        "id": "gemini",
+        "label": "Gemini",
+        "adapterType": "gemini_local",
+        "adapterConfig": {
+          "model": "auto",
+          "env": {
+            "GEMINI_MODEL": "gemini-3.7-flash",
+            "GEMINI_CLI_TRUST_WORKSPACE": "true",
+            "ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS": "120000"
+          }
+        },
+        "envFromDotenv": [
+          "GEMINI_API_KEY"
+        ]
+      }
     ],
     "Researcher": [
-      { "id": "nemotron", "label": "opencode nemotron-3-ultra (gratis)", "adapterType": "opencode_local", "adapterConfig": { "model": "opencode/nemotron-3-ultra-free" } },
-      { "id": "g35lite", "label": "Gemini 3.5 flash-lite", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3.5-flash-lite" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] },
-      { "id": "mimo", "label": "opencode mimo-v2.6 (gratis)", "adapterType": "opencode_local", "adapterConfig": { "model": "opencode/mimo-v2.6-flash-free" } }
+      {
+        "id": "haiku",
+        "provider": "claude-haiku",
+        "label": "Claude Haiku 4.5 (OAuth, effort medium)",
+        "adapterType": "claude_local",
+        "adapterConfig": {
+          "model": "claude-haiku-4-5",
+          "effort": "medium"
+        }
+      },
+      {
+        "id": "nemotron",
+        "label": "opencode nemotron-3-ultra (gratis)",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "opencode/nemotron-3-ultra-free"
+        }
+      },
+      {
+        "id": "g35lite",
+        "label": "Gemini 3.5 flash-lite",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3.5-flash-lite"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      },
+      {
+        "id": "mimo",
+        "label": "opencode mimo-v2.6 (gratis)",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "opencode/mimo-v2.6-flash-free"
+        }
+      }
     ],
     "Verifier": [
-      { "id": "g31lite", "label": "Gemini 3.1 flash-lite", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3.1-flash-lite" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] },
-      { "id": "g3prev", "label": "Gemini 3 flash-preview", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3-flash-preview" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] },
-      { "id": "nemotron", "label": "opencode nemotron-3-ultra (gratis)", "adapterType": "opencode_local", "adapterConfig": { "model": "opencode/nemotron-3-ultra-free" } }
+      {
+        "id": "haiku",
+        "provider": "claude-haiku",
+        "label": "Claude Haiku 4.5 (OAuth, effort medium)",
+        "adapterType": "claude_local",
+        "adapterConfig": {
+          "model": "claude-haiku-4-5",
+          "effort": "medium"
+        }
+      },
+      {
+        "id": "g31lite",
+        "label": "Gemini 3.1 flash-lite",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3.1-flash-lite"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      },
+      {
+        "id": "g3prev",
+        "label": "Gemini 3 flash-preview",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3-flash-preview"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      },
+      {
+        "id": "nemotron",
+        "label": "opencode nemotron-3-ultra (gratis)",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "opencode/nemotron-3-ultra-free"
+        }
+      }
     ],
     "Copywriter": [
-      { "id": "g35", "label": "Gemini 3.5 flash", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3.5-flash" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] },
-      { "id": "g3prev", "label": "Gemini 3 flash-preview", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3-flash-preview" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] },
-      { "id": "g31lite", "label": "Gemini 3.1 flash-lite", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3.1-flash-lite" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] },
-      { "id": "nemotron", "label": "opencode nemotron-3-ultra (gratis)", "adapterType": "opencode_local", "adapterConfig": { "model": "opencode/nemotron-3-ultra-free" } }
+      {
+        "id": "g35",
+        "label": "Gemini 3.5 flash",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3.5-flash"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      },
+      {
+        "id": "g3prev",
+        "label": "Gemini 3 flash-preview",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3-flash-preview"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      },
+      {
+        "id": "g31lite",
+        "label": "Gemini 3.1 flash-lite",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3.1-flash-lite"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      },
+      {
+        "id": "nemotron",
+        "label": "opencode nemotron-3-ultra (gratis)",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "opencode/nemotron-3-ultra-free"
+        }
+      }
     ],
     "Designer": [
-      { "id": "g35lite", "label": "Gemini 3.5 flash-lite", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3.5-flash-lite" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] },
-      { "id": "g3prev", "label": "Gemini 3 flash-preview", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3-flash-preview" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] },
-      { "id": "nemotron", "label": "opencode nemotron-3-ultra (gratis)", "adapterType": "opencode_local", "adapterConfig": { "model": "opencode/nemotron-3-ultra-free" } }
+      {
+        "id": "g35lite",
+        "label": "Gemini 3.5 flash-lite",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3.5-flash-lite"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      },
+      {
+        "id": "g3prev",
+        "label": "Gemini 3 flash-preview",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3-flash-preview"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      },
+      {
+        "id": "nemotron",
+        "label": "opencode nemotron-3-ultra (gratis)",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "opencode/nemotron-3-ultra-free"
+        }
+      }
     ],
     "QA": [
-      { "id": "mimo", "label": "opencode mimo-v2.6 (gratis)", "adapterType": "opencode_local", "adapterConfig": { "model": "opencode/mimo-v2.6-flash-free" } },
-      { "id": "nemotron", "label": "opencode nemotron-3-ultra (gratis)", "adapterType": "opencode_local", "adapterConfig": { "model": "opencode/nemotron-3-ultra-free" } },
-      { "id": "g31lite", "label": "Gemini 3.1 flash-lite", "adapterType": "opencode_local", "adapterConfig": { "model": "google/gemini-3.1-flash-lite" }, "envFromDotenv": ["GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"] }
+      {
+        "id": "haiku",
+        "provider": "claude-haiku",
+        "label": "Claude Haiku 4.5 (OAuth, effort medium)",
+        "adapterType": "claude_local",
+        "adapterConfig": {
+          "model": "claude-haiku-4-5",
+          "effort": "medium"
+        }
+      },
+      {
+        "id": "mimo",
+        "label": "opencode mimo-v2.6 (gratis)",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "opencode/mimo-v2.6-flash-free"
+        }
+      },
+      {
+        "id": "nemotron",
+        "label": "opencode nemotron-3-ultra (gratis)",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "opencode/nemotron-3-ultra-free"
+        }
+      },
+      {
+        "id": "g31lite",
+        "label": "Gemini 3.1 flash-lite",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "google/gemini-3.1-flash-lite"
+        },
+        "envFromDotenv": [
+          "GOOGLE_GENERATIVE_AI_API_KEY=GEMINI_API_KEY"
+        ]
+      }
     ]
   }
 }

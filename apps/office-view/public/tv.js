@@ -48,7 +48,14 @@ setInterval(() => { if (!overlay.hidden) load(false); }, 8000);
 
 async function load(force) {
   let board = { items: [] };
-  try { board = await jget('/api/inspect/board'); } catch { /* pakai pilihan lama */ }
+  // Server tidak terjangkau/lambat: pakai daftar terakhir yang baik (memori halaman, lalu penyimpanan browser) supaya riwayat tidak hilang dari TV.
+  try { board = await jget('/api/inspect/board'); st.offline = false; try { if (board.items?.length) localStorage.setItem('aao.board', JSON.stringify({ at: Date.now(), items: board.items })); } catch { /* penyimpanan browser tidak tersedia */ } }
+  catch {
+    st.offline = true;
+    if (st.board?.length) board = { items: st.board };
+    else { try { const c = JSON.parse(localStorage.getItem('aao.board') ?? 'null'); if (c?.items?.length) board = { items: c.items, cachedAt: new Date(c.at).toISOString() }; } catch { /* abaikan */ } }
+  }
+  st.stale = Boolean(board.stale) || st.offline;
   st.board = board.items ?? [];
   if (force || !sel.options.length) {
     setKids(sel, ...board.items.map((i) => h('option', { value: i.prod }, `${i.label ?? i.prod} · ${tgl(i.createdAt).split(',')[0]} · ${i.title}`.slice(0, 80))));
@@ -90,7 +97,7 @@ function render() {
 function allContents() {
   const items = st.board ?? [];
   if (!items.length) return empty('Belum ada konten.');
-  return h('div', {}, lead(`${items.length} konten. Klik kartu untuk membuka tayangannya.`),
+  return h('div', {}, st.stale ? h('div', { class: 'tv-warn' }, '⚠ Koneksi ke server/Paperclip bermasalah: menampilkan daftar terakhir yang tersimpan. Semua konten tetap ada; status bisa tertinggal sampai tersambung lagi.') : null, lead(`${items.length} konten. Klik kartu untuk membuka tayangannya.`),
     h('div', { class: 'tv-all' }, items.map((i) => h('button', { type: 'button', class: 'tv-item', onclick: () => { st.prod = i.prod; st.rev = ''; st.slide = 0; st.tab = 'show'; sel.value = i.prod; load(true); }, title: i.title },
       i.cover ? h('img', { src: img(i.cover), alt: '', loading: 'lazy' }) : h('div', { class: 'ph' }, 'belum ada gambar'),
       h('div', { class: 'meta' },

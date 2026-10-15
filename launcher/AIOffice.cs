@@ -5,6 +5,7 @@
 // Build:  launcher\build.ps1   (hasil: AIOffice.exe di akar repo)
 using System;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -46,6 +47,25 @@ namespace AIOffice
 
     class TrayApp : ApplicationContext
     {
+        [DllImport("kernel32.dll")] static extern uint SetThreadExecutionState(uint esFlags);
+        const uint ES_CONTINUOUS = 0x80000000, ES_SYSTEM_REQUIRED = 0x00000001;
+        bool keepAwake = true;
+        ToolStripMenuItem awakeItem;
+        static string KeepAwakeFile() { return Path.Combine(DataDir(), "keepawake.txt"); }
+        // Cegah Windows masuk tidur otomatis (idle) selama AI Office berjalan; layar tetap boleh mati. Tidak menahan tidur karena tutup layar/tombol power.
+        void ApplyKeepAwake()
+        {
+            try { SetThreadExecutionState(keepAwake ? (ES_CONTINUOUS | ES_SYSTEM_REQUIRED) : ES_CONTINUOUS); } catch { }
+        }
+        void ToggleKeepAwake()
+        {
+            keepAwake = !keepAwake;
+            try { File.WriteAllText(KeepAwakeFile(), keepAwake ? "on" : "off"); } catch { }
+            awakeItem.Checked = keepAwake;
+            ApplyKeepAwake();
+            tray.ShowBalloonTip(3000, "AI Office", keepAwake ? "Laptop tidak akan tidur otomatis selama AI Office berjalan (layar boleh mati)." : "Laptop boleh tidur otomatis; pekerjaan akan berhenti saat tidur dan dilanjutkan setelah bangun.", ToolTipIcon.Info);
+        }
+
         readonly string root;
         readonly string nodeExe;
         readonly NotifyIcon tray;
@@ -78,6 +98,11 @@ namespace AIOffice
             menu.Items.Add("Mulai ulang Office View", null, (s, e) => SendCommand("restart", "office-view"));
             menu.Items.Add("Mulai ulang Orkestrator", null, (s, e) => SendCommand("restart", "orchestrator"));
             menu.Items.Add(new ToolStripSeparator());
+            try { keepAwake = !File.Exists(KeepAwakeFile()) || File.ReadAllText(KeepAwakeFile()).Trim() != "off"; } catch { }
+            awakeItem = new ToolStripMenuItem("Cegah laptop tidur otomatis saat AI Office berjalan", null, (s, e) => ToggleKeepAwake());
+            awakeItem.Checked = keepAwake;
+            menu.Items.Add(awakeItem);
+            menu.Items.Add("Pengaturan daya Windows (tutup layar, tidur)…", null, (s, e) => { try { Process.Start(new ProcessStartInfo("control.exe", "powercfg.cpl") { UseShellExecute = true }); } catch { } });
             autoItem = new ToolStripMenuItem("Mulai otomatis bersama Windows", null, (s, e) => ToggleAutostart());
             autoItem.Checked = File.Exists(StartupLnk());
             menu.Items.Add(autoItem);
@@ -91,9 +116,10 @@ namespace AIOffice
             tray.DoubleClick += (s, e) => OpenUi();
 
             FirstRunSetup();
+            ApplyKeepAwake();
             StartSupervisor(args);
             timer = new System.Windows.Forms.Timer { Interval = 3000 };
-            timer.Tick += (s, e) => Refresh();
+            timer.Tick += (s, e) => { ApplyKeepAwake(); Refresh(); };
             timer.Start();
         }
 
@@ -235,6 +261,7 @@ namespace AIOffice
 
         void Quit()
         {
+            try { SetThreadExecutionState(ES_CONTINUOUS); } catch { }
             timer.Stop();
             tray.Visible = false;
             tray.Dispose();

@@ -25,6 +25,14 @@ JSON yang lolos `schemas/carousel-design.json` **dan** cek kode `scripts/check-d
 
 Jumlah slide desain **harus sama** dengan `carousel.json`.
 
+## Patokan desain (satu acuan, dicek kode dan QA)
+
+Sebelum mengisi `carousel-design.json`, buka `divisions/edukasiai/brand/design-standard.json` dan lihat gambar acuan
+`divisions/edukasiai/brand/reference/patokan-contact-sheet.png`. Aturan inti: **satu `colorVariant` yang sama untuk semua slide**
+(pilih sesuai topik: `model`, `editorial`, `risiko`, `teknologi`), slide pembuka dan penutup **sekeluarga** (`hero-cover` dengan
+`hero-cta`, atau `cover` dengan `cta`), 6-10 slide, maksimal 2 kata penekanan per slide. Hasilmu harus tampak satu seri dengan gambar acuan;
+`check-design` menolak yang menyimpang, dan QA membandingkan contact sheet-mu dengan gambar acuan itu.
+
 ## Template foto/ikon dan aset gambar
 
 Referensi format owner: foto utama dengan fade, label kategori, headline huruf besar dengan penekanan, dua kartu ikon,

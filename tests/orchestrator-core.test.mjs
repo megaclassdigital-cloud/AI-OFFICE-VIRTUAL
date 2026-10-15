@@ -299,3 +299,40 @@ describe('jalur perakitan: banyak konten, satu agent satu konten', () => {
     expect(canPromote([run(1), { phase: 'done' }, { phase: 'blocked' }])).toBe(true);
   });
 });
+
+import { summarizeVerification, researchFeedbackText } from '../scripts/orchestrator-core.mjs';
+describe('Verifier -> kembali ke Researcher bila terlalu sedikit yang valid', () => {
+  const vr = (statuses) => ({ results: statuses.map((s, i) => ({ candidateId: `c0${i + 1}`, url: `https://x.test/${i}`, status: s, reason: s === 'verified' ? undefined : 'HTTP 403' })) });
+  const atVerifier = (extra = {}) => ({ ...job0(), phase: 'running', stageIndex: 1, stageStartedMs: T0, ...extra });
+  it('summarizeVerification: hitungan, alasan penolakan, minVerified dari order atau default', () => {
+    const v = summarizeVerification(vr(['verified', 'rejected', 'rejected']), null);
+    expect(v).toMatchObject({ total: 3, verified: 1, minVerified: LIMITS.minVerified });
+    expect(v.rejected[0].reason).toBe('HTTP 403');
+    expect(summarizeVerification(vr(['verified']), { minVerified: 1 }).minVerified).toBe(1);
+    expect(summarizeVerification(vr(['verified']), { minVerified: 99 }).minVerified).toBe(LIMITS.minVerified);
+  });
+  it('terverifikasi cukup -> lanjut ke Copywriter seperti biasa', () => {
+    const v = summarizeVerification(vr(['verified', 'verified', 'verified', 'rejected']), null);
+    const r = step(atVerifier(), { stage: { status: 'in_review' }, verification: v, nowMs: T0 + 10 });
+    expect(r.job.stageIndex).toBe(2); expect(r.actions.at(-1)).toEqual({ type: 'createStage', stage: 'copywriter' });
+  });
+  it('terlalu sedikit -> kembali ke Researcher dengan umpan balik, putaran dihitung', () => {
+    const v = summarizeVerification(vr(['verified', 'rejected', 'rejected', 'rejected']), null);
+    const r = step(atVerifier(), { stage: { status: 'in_review' }, verification: v, nowMs: T0 + 10 });
+    expect(r.job.stageIndex).toBe(0); expect(r.job.researchLoops).toBe(1); expect(r.job.phase).toBe('running');
+    const act = r.actions.at(-1);
+    expect(act).toMatchObject({ type: 'createStage', stage: 'researcher' });
+    expect(act.feedback).toContain('HTTP 403'); expect(act.feedback).toContain('https://x.test/0'); // yang valid dipertahankan, yang ditolak disebut
+  });
+  it('batas putaran tercapai: lanjut bila ada >=1 valid, blok bila nol', () => {
+    const some = summarizeVerification(vr(['verified', 'rejected', 'rejected']), null);
+    const r1 = step(atVerifier({ researchLoops: LIMITS.maxResearchLoops }), { stage: { status: 'in_review' }, verification: some, nowMs: T0 + 10 });
+    expect(r1.job.stageIndex).toBe(2); expect(r1.actions.some((a) => a.type === 'comment' && /Batas putaran/.test(a.text))).toBe(true);
+    const none = summarizeVerification(vr(['rejected', 'rejected']), null);
+    const r2 = step(atVerifier({ researchLoops: LIMITS.maxResearchLoops }), { stage: { status: 'in_review' }, verification: none, nowMs: T0 + 10 });
+    expect(r2.job.phase).toBe('blocked');
+  });
+  it('tanpa data verifikasi (mis. tahap lain) perilaku lama tidak berubah', () => {
+    expect(step(atVerifier({ stageIndex: 2 }), { stage: { status: 'in_review' }, nowMs: T0 + 10 }).job.stageIndex).toBe(3);
+  });
+});

@@ -1,6 +1,6 @@
 // inspect.mjs — READ-ONLY inspection endpoints for the Office View dock (agent "memory", approvals, produced files).
 // Only GET. Paperclip is read through GET as well. File access is confined to workspace/agent (no traversal), whitelisted extensions.
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { activityTimeline } from './status.mjs';
 import { summarizeProduction, productionStatus, cleanTitle } from './production.mjs';
@@ -34,7 +34,7 @@ export function commentKind(c, agentNames) {
   return { from: 'Owner', kind: 'owner' };
 }
 
-export function createInspector({ base, outputRoot, stateFile = null, now = () => Date.now(), companyMatch = /edukasi/i }) {
+export function createInspector({ base, outputRoot, cacheFile = null, stateFile = null, now = () => Date.now(), companyMatch = /edukasi/i }) {
   const api = async (p) => {
     const r = await fetch(base + '/api' + p);
     const t = await r.text();
@@ -188,6 +188,15 @@ export function createInspector({ base, outputRoot, stateFile = null, now = () =
       items.push({ createdAt: createdMs ? new Date(createdMs).toISOString() : null,  prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown }) });
     }
     if (!limit) items.sort((a, b) => Date.parse(b.createdAt ?? 0) - Date.parse(a.createdAt ?? 0));
+    // Riwayat tidak boleh hilang dari TV: simpan snapshot terakhir yang baik. Saat Paperclip error, status per konten memakai snapshot (bukan "tidak diketahui");
+    // saat disk/berkas tidak terbaca sama sekali (daftar kosong), kembalikan snapshot apa adanya dengan penanda stale.
+    const snap = cacheFile ? await readJsonSafe(cacheFile) : null;
+    const snapBy = new Map((snap?.items ?? []).map((i) => [i.prod, i]));
+    for (const it of items) { const old = snapBy.get(it.prod); if (old && it.status?.key === 'tidak_diketahui' && old.status) { it.status = { ...old.status, stale: true }; } }
+    if (!limit && cacheFile && items.length >= (snap?.items?.length ?? 0) && !items.some((i) => i.status?.stale)) {
+      try { await writeFile(cacheFile, JSON.stringify({ savedAt: new Date().toISOString(), items }, null, 2)); } catch { /* snapshot kosmetik */ }
+    }
+    if (!items.length && snap?.items?.length) return { status: 200, body: { items: limit ? snap.items.slice(0, limit) : snap.items, stale: true, cachedAt: snap.savedAt } };
     return { status: 200, body: { items } };
   }
 
