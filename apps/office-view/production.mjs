@@ -16,6 +16,7 @@ const VARIANT = { editorial: 'Editorial (kuning)', risiko: 'Risiko (merah)', tek
 const STATUS = {
   menunggu_approval: { label: 'MENUNGGU APPROVAL', tone: 'warn' },
   disetujui: { label: 'DISETUJUI', tone: 'ok' },
+  dibatalkan: { label: 'DIBATALKAN / SUDAH DITOLAK', tone: 'mut' },
   perlu_revisi: { label: 'PERLU REVISI', tone: 'bad' },
   berjalan: { label: 'SEDANG DIPRODUKSI', tone: 'run' },
   terblokir: { label: 'TERBLOKIR', tone: 'bad' },
@@ -35,7 +36,8 @@ export function productionStatus({ master, hasHandoff, job, unknown = false }) {
   else if (master?.status === 'done') key = 'disetujui';
   else if (master?.status === 'in_review' && hasHandoff) key = 'menunggu_approval';
   else if (master?.status === 'in_progress' && hasHandoff) key = 'perlu_revisi';
-  else if (hasHandoff) key = 'menunggu_approval';
+  else if (master?.status === 'cancelled') key = 'dibatalkan'; // sudah ditolak/diganti: tidak ada keputusan yang bisa diambil lagi
+  else if (hasHandoff && !master) key = 'menunggu_approval';
   return { key, ...STATUS[key] };
 }
 

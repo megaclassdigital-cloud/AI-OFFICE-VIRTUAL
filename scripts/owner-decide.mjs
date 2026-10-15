@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { recordDecision, latestDecision, readOwnerToken, ApprovalError } from './owner-approval.mjs';
 import { currentPackageHash } from './prepare-publication.mjs';
 import { canTransition } from '../plugins/aao-approval-gate/src/lifecycle.js';
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { makeRequest, managerRoutingRequestText, requestFile, managerFile, routingDirFor } from './revision-router.mjs';
 
 export class DecideError extends Error {}
@@ -38,12 +38,25 @@ export const defaultRenderDir = (issueId, root = path.resolve(path.dirname(fileU
  * routing (opsional, ADR-0004): { dir, forceStage?, nowMs? }. Bila ada, reject TIDAK lagi hardcode ke Copywriter: Manager yang menentukan tahap awal revisi
  * (atau owner memaksa forceStage); kode menjalankannya lewat orkestrator (mode revisi). Tanpa routing = perilaku lama (kembali ke Copywriter).
  */
+/** Penolakan baru untuk konten yang pernah ditolak: permintaan routing lama (sudah selesai, ada .done) dipindah ke routing/arsip supaya yang baru dibuat. */
+export function archiveStaleRouting(dir, identifier) {
+  const done = path.join(dir, identifier + '.done');
+  if (!existsSync(done)) return false;
+  const arch = path.join(dir, 'arsip'); mkdirSync(arch, { recursive: true });
+  const stamp = Date.now();
+  for (const f of [identifier + '.request.json', identifier + '.json', identifier + '.done', identifier + '.cancel']) {
+    const p = path.join(dir, f);
+    if (existsSync(p)) renameSync(p, path.join(arch, stamp + '-' + f));
+  }
+  return true;
+}
+
 export async function decide({ client, token, expectedToken, issueId, decision, note, renderDir = defaultRenderDir(issueId), approvalDir, routing = null }) {
   if (!['approved', 'rejected'].includes(decision)) throw new DecideError('decision harus approved atau rejected');
   if (decision === 'rejected' && !String(note ?? '').trim()) throw new DecideError('reject wajib disertai catatan');
   const issue = await client.getIssue(issueId);
   if (!issue) throw new DecideError('issue tidak ditemukan');
-  if (issue.status !== 'in_review') throw new DecideError(`issue berstatus ${issue.status}; keputusan hanya untuk issue in_review`);
+  if (issue.status !== 'in_review') throw new DecideError(issue.status === 'cancelled' ? 'konten ini sudah dibatalkan atau sudah ditolak sebelumnya, jadi tidak ada keputusan yang bisa diambil; buka kembali dulu bila ingin menolak lagi' : `issue berstatus ${issue.status}; keputusan hanya untuk issue in_review`);
   const to = decision === 'approved' ? 'done' : 'in_progress';
   if (!canTransition('owner', issue.status, to)) throw new DecideError(`transisi ${issue.status} -> ${to} tidak diizinkan`);
 
@@ -84,6 +97,7 @@ export async function decide({ client, token, expectedToken, issueId, decision, 
   if (decision === 'rejected' && routing) {
     // Permintaan routing ditulis SEKALI (ulangi aman: jendela batal tidak diulang). Kode orkestrator yang membaca dan menjalankannya.
     mkdirSync(routing.dir, { recursive: true });
+    if (!same) archiveStaleRouting(routing.dir, issue.identifier);
     const reqPath = requestFile(routing.dir, issue.identifier);
     if (!existsSync(reqPath)) writeFileSync(reqPath, JSON.stringify(makeRequest({ identifier: issue.identifier, issueId: issue.id, reason: note, forceStage: routing.forceStage ?? null, nowMs: routing.nowMs ?? Date.now() }), null, 2) + String.fromCharCode(10), 'utf8');
     if (routing.forceStage) {

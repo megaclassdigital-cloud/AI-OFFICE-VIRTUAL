@@ -161,3 +161,25 @@ describe('token owner dibuat otomatis pada pemakaian pertama', () => {
     srv.close(); paperclip.close();
   });
 });
+
+import { archiveStaleRouting } from '../scripts/owner-decide.mjs';
+import { productionStatus } from '../apps/office-view/production.mjs';
+import { mkdtempSync as mk2, writeFileSync as wf2, existsSync as ex2, readdirSync as rd2 } from 'node:fs';
+import { tmpdir as td2 } from 'node:os';
+import path2 from 'node:path';
+describe('reject ulang konten yang pernah ditolak', () => {
+  it('permintaan routing lama yang sudah selesai diarsipkan; tanpa .done tidak disentuh', () => {
+    const d = mk2(path2.join(td2(), 'aao-route-'));
+    for (const f of ['EDU-9.request.json', 'EDU-9.json', 'EDU-9.done']) wf2(path2.join(d, f), '{}');
+    expect(archiveStaleRouting(d, 'EDU-9')).toBe(true);
+    expect(ex2(path2.join(d, 'EDU-9.request.json'))).toBe(false);
+    expect(rd2(path2.join(d, 'arsip')).length).toBe(3);
+    wf2(path2.join(d, 'EDU-8.request.json'), '{}');
+    expect(archiveStaleRouting(d, 'EDU-8')).toBe(false); expect(ex2(path2.join(d, 'EDU-8.request.json'))).toBe(true);
+  });
+  it('status TV: master dibatalkan/terblokir dengan handoff TIDAK tampil "menunggu approval" (tombol keputusan tidak muncul)', () => {
+    expect(productionStatus({ master: { status: 'cancelled' }, hasHandoff: true, job: null }).key).toBe('dibatalkan');
+    expect(productionStatus({ master: { status: 'in_review' }, hasHandoff: true, job: null }).key).toBe('menunggu_approval');
+    expect(productionStatus({ master: { status: 'blocked' }, hasHandoff: true, job: null }).key).not.toBe('menunggu_approval');
+  });
+});
