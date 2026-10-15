@@ -21,7 +21,7 @@ describe('outputPath / keluaran baku', () => {
 
 describe('checkQaResult', () => {
   it('lolos hanya untuk passed=true', () => {
-    expect(checkQaResult({ passed: true, llmReview: { textOk: true, designOk: true }, notes: [] })).toEqual({ ok: true, errors: [] });
+    expect(checkQaResult({ passed: true, llmReview: { textOk: true, designOk: true }, designReview: { layout: true, photo: true, font: true }, notes: [] })).toEqual({ ok: true, errors: [] });
     expect(checkQaResult({ passed: true, notes: [] })).toMatchObject({ ok: false });
     expect(checkQaResult({ passed: true, llmReview: { textOk: 'ya', designOk: true } }).ok).toBe(false);
   });

@@ -527,6 +527,25 @@ async function gatherFacts(job, state) {
   return { order, managerFinished, succeeded, stage, output, verification, nowMs: now };
 }
 
+// Revisi dari QA: pindahkan hasil lama ke runs/<kunci>/arsip/<label>/ (rapi, tidak ditimpa, tidak dihapus) sebelum tahap diulang.
+// Tahap yang diulang dan semua sesudahnya diarsipkan; bila dari awal (scratch) aset gambar ikut diarsipkan supaya riset baru mulai bersih.
+function archiveRunFiles(runKey, stages, label, scratch) {
+  const runDir = path.dirname(outPathFor(runKey, 'researcher'));
+  const dest = path.join(runDir, 'arsip', label);
+  const names = new Set();
+  for (const st of stages) for (const p of [outPathFor(runKey, st), artifactPathFor(runKey, st)]) for (const sfx of ['', '.accepted']) names.add(path.basename(p) + sfx);
+  if (stages.includes('designer')) for (const n of ['asset-requests.json', 'assets-manifest.json', 'assets-hold.json', 'render-params.json', 'attach_params.json', 'render']) names.add(n);
+  if (scratch) for (const n of ['assets', 'verification-result.json', 'research-output.json', 'research-raw.json']) names.add(n);
+  let moved = 0;
+  for (const n of names) {
+    const from = path.join(runDir, n);
+    if (!existsSync(from)) continue;
+    try { mkdirSync(dest, { recursive: true }); renameSync(from, path.join(dest, n)); moved++; } catch (e) { log(`arsip ${runKey}: ${n} gagal dipindah (${String(e?.code ?? e).slice(0, 40)})`); }
+  }
+  // Aset gambar yang bukan "scratch" tetap di tempat (Designer dapat memakai ulang); folder arsip hanya dibuat bila ada isinya.
+  if (moved) log(`arsip ${runKey}: ${moved} berkas/folder hasil lama dipindah ke arsip/${label}`);
+}
+
 async function createStage(job, stage, feedback = null) {
   let order = JSON.parse(readFileSync(orderPathFor(job.identifier), 'utf8'));
   if (feedback) order = { ...order, stages: { ...order.stages, [stage]: String(order.stages?.[stage] ?? '') + '\n\n' + feedback } };
@@ -560,7 +579,8 @@ async function applyActions(job, actions, facts) {
     else if (act.type === 'createStage') {
       // Putaran riset ulang: buang salinan .accepted & keluaran lama tahap Researcher/Verifier supaya hasil baru yang dinilai (bukan yang lama).
       // Berlaku juga untuk revisi dari QA: keluaran tahap yang diulang DAN semua tahap sesudahnya dibuang, supaya yang dinilai ulang selalu hasil baru.
-      if (act.feedback) for (const st of STAGES.slice(STAGES.indexOf(act.stage))) for (const sfx of ['.accepted', '']) { try { unlinkSync(outPathFor(runKeyOf(job), st) + sfx); } catch { /* belum ada */ } }
+      if (act.feedback && act.archive) archiveRunFiles(runKeyOf(job), STAGES.slice(STAGES.indexOf(act.stage)), act.archive, act.scratch === true);
+      else if (act.feedback) for (const st of STAGES.slice(STAGES.indexOf(act.stage))) for (const sfx of ['.accepted', '']) { try { unlinkSync(outPathFor(runKeyOf(job), st) + sfx); } catch { /* belum ada */ } }
       job.stageIssueId = await createStage(job, act.stage, act.feedback ?? null);
       if (act.stage === STAGES[0] && !act.feedback) { await onPlanAccepted(job); await parkMaster(job); }
     }

@@ -54,7 +54,9 @@
     "Slide pembuka dan penutup sekeluarga template",
     "Kata penekanan terbaca jelas (tidak sewarna latar), maksimal 2 per slide",
     "Gambar/logo asli proporsional, tidak terpotong, tidak menutupi teks",
-    "Margin dan jarak antar elemen setara dengan acuan; tidak ada slide yang terasa kosong atau penuh sesak dibanding acuan"
+    "Margin dan jarak antar elemen setara dengan acuan; tidak ada slide yang terasa kosong atau penuh sesak dibanding acuan",
+    "Font: famili, bobot, hierarki ukuran (kicker, judul, isi, footer), kapitalisasi, dan spasi huruf kicker sama dengan acuan; tidak ada teks jatuh ke font cadangan, tidak ada baris yatim satu kata",
+    "Foto: relevan dengan isi slide, tajam (tidak buram/pecah/berwatermark), crop menjaga subjek utama, fade ke hitam tidak menimpa subjek; logo/produk memakai tampilan asli"
   ],
   "referencePosts": [
     "https://www.instagram.com/p/DbfTzclGSfA/?img_index=1",

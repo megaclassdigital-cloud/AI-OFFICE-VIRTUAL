@@ -37,25 +37,41 @@ export const artifactPath = (outputsDir, identifier, stage, sep = '/') => [outpu
 export function checkQaResult(data) {
   if (!data || typeof data !== 'object' || typeof data.passed !== 'boolean') return { ok: false, errors: ['qa-result.json harus objek dengan "passed": true/false dan "notes": [..]'] };
   if (data.passed && !(data.llmReview && typeof data.llmReview.textOk === 'boolean' && typeof data.llmReview.designOk === 'boolean')) return { ok: false, errors: ['qa-result.json dengan passed=true wajib memuat "llmReview": {"textOk": true|false, "designOk": true|false}'] };
+  // Penilaian desain WAJIB eksplisit per aspek (layout, foto, font): QA tidak boleh meloloskan tanpa benar-benar memeriksa tiap aspek terhadap acuan.
+  const dr = data.designReview;
+  const drOk = dr && DESIGN_ASPECTS.every((k) => typeof dr[k] === 'boolean');
+  if (data.passed) {
+    if (!drOk) return { ok: false, errors: [`qa-result.json dengan passed=true wajib memuat "designReview": {${DESIGN_ASPECTS.map((k) => `"${k}": true|false`).join(', ')}} hasil pemeriksaan tiap aspek terhadap gambar acuan`] };
+    const bad = DESIGN_ASPECTS.filter((k) => dr[k] === false);
+    if (bad.length) return { ok: false, errors: [`passed=true bertentangan dengan designReview (${bad.join(', ')} = false); tulis passed=false dan returnTo departemen yang merevisi`] };
+  }
   if (!data.passed) {
     const notes = (Array.isArray(data.notes) ? data.notes : [data.notes ?? 'tanpa catatan']).map((n) => (typeof n === 'string' ? n : JSON.stringify(n)));
     const errors = [`QA menolak: ${notes.join('; ').slice(0, 300)}`];
-    // QA memilih departemen yang harus merevisi: "returnTo" (researcher|copywriter|designer) atau disimpulkan dari llmReview. Tanpa petunjuk = vonis fatal seperti dulu.
+    // QA memilih departemen yang harus merevisi: "returnTo" (researcher|copywriter|designer) atau disimpulkan dari llmReview/designReview. Tanpa petunjuk = vonis fatal seperti dulu.
     const want = [].concat(data.returnTo ?? []).map((x) => String(x).toLowerCase());
     let to = QA_RETURN_STAGES.filter((s) => want.includes(s));
+    // "fromScratch": isi/sumber tidak valid secara mendasar -> bikin ulang dari awal (Researcher), hasil lama diarsipkan rapi, bukan ditimpa.
+    const scratch = data.fromScratch === true;
+    if (scratch) to = ['researcher'];
     if (!to.length && data.llmReview?.textOk === false) to = ['copywriter'];
-    if (!to.length && data.llmReview?.designOk === false) to = ['designer'];
+    if (!to.length && (data.llmReview?.designOk === false || (drOk && DESIGN_ASPECTS.some((k) => dr[k] === false)))) to = ['designer'];
     if (!to.length) return { ok: false, fatal: true, errors };
-    return { ok: false, qaReturn: { to: to[0], departments: to, notes }, errors };
+    return { ok: false, qaReturn: { to: to[0], departments: to, notes, scratch }, errors };
   }
   return { ok: true, errors: [] };
 }
+/** Aspek desain yang wajib dinilai QA satu per satu terhadap acuan (patokan format owner). */
+export const DESIGN_ASPECTS = ['layout', 'photo', 'font'];
 /** Departemen yang boleh diminta QA untuk merevisi, urut dari hulu; revisi dari yang paling hulu, tahap sesudahnya otomatis berjalan ulang. */
 export const QA_RETURN_STAGES = ['researcher', 'copywriter', 'designer'];
 
 /** Teks umpan balik QA yang ditempelkan ke perintah tahap yang diulang. */
-export function qaFeedbackText(notes, stage, round) {
-  return `REVISI DARI QA (putaran ${round}): hasilmu ditolak QA. Perbaiki HANYA yang disebut, jangan mengubah yang sudah benar, lalu serahkan ulang.\nDepartemen yang diminta merevisi: ${STAGE_AGENT[stage]}.\nCatatan QA:\n- ${notes.join('\n- ').slice(0, 1500)}`;
+export function qaFeedbackText(notes, stage, round, scratch = false) {
+  const head = scratch
+    ? `REVISI DARI QA (putaran ${round}): isi/sumber sebelumnya dinyatakan TIDAK VALID. Kerjakan DARI AWAL dengan sumber dan kandidat baru; hasil lama sudah diarsipkan, jangan dipakai ulang.`
+    : `REVISI DARI QA (putaran ${round}): hasilmu ditolak QA. Perbaiki HANYA yang disebut, jangan mengubah yang sudah benar, lalu serahkan ulang.`;
+  return `${head}\nDepartemen yang diminta merevisi: ${STAGE_AGENT[stage]}.\nCatatan QA:\n- ${notes.join('\n- ').slice(0, 1500)}`;
 }
 const DONE_STATUSES = new Set(['in_review', 'done']);
 
@@ -337,7 +353,8 @@ export function step(job, facts) {
         if (loops >= LIMITS.maxQaLoops) { block(`QA masih menolak setelah ${loops} putaran revisi (${facts.output.errors.join('; ')}); butuh keputusan owner`); return { job: j, actions }; }
         j.qaLoops = loops + 1; j.stageRetries = 0; j.stageIndex = STAGES.indexOf(target); j.stageIssueId = null; j.stageStartedMs = facts.nowMs; j.stageAttempts = 1; j.assetHoldNotified = false;
         actions.push({ type: 'comment', text: `QA menolak dan meminta revisi ke ${STAGE_AGENT[target]} (putaran ${j.qaLoops} dari ${LIMITS.maxQaLoops}): ${facts.output.qaReturn.notes.join('; ').slice(0, 500)}` });
-        actions.push({ type: 'createStage', stage: target, feedback: qaFeedbackText(facts.output.qaReturn.notes, target, j.qaLoops) });
+        const scratch = facts.output.qaReturn.scratch === true;
+        actions.push({ type: 'createStage', stage: target, feedback: qaFeedbackText(facts.output.qaReturn.notes, target, j.qaLoops, scratch), archive: `qa-putaran-${j.qaLoops}-${scratch ? 'dari-awal' : target}`, scratch });
         return { job: j, actions };
       }
       if (facts.output && !facts.output.ok) {

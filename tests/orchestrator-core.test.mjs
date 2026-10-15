@@ -345,10 +345,27 @@ describe('QA meminta revisi langsung ke departemen', () => {
     expect(checkQaResult({ passed: false, llmReview: { textOk: false, designOk: true }, notes: ['teks'] }).qaReturn.to).toBe('copywriter');
     expect(checkQaResult({ passed: false, llmReview: { textOk: true, designOk: false }, notes: ['desain'] }).qaReturn.to).toBe('designer');
     expect(checkQaResult({ passed: false, notes: ['?'] }).fatal).toBe(true);
-    expect(checkQaResult({ passed: true, llmReview: { textOk: true, designOk: true } }).ok).toBe(true);
+    expect(checkQaResult({ passed: true, llmReview: { textOk: true, designOk: true }, designReview: { layout: true, photo: true, font: true } }).ok).toBe(true);
   });
   it('umpan balik QA menyebut departemen dan catatan', () => {
     const t = qaFeedbackText(['slide 3 salah'], 'designer', 1);
     expect(t).toContain('Designer'); expect(t).toContain('slide 3 salah');
+  });
+});
+
+describe('QA: penilaian desain wajib dan "buat dari awal"', () => {
+  const ok = { textOk: true, designOk: true };
+  it('passed=true wajib designReview lengkap dan tanpa false', () => {
+    expect(checkQaResult({ passed: true, llmReview: ok }).ok).toBe(false);
+    expect(checkQaResult({ passed: true, llmReview: ok, designReview: { layout: true, photo: true } }).ok).toBe(false);
+    expect(checkQaResult({ passed: true, llmReview: ok, designReview: { layout: true, photo: false, font: true } }).ok).toBe(false);
+    expect(checkQaResult({ passed: true, llmReview: ok, designReview: { layout: true, photo: true, font: true } }).ok).toBe(true);
+  });
+  it('designReview false tanpa returnTo -> Designer; fromScratch -> Researcher dengan scratch', () => {
+    const r = checkQaResult({ passed: false, llmReview: ok, designReview: { layout: true, photo: false, font: true }, notes: ['foto buram'] });
+    expect(r.qaReturn.to).toBe('designer');
+    const s = checkQaResult({ passed: false, fromScratch: true, returnTo: ['designer'], notes: ['isi tidak valid'] });
+    expect(s.qaReturn.to).toBe('researcher'); expect(s.qaReturn.scratch).toBe(true);
+    expect(qaFeedbackText(['x'], 'researcher', 1, true)).toContain('DARI AWAL');
   });
 });
