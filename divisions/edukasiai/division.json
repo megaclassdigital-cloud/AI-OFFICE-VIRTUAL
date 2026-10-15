@@ -3,7 +3,7 @@
   "key": "edukasiai",
   "companyName": "EdukasiAI",
   "description": "Division pertama AI Agent Office. Produksi carousel berita AI: research, verifikasi, copywriting, desain, QA, approval owner.",
-  "budgetMonthlyCents": 500,
+  "budgetMonthlyCents": 10000,
   "defaultAdapterType": "codex_local",
   "defaultAdapterConfig": {
     "cwd": "D:\\AI-Memory\\AI-Agent-Office\\workspace\\agent",
