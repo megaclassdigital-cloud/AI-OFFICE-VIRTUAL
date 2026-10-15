@@ -2,6 +2,7 @@
 // Semua keputusan tetap lewat decide() (hash paket + handoff + record bertanda tangan); modul ini hanya pintu HTTP-nya.
 // Loopback + same-origin + PIN (hash scrypt di .env) + pembatas percobaan salah. Tidak ada LLM di sini.
 import { readFile, readdir } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { verifyPin, readPinHash, createLimiter, hashPin, writePinHash, MIN_PIN } from '../../scripts/owner-pin.mjs';
@@ -20,6 +21,10 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
   const initTokenFn = deps.initOwnerToken ?? (() => initOwnerToken(path.join(repoRoot, '.env')));
   const approvalDirFn = deps.approvalDir ?? (() => defaultApprovalDir());
   const routingDir = routingDirFor(repoRoot);
+  // Menjalankan manager-failover.mjs (satu-satunya yang menyentuh model agent). Dapat diganti di tes lewat deps.runFailover.
+  const runFailover = deps.runFailover ?? ((args) => new Promise((resolve, reject) => {
+    execFile(process.execPath, [path.join(repoRoot, 'scripts', 'manager-failover.mjs'), ...args], { cwd: repoRoot, timeout: 90_000, windowsHide: true, maxBuffer: 1 << 20 }, (err, stdout, stderr) => (err ? reject(new Error(String(stderr || err.message).slice(0, 300))) : resolve(String(stdout))));
+  }));
 
   const sameOrigin = (req) => {
     if (req.headers.host !== `127.0.0.1:${port}`) return false;
@@ -63,6 +68,11 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
     if (!u.pathname.startsWith('/api/owner')) return false;
     try {
       if (u.pathname === '/api/owner/info' && req.method === 'GET') { json(res, 200, { enabled: true, pinSet: Boolean(readPinHash(envFile)), stages: ROUTE_STAGES }); return true; }
+      if (u.pathname === '/api/owner/models' && req.method === 'GET') {
+        const out = JSON.parse((await runFailover(['--status-json', '--agent', 'Manager'])).trim().split(/\r?\n/).pop());
+        json(res, 200, { agent: 'Manager', ...out.Manager, now: now() });
+        return true;
+      }
       if (u.pathname === '/api/owner/routing' && req.method === 'GET') { json(res, 200, { now: now(), pending: await pendingRoutings() }); return true; }
       if (req.method !== 'POST') { json(res, 405, { error: 'metode tidak didukung' }); return true; }
       if (!sameOrigin(req)) { json(res, 403, { error: 'origin ditolak' }); return true; }
@@ -106,6 +116,17 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
         return true;
       }
 
+      if (u.pathname === '/api/owner/switch-model') {
+        const { entry, pin } = body;
+        const pc = checkPin(pin);
+        if (!pc.ok) { json(res, pc.status, { error: pc.error }); return true; }
+        const info = JSON.parse((await runFailover(['--status-json', '--agent', 'Manager'])).trim().split(/\r?\n/).pop()).Manager;
+        if (entry === 'auto') { await runFailover(['--unpin', '--agent', 'Manager']); json(res, 200, { ok: true, mode: 'otomatis' }); return true; }
+        if (!info.chain.some((e) => e.id === entry)) { json(res, 400, { error: 'model tidak dikenal untuk Manager' }); return true; }
+        const out = await runFailover(['--pin', entry, '--agent', 'Manager']);
+        json(res, 200, { ok: true, mode: 'terkunci', entry, deferred: /sedang bekerja/.test(out) });
+        return true;
+      }
       if (u.pathname === '/api/owner/cancel-revision') {
         const { identifier, pin } = body;
         if (!ID_RE.test(String(identifier ?? ''))) { json(res, 400, { error: 'identifier tidak valid' }); return true; }

@@ -93,7 +93,7 @@ describe('konfigurasi rantai: Claude/ChatGPT hanya untuk Manager', () => {
     const { readFileSync } = await import('node:fs');
     const cfg = JSON.parse(readFileSync(new URL('../divisions/edukasiai/agent-models.json', import.meta.url), 'utf8'));
     expect(cfg.exclusiveProviders).toEqual(['chatgpt', 'claude']);
-    expect(cfg.agents.Manager.map((e) => e.id)).toEqual(['chatgpt', 'claude', 'gemini']);
+    expect(cfg.agents.Manager.map((e) => e.id)).toEqual(['chatgpt', 'claude', 'claude-haiku', 'gemini']);
     for (const [name, chain] of Object.entries(cfg.agents)) {
       if (name === 'Manager') continue;
       for (const e of chain) expect(['chatgpt', 'claude'].includes(e.provider ?? e.id), `${name}/${e.id}`).toBe(false); // Haiku pakai provider claude-haiku (non-eksklusif)

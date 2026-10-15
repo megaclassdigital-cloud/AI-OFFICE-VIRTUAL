@@ -112,6 +112,7 @@ async function main() {
     // PATCH menggabungkan config lama; kunci model dari adapter sebelumnya harus dikosongkan bila entri tidak menyebut model.
     const adapterConfig = { ...base, ...(entry.adapterConfig.model ? {} : { model: null }), ...entry.adapterConfig, ...(Object.keys(env).length ? { env } : {}) };
     await j(`/agents/${agent.id}`, jb('PATCH', { adapterType: entry.adapterType, adapterConfig }));
+    await j(`/agents/${agent.id}/runtime-state/reset-session`, jb('POST', {})).catch(() => {}); // sesi model/engine lama tidak bisa dilanjutkan oleh yang baru
     await j(`/agents/${agent.id}/resume`, jb('POST', {}));
     writeState(name, { ...readState(name), switchedAtMs: Date.now(), entry: entry.id });
     log(`${name} -> ${entry.label} (${entry.adapterType}) — ${why}`);
@@ -155,6 +156,20 @@ async function main() {
     const busy = isBusy(allRuns);
     const activeProviders = await activeProvidersExcept(name);
     const cur = chain[idx];
+    // TERKUNCI OLEH OWNER: tidak ada pindah otomatis (kuota, login, hari baru, kembali ke prioritas). Hanya memastikan model yang dikunci terpasang saat menganggur.
+    if (st.pinned) {
+      const pinnedIdx = chain.findIndex((e) => e.id === st.pinned);
+      if (pinnedIdx < 0) { writeState(name, { ...st, pinned: null }); log(`${name}: kunci model "${st.pinned}" tidak dikenal; kunci dilepas`); }
+      else {
+        if (idx !== pinnedIdx && !busy) await apply(name, chain[pinnedIdx], 'terkunci oleh owner');
+        const lastRun = allRuns.filter((r) => r.status !== 'cancelled')[0];
+        if (lastRun && ['failed', 'error', 'timed_out'].includes(lastRun.status) && Date.parse(lastRun.startedAt ?? 0) > (st.pinWarnedMs ?? 0) && isFailoverError(`${lastRun.error ?? ''} ${lastRun.errorCode ?? ''}`)) {
+          writeState(name, { ...readState(name), pinWarnedMs: Date.now() });
+          log(`${name}: model terkunci "${chain[pinnedIdx].label}" gagal (${String(lastRun.error).slice(0, 100)}). Tidak berpindah otomatis; pilih model lain atau "Otomatis" di TV (tab Manager).`);
+        }
+        return;
+      }
+    }
     // Hari baru: blokir dihapus dan kembali ke prioritas utama.
     if (shouldReset({ currentIdx: idx, lastSwitchMs: st.switchedAtMs, nowMs })) { writeState(name, { ...st, blocked: {} }); return apply(name, chain[0], 'hari baru, kembali ke prioritas utama'); }
     // Di luar rantai (mis. model manual/warisan): kembali ke rantai bila menganggur.
@@ -211,6 +226,30 @@ async function main() {
     writeState(name, { ...st, blocked });
     log(`${name}: ${id} ${a.includes('--block') ? 'DIBLOKIR ' + arg('--hours', 2) + ' jam (dipakai owner)' : 'dibuka blokirnya'}`);
     await once(name);
+  } else if (a.includes('--status-json')) {
+    const out = {};
+    for (const name of names) {
+      const agent = await agentOf(name); const st = readState(name); const ix = idxOf(name, agent);
+      out[name] = {
+        status: agent.status, adapterType: agent.adapterType, model: agent.adapterConfig?.model ?? null, effort: agent.adapterConfig?.effort ?? null,
+        current: ix >= 0 ? cfg.agents[name][ix].id : null, pinned: st.pinned ?? null, blocked: pruneBlocked(st.blocked, Date.now()),
+        chain: cfg.agents[name].map((e) => ({ id: e.id, label: e.label, provider: providerOf(e) })),
+      };
+    }
+    console.log(JSON.stringify(out));
+  } else if (a.includes('--pin') || a.includes('--unpin')) {
+    const name = arg('--agent', 'Manager');
+    const st = readState(name);
+    if (a.includes('--unpin')) { writeState(name, { ...st, pinned: null }); log(`${name}: kunci model dilepas (kembali otomatis)`); await once(name); }
+    else {
+      const id = arg('--pin'); const e = cfg.agents[name].find((x) => x.id === id);
+      if (!e) throw new Error(`id tidak dikenal: ${cfg.agents[name].map((x) => x.id).join('|')}`);
+      const blocked = pruneBlocked(st.blocked, Date.now()); delete blocked[id]; // pilihan owner mengalahkan blokir otomatis
+      writeState(name, { ...st, blocked, pinned: id, pinWarnedMs: Date.now() });
+      log(`${name}: model DIKUNCI ke ${e.label} oleh owner`);
+      const ok = await apply(name, e, 'dikunci oleh owner');
+      if (!ok) log(`${name}: sedang bekerja; ${e.label} dipasang otomatis begitu agent menganggur`);
+    }
   } else if (a.includes('--use')) {
     const name = arg('--agent', 'Manager');
     const e = cfg.agents[name].find((x) => x.id === arg('--use'));

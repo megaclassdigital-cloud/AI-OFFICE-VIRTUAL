@@ -58,8 +58,20 @@ export function ownerDecisionPanel({ issueId, cmdFallback, wrapClass = 'owner-pa
     const stage = h('select', { class: 'owner-stage', 'aria-label': 'Tahap tujuan revisi' }, STAGE_OPTIONS.map(([v, t]) => h('option', { value: v }, t)));
     const msg = h('div', { class: 'owner-msg', role: 'status' });
     const approve = h('button', { type: 'button', class: 'owner-approve' }, '✔ Setujui');
-    const reject = h('button', { type: 'button', class: 'owner-reject' }, '✖ Tolak dan revisi');
-    const busy = (b) => { approve.disabled = b; reject.disabled = b; };
+    const reject = h('button', { type: 'button', class: 'owner-reject' }, '✖ Tolak');
+    const form = h('div', { class: 'owner-form' });
+    const busy = (b) => { for (const x of root.querySelectorAll('button')) x.disabled = b; };
+    // Bawaan: hanya dua tombol. Setujui -> minta PIN lalu konfirmasi. Tolak -> alasan + pilihan tahap + PIN lalu kirim.
+    const showForm = (mode) => {
+      if (!mode) { form.replaceChildren(); msg.textContent = ''; return; }
+      const go = h('button', { type: 'button', class: mode === 'approve' ? 'owner-approve' : 'owner-reject', onclick: () => send(mode) }, mode === 'approve' ? 'Konfirmasi setuju' : 'Kirim penolakan');
+      const back = h('button', { type: 'button', class: 'ghost sm', onclick: () => showForm(null) }, 'Batal');
+      form.replaceChildren(
+        mode === 'reject' ? h('label', { class: 'sub' }, 'Alasan penolakan (wajib)') : null, mode === 'reject' ? note : null,
+        mode === 'reject' ? h('label', { class: 'sub' }, 'Revisi dimulai dari') : null, mode === 'reject' ? stage : null,
+        pin, h('div', { class: 'owner-actions' }, go, back));
+      (mode === 'reject' ? note : pin).focus();
+    };
     const say = (t, bad = false) => { msg.textContent = t; msg.className = `owner-msg ${bad ? 'bad' : 'ok'}`; };
 
     async function send(decision) {
@@ -69,10 +81,11 @@ export function ownerDecisionPanel({ issueId, cmdFallback, wrapClass = 'owner-pa
       const r = await post('/api/owner/decide', { issueId, decision, note: note.value, stage: stage.value || null, pin: pin.value });
       pin.value = '';
       busy(false);
+      if (r.ok) { approve.disabled = true; reject.disabled = true; }
       if (!r.ok) return say(r.data?.error ?? `Gagal (${r.status})`, true);
-      if (decision === 'approve') { say('Disetujui. Paket publikasi disiapkan terpisah; tidak ada posting otomatis.'); approve.disabled = true; reject.disabled = true; return; }
+      if (decision === 'approve') { form.replaceChildren(); say('Disetujui. Paket publikasi disiapkan terpisah; tidak ada posting otomatis.'); approve.disabled = true; reject.disabled = true; return; }
       say(r.data.returnedTo ? `Ditolak. Manager menentukan divisi revisi (jendela batal 60 detik).` : 'Ditolak. Revisi dijadwalkan dari tahap pilihan Anda (jendela batal 60 detik).');
-      approve.disabled = true; reject.disabled = true;
+      form.replaceChildren(); approve.disabled = true; reject.disabled = true;
       watchCancel();
     }
 
@@ -95,11 +108,11 @@ export function ownerDecisionPanel({ issueId, cmdFallback, wrapClass = 'owner-pa
       for (let i = 0; i < 70 && (await tick()); i++) await new Promise((res) => setTimeout(res, 1000));
     }
 
-    approve.addEventListener('click', () => send('approve'));
-    reject.addEventListener('click', () => send('reject'));
+    approve.addEventListener('click', () => showForm('approve'));
+    reject.addEventListener('click', () => showForm('reject'));
     root.replaceChildren(
       h('p', { class: 'sub' }, 'Paket sudah lolos QA dan diserahkan. Keputusan Anda dicatat dan terikat pada isi paket saat ini.'),
-      pin, note, stage, h('div', { class: 'owner-actions' }, approve, reject), cancelBox, msg);
+      h('div', { class: 'owner-actions' }, approve, reject), form, cancelBox, msg);
   };
   build();
   return root;

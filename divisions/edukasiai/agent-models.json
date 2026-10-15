@@ -16,10 +16,23 @@
       {
         "id": "claude",
         "provider": "claude",
-        "label": "Claude (OAuth)",
+        "label": "Claude Sonnet 5 (OAuth, effort low)",
         "adapterType": "claude_local",
         "adapterConfig": {
-          "model": "claude-sonnet-5"
+          "model": "claude-sonnet-5",
+          "effort": "low",
+          "engine": "cli"
+        }
+      },
+      {
+        "id": "claude-haiku",
+        "provider": "claude",
+        "label": "Claude Haiku 4.5 (OAuth, effort medium)",
+        "adapterType": "claude_local",
+        "adapterConfig": {
+          "model": "claude-haiku-4-5",
+          "effort": "medium",
+          "engine": "cli"
         }
       },
       {

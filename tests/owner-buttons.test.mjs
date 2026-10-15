@@ -183,3 +183,29 @@ describe('reject ulang konten yang pernah ditolak', () => {
     expect(productionStatus({ master: { status: 'blocked' }, hasHandoff: true, job: null }).key).not.toBe('menunggu_approval');
   });
 });
+
+describe('ganti model Manager dari TV (PIN, kunci/otomatis)', () => {
+  it('PIN salah ditolak; id tidak dikenal 400; kunci memanggil --pin; otomatis memanggil --unpin; daftar model terbaca', async () => {
+    const root = makeTmp('aao-model-'); const env = path.join(root, '.env');
+    writePinHash(hashPin(PIN), env);
+    const calls = [];
+    const info = { Manager: { status: 'idle', current: 'claude', pinned: null, blocked: {}, chain: [{ id: 'chatgpt', label: 'ChatGPT', provider: 'chatgpt' }, { id: 'claude', label: 'Sonnet low', provider: 'claude' }] } };
+    const runFailover = async (args) => { calls.push(args.join(' ')); return args.includes('--status-json') ? JSON.stringify(info) : 'ok'; };
+    const srv = http.createServer(); await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const handle = createOwner({ base: 'http://127.0.0.1:1', port, repoRoot: root, envFile: env, deps: { runFailover } });
+    const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
+    srv.on('request', async (req, res) => { if (!(await handle(req, res, new URL(req.url, 'http://x'), json))) json(res, 404, {}); });
+    const post = (body) => fetch(`http://127.0.0.1:${port}/api/owner/switch-model`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect((await post({ entry: 'chatgpt', pin: 'salah-123' })).status).toBe(403);
+    expect(calls.some((c) => c.includes('--pin'))).toBe(false);
+    expect((await post({ entry: 'tidak-ada', pin: PIN })).status).toBe(400);
+    expect((await post({ entry: 'chatgpt', pin: PIN })).status).toBe(200);
+    expect(calls).toContain('--pin chatgpt --agent Manager');
+    expect(await (await post({ entry: 'auto', pin: PIN })).json()).toMatchObject({ ok: true, mode: 'otomatis' });
+    expect(calls).toContain('--unpin --agent Manager');
+    const m = await (await fetch(`http://127.0.0.1:${port}/api/owner/models`)).json();
+    expect(m).toMatchObject({ agent: 'Manager', current: 'claude' }); expect(m.chain.map((e) => e.id)).toEqual(['chatgpt', 'claude']);
+    srv.close();
+  });
+});

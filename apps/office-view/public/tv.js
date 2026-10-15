@@ -138,9 +138,48 @@ function decision(d) {
   return h('div', { class: 'tv-card decide' }, h('h4', {}, 'Menunggu keputusan Owner'), ownerDecisionPanel({ issueId: d.master.id, cmdFallback: cmd }));
 }
 
+// Kartu "Model Manager": owner memilih dan MENGUNCI model Manager (mis. ChatGPT) atau kembali ke Otomatis. Butuh PIN; server yang menegakkan.
+let modelEl = null;
+function modelCard() {
+  if (modelEl) { refreshModels(); return modelEl; }
+  const body = h('div', { class: 'model-body' }, h('p', { class: 'sub' }, 'Memuat…'));
+  modelEl = h('div', { class: 'tv-card model-card' }, h('h4', {}, '🧭 Model Manager'), body);
+  modelEl._body = body;
+  refreshModels();
+  return modelEl;
+}
+async function refreshModels() {
+  const body = modelEl?._body; if (!body) return;
+  let m = null; try { m = await jget('/api/owner/models'); } catch { /* server lama */ }
+  if (!m || !m.chain) { body.replaceChildren(h('p', { class: 'sub' }, 'Pilihan model belum tersedia (Office View perlu --enable-owner dan PIN diatur).')); return; }
+  const label = (id) => m.chain.find((e) => e.id === id)?.label ?? id ?? 'tidak dikenal';
+  const hh = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+  const blocked = Object.entries(m.blocked ?? {}).map(([id, until]) => `${label(id)} diblokir sampai ${hh(until)}`);
+  const sel = h('select', { class: 'owner-stage', 'aria-label': 'Pilih model Manager' },
+    h('option', { value: 'auto' }, 'Otomatis (pindah sendiri saat limit/login habis)'),
+    m.chain.map((e) => h('option', { value: e.id }, `Kunci ke: ${e.label}`)));
+  sel.value = m.pinned ?? 'auto';
+  const pin = h('input', { type: 'password', autocomplete: 'off', placeholder: 'PIN owner', class: 'owner-pin', 'aria-label': 'PIN owner' });
+  const msg = h('div', { class: 'owner-msg', role: 'status' });
+  const go = h('button', { type: 'button', class: 'owner-approve', onclick: async () => {
+    if (!pin.value) { msg.textContent = 'Isi PIN owner dulu.'; msg.className = 'owner-msg bad'; return; }
+    go.disabled = true; msg.textContent = 'Memproses…'; msg.className = 'owner-msg';
+    let r; try { r = await fetch('/api/owner/switch-model', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entry: sel.value, pin: pin.value }) }); } catch { r = null; }
+    const data = r ? await r.json().catch(() => ({})) : {};
+    pin.value = ''; go.disabled = false;
+    if (!r?.ok) { msg.textContent = data.error ?? 'Gagal mengganti model'; msg.className = 'owner-msg bad'; return; }
+    msg.textContent = data.mode === 'otomatis' ? 'Kembali otomatis.' : (data.deferred ? 'Terkunci. Manager sedang bekerja; model dipasang begitu ia menganggur.' : 'Model dipasang dan dikunci.'); msg.className = 'owner-msg ok';
+    setTimeout(refreshModels, 1500);
+  } }, 'Terapkan');
+  body.replaceChildren(
+    h('p', {}, h('b', {}, label(m.current)), m.effort ? ` · effort ${m.effort}` : '', ' ', h('span', { class: `tv-chip ${m.pinned ? 'warn' : 'ok'}` }, m.pinned ? '🔒 terkunci' : 'otomatis')),
+    blocked.length ? h('p', { class: 'sub bad' }, blocked.join(' · ')) : null,
+    sel, pin, h('div', { class: 'owner-actions' }, go), msg);
+}
+
 function manager(d) {
-  const m = d.manager; if (!m) return empty();
-  return h('div', {}, lead(`Manager menyusun rencana kerja "${m.title}" dan membagi tugas ke ${m.plans.length} divisi. Berikut instruksi yang diberikan:`),
+  const m = d.manager; if (!m) return h('div', {}, modelCard(), empty());
+  return h('div', {}, modelCard(), lead(`Manager menyusun rencana kerja "${m.title}" dan membagi tugas ke ${m.plans.length} divisi. Berikut instruksi yang diberikan:`),
     m.plans.map((p) => card(h('h4', {}, p.agent), h('p', { class: 'pre' }, p.instruction))));
 }
 function researcher(d) {
