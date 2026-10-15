@@ -337,3 +337,18 @@ describe('Verifier -> kembali ke Researcher bila terlalu sedikit yang valid', ()
     expect(step(atVerifier({ stageIndex: 2 }), { stage: { status: 'in_review' }, nowMs: T0 + 10 }).job.stageIndex).toBe(3);
   });
 });
+
+import { checkQaResult, qaFeedbackText } from '../scripts/orchestrator-core.mjs';
+describe('QA meminta revisi langsung ke departemen', () => {
+  it('passed=false dengan returnTo/llmReview -> qaReturn ke departemen hulu; tanpa petunjuk tetap fatal', () => {
+    expect(checkQaResult({ passed: false, returnTo: ['designer', 'researcher'], notes: ['x'] }).qaReturn.to).toBe('researcher');
+    expect(checkQaResult({ passed: false, llmReview: { textOk: false, designOk: true }, notes: ['teks'] }).qaReturn.to).toBe('copywriter');
+    expect(checkQaResult({ passed: false, llmReview: { textOk: true, designOk: false }, notes: ['desain'] }).qaReturn.to).toBe('designer');
+    expect(checkQaResult({ passed: false, notes: ['?'] }).fatal).toBe(true);
+    expect(checkQaResult({ passed: true, llmReview: { textOk: true, designOk: true } }).ok).toBe(true);
+  });
+  it('umpan balik QA menyebut departemen dan catatan', () => {
+    const t = qaFeedbackText(['slide 3 salah'], 'designer', 1);
+    expect(t).toContain('Designer'); expect(t).toContain('slide 3 salah');
+  });
+});

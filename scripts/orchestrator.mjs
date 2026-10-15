@@ -559,7 +559,8 @@ async function applyActions(job, actions, facts) {
     if (act.type === 'comment') await comment(job.masterIssueId, act.text);
     else if (act.type === 'createStage') {
       // Putaran riset ulang: buang salinan .accepted & keluaran lama tahap Researcher/Verifier supaya hasil baru yang dinilai (bukan yang lama).
-      if (act.feedback) for (const st of ['researcher', 'verifier']) for (const sfx of ['.accepted', '']) { try { unlinkSync(outPathFor(runKeyOf(job), st) + sfx); } catch { /* belum ada */ } }
+      // Berlaku juga untuk revisi dari QA: keluaran tahap yang diulang DAN semua tahap sesudahnya dibuang, supaya yang dinilai ulang selalu hasil baru.
+      if (act.feedback) for (const st of STAGES.slice(STAGES.indexOf(act.stage))) for (const sfx of ['.accepted', '']) { try { unlinkSync(outPathFor(runKeyOf(job), st) + sfx); } catch { /* belum ada */ } }
       job.stageIssueId = await createStage(job, act.stage, act.feedback ?? null);
       if (act.stage === STAGES[0] && !act.feedback) { await onPlanAccepted(job); await parkMaster(job); }
     }

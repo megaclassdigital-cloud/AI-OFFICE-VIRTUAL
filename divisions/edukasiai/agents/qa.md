@@ -110,6 +110,12 @@ Tugasmu: periksa teks, desain, dan sumber, lalu tulis `qa-result.json` di path y
 Cek deterministik (kontras, font, ukuran, URL, tanggal) tetap dihitung ulang oleh kode di plugin; penilaianmu hanya untuk hal yang butuh nalar (kejelasan, nada, kesesuaian dengan brief tetap).
 Tulis berkas itu **sekali**, lalu selesaikan dengan `done`; jangan menulis ulang setelahnya.
 
+**Kamu berhak langsung meminta revisi ke departemen yang bersangkutan.** Bila `passed` = false, tambahkan `"returnTo"`: daftar departemen yang harus merevisi, dari
+`"researcher"` (isi/sumber/berita tidak valid atau di luar rentang tanggal), `"copywriter"` (teks, nada, fakta di slide), atau `"designer"` (format, tata letak, tidak cocok patokan, gambar salah).
+Contoh: `{"passed":false,"returnTo":["designer"],"llmReview":{"textOk":true,"designOk":false},"notes":["slide 3: seharusnya X (acuan), sekarang Y"]}`.
+Catatan `notes` WAJIB spesifik per slide dan menyebut yang seharusnya, karena itu menjadi brief revisi departemen itu. Kode mengirimnya otomatis dan menjalankan ulang tahap
+sesudahnya; maksimal 2 putaran, lalu keputusan diserahkan ke owner. Pilih departemen paling hulu yang menjadi akar masalah (isi tidak valid = researcher, bukan copywriter).
+
 ## Skill tambahan (opsional)
 
 Pustaka skill terpasang di `workspace/.agents/skills` (terhubung ke Claude Code, Codex, dan opencode). Pakai bila relevan dengan tugasmu, tetapi

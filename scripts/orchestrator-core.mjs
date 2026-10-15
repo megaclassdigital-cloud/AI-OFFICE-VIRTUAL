@@ -3,7 +3,7 @@
 
 export const STAGES = ['researcher', 'verifier', 'copywriter', 'designer', 'qa'];
 export const STAGE_AGENT = { researcher: 'Researcher', verifier: 'Verifier', copywriter: 'Copywriter', designer: 'Designer', qa: 'QA' };
-export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxStageAttempts: 3, maxNetRetries: 20, maxText: 4000, maxResearchLoops: 2, minVerified: 3 });
+export const LIMITS = Object.freeze({ planningTimeoutMs: 20 * 60_000, stageTimeoutMs: 30 * 60_000, maxPlanRetries: 2, maxStageRetries: 1, maxStageAttempts: 3, maxNetRetries: 20, maxText: 4000, maxResearchLoops: 2, maxQaLoops: 2, minVerified: 3 });
 
 /** Galat jaringan (permintaan agent tidak sampai ke penyedia): ditangani sebagai "tunggu online", bukan kegagalan tahap. */
 export const isNetworkError = (text) => /cannot connect to api|unable to connect|socket connection was closed|econnreset|enotfound|etimedout|eai_again|fetch failed|getaddrinfo|network|typo in the url|connection (was )?(refused|reset)/i.test(String(text ?? ''));
@@ -37,8 +37,25 @@ export const artifactPath = (outputsDir, identifier, stage, sep = '/') => [outpu
 export function checkQaResult(data) {
   if (!data || typeof data !== 'object' || typeof data.passed !== 'boolean') return { ok: false, errors: ['qa-result.json harus objek dengan "passed": true/false dan "notes": [..]'] };
   if (data.passed && !(data.llmReview && typeof data.llmReview.textOk === 'boolean' && typeof data.llmReview.designOk === 'boolean')) return { ok: false, errors: ['qa-result.json dengan passed=true wajib memuat "llmReview": {"textOk": true|false, "designOk": true|false}'] };
-  if (!data.passed) return { ok: false, fatal: true, errors: [`QA menolak: ${(Array.isArray(data.notes) ? data.notes : [data.notes ?? 'tanpa catatan']).join('; ').slice(0, 300)}`] };
+  if (!data.passed) {
+    const notes = (Array.isArray(data.notes) ? data.notes : [data.notes ?? 'tanpa catatan']).map((n) => (typeof n === 'string' ? n : JSON.stringify(n)));
+    const errors = [`QA menolak: ${notes.join('; ').slice(0, 300)}`];
+    // QA memilih departemen yang harus merevisi: "returnTo" (researcher|copywriter|designer) atau disimpulkan dari llmReview. Tanpa petunjuk = vonis fatal seperti dulu.
+    const want = [].concat(data.returnTo ?? []).map((x) => String(x).toLowerCase());
+    let to = QA_RETURN_STAGES.filter((s) => want.includes(s));
+    if (!to.length && data.llmReview?.textOk === false) to = ['copywriter'];
+    if (!to.length && data.llmReview?.designOk === false) to = ['designer'];
+    if (!to.length) return { ok: false, fatal: true, errors };
+    return { ok: false, qaReturn: { to: to[0], departments: to, notes }, errors };
+  }
   return { ok: true, errors: [] };
+}
+/** Departemen yang boleh diminta QA untuk merevisi, urut dari hulu; revisi dari yang paling hulu, tahap sesudahnya otomatis berjalan ulang. */
+export const QA_RETURN_STAGES = ['researcher', 'copywriter', 'designer'];
+
+/** Teks umpan balik QA yang ditempelkan ke perintah tahap yang diulang. */
+export function qaFeedbackText(notes, stage, round) {
+  return `REVISI DARI QA (putaran ${round}): hasilmu ditolak QA. Perbaiki HANYA yang disebut, jangan mengubah yang sudah benar, lalu serahkan ulang.\nDepartemen yang diminta merevisi: ${STAGE_AGENT[stage]}.\nCatatan QA:\n- ${notes.join('\n- ').slice(0, 1500)}`;
 }
 const DONE_STATUSES = new Set(['in_review', 'done']);
 
@@ -312,6 +329,15 @@ export function step(job, facts) {
         // Tahan menunggu aset asli (owner/inbox/verifikasi): bukan kegagalan, tanpa percobaan ulang, jam tahap tidak berjalan.
         if (j.stageStartedMs) j.stageStartedMs += dt;
         if (!j.assetHoldNotified) { j.assetHoldNotified = true; actions.push({ type: 'holdAssets', text: facts.output.errors.join(String.fromCharCode(10)) }); }
+        return { job: j, actions };
+      }
+      if (facts.output?.qaReturn && stageName === 'qa') {
+        // QA meminta revisi langsung ke departemen terkait (maks. LIMITS.maxQaLoops putaran), bukan memblokir job.
+        const loops = j.qaLoops ?? 0; const target = facts.output.qaReturn.to;
+        if (loops >= LIMITS.maxQaLoops) { block(`QA masih menolak setelah ${loops} putaran revisi (${facts.output.errors.join('; ')}); butuh keputusan owner`); return { job: j, actions }; }
+        j.qaLoops = loops + 1; j.stageRetries = 0; j.stageIndex = STAGES.indexOf(target); j.stageIssueId = null; j.stageStartedMs = facts.nowMs; j.stageAttempts = 1; j.assetHoldNotified = false;
+        actions.push({ type: 'comment', text: `QA menolak dan meminta revisi ke ${STAGE_AGENT[target]} (putaran ${j.qaLoops} dari ${LIMITS.maxQaLoops}): ${facts.output.qaReturn.notes.join('; ').slice(0, 500)}` });
+        actions.push({ type: 'createStage', stage: target, feedback: qaFeedbackText(facts.output.qaReturn.notes, target, j.qaLoops) });
         return { job: j, actions };
       }
       if (facts.output && !facts.output.ok) {
