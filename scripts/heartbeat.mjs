@@ -1,6 +1,7 @@
 // heartbeat.mjs — detak jantung komponen (orkestrator, failover): bukti hidup + bukti terhubung ke Paperclip yang bisa dibaca pengawas.
 // Penulis: komponen itu sendiri tiap putaran; pembaca: office-launcher (dan Office View). Tanpa LLM.
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 export const heartbeatDir = (root) => path.join(root, 'workspace', 'heartbeats');
@@ -27,7 +28,10 @@ export function acquireLock(root, name, alive = (p) => { try { process.kill(p, 0
   try {
     if (existsSync(file)) {
       const pid = Number(readFileSync(file, 'utf8').trim());
-      if (Number.isInteger(pid) && pid > 0 && pid !== process.pid && alive(pid)) return { ok: false, pid, file };
+      // Kunci yang ditulis SEBELUM laptop terakhir menyala adalah sisa mati listrik/reboot: PID-nya bisa dipakai proses lain, jadi abaikan.
+      const bootMs = Date.now() - os.uptime() * 1000;
+      const fromBeforeBoot = statSync(file).mtimeMs < bootMs - 5000;
+      if (!fromBeforeBoot && Number.isInteger(pid) && pid > 0 && pid !== process.pid && alive(pid)) return { ok: false, pid, file };
     }
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, String(process.pid), 'utf8');

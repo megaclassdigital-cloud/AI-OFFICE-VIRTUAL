@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } fr
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isOffline, readNetworkState, isNetworkError } from './netcheck.mjs';
+import { writeJsonAtomic, readJsonSafe } from './safe-json.mjs';
 import { writeHeartbeat, waitForPaperclip, isConnectionError } from './heartbeat.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -76,9 +77,9 @@ async function main() {
   const cfg = JSON.parse(readFileSync(path.join(ROOT, 'divisions', 'edukasiai', 'agent-models.json'), 'utf8'));
   const stateFile = path.join(ROOT, 'workspace', 'failover-state.json');
   const logFile = path.join(ROOT, 'reports', 'failover.log');
-  const readAll = () => { try { return JSON.parse(readFileSync(stateFile, 'utf8').replace(/^﻿/, '')); } catch { return {}; } };
+  const readAll = () => readJsonSafe(stateFile, {});
   const readState = (name) => readAll()[name] ?? { switchedAtMs: 0, entry: null };
-  const writeState = (name, st) => { const all = readAll(); all[name] = st; mkdirSync(path.dirname(stateFile), { recursive: true }); writeFileSync(stateFile, JSON.stringify(all, null, 2)); };
+  const writeState = (name, st) => { const all = readAll(); all[name] = st; writeJsonAtomic(stateFile, all); };
   const log = (m) => { const l = `${new Date().toISOString()} ${m}`; console.log(l); mkdirSync(path.dirname(logFile), { recursive: true }); appendFileSync(logFile, l + '\n'); };
 
   const j = async (p, o) => { const r = await fetch(API + p, o); const t = await r.text(); try { return JSON.parse(t); } catch { return t; } };

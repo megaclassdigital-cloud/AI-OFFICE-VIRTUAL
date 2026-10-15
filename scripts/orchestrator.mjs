@@ -19,6 +19,7 @@ import { contentOf, revisionOf, runDirOf, nextRunKey, writeRunMeta, runKeyForMas
 import { renderManagerContext, startOfDayWib } from './manager-context.mjs';
 import { appendOutbox, buildPlanMessage, speakerName } from './manager-outbox.mjs';
 import { buildManagerInstruction } from './manager-instruction.mjs';
+import { writeJsonAtomic, readJsonSafe } from './safe-json.mjs';
 import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelFile, doneFile } from './revision-router.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
@@ -49,8 +50,9 @@ function pickBlocked(s, needStage) {
   if (s.job && ok(s.job)) return s.job;
   return [...(s.history ?? [])].filter(ok).sort((a, b) => (b.createdMs ?? 0) - (a.createdMs ?? 0))[0] ?? null;
 }
-const readState = () =>(existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : { job: null, history: [], pending: [] });
-const writeState = (s) => { mkdirSync(path.dirname(STATE), { recursive: true }); writeFileSync(STATE, JSON.stringify(s, null, 2)); };
+// Tahan mati listrik: tulis atomik + cadangan .bak; state rusak jatuh ke cadangan (bukan crash berulang).
+const readState = () => readJsonSafe(STATE, { job: null, history: [], pending: [] });
+const writeState = (s) => writeJsonAtomic(STATE, s);
 
 if (!(await waitForPaperclip(API, { log, maxMs: a.includes('--watch') ? 20 * 60_000 : 0 })) && a.includes('--watch')) { log('Paperclip tidak siap dalam 20 menit; keluar agar pengawas memulai ulang'); process.exit(1); }
 const company = (await j('/companies')).find((c) => /edukasi/i.test(c.name));
