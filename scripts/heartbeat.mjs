@@ -45,7 +45,8 @@ export async function waitForPaperclip(api, { log = () => {}, maxMs = 20 * 60_00
   const t0 = Date.now(); let said = false;
   for (;;) {
     try {
-      const r = await fetch(api + '/api/health', { signal: AbortSignal.timeout(8000) });
+      // Pemanggil memberi basis dengan atau tanpa akhiran /api (orkestrator/failover memakai ".../api"): samakan sebelum menambah /api/health.
+      const r = await fetch(String(api).replace(/\/api\/?$/, '').replace(/\/$/, '') + '/api/health', { signal: AbortSignal.timeout(8000) });
       if (r.ok && (await r.json())?.status === 'ok') return true;
     } catch { /* belum siap */ }
     if (!said) { log('Paperclip belum siap; menunggu (tidak keluar)'); said = true; }

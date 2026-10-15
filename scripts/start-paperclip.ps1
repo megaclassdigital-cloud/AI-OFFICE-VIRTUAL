@@ -115,6 +115,21 @@ if (-not (Test-Path $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 }
 
+# Postgres tertanam menulis db\postmaster.pid berisi PID-nya. Bila Paperclip dimatikan paksa, berkas itu tertinggal; lalu PID-nya dipakai ulang oleh
+# proses LAIN (mis. gk.exe, chrome) dan Paperclip menolak start: "Refusing to reuse PostgreSQL: its data directory belongs to another instance".
+# Hapus berkas itu HANYA bila PID di dalamnya bukan proses postgres yang hidup (Postgres sendiri melakukan pemulihan WAL saat start; data aman).
+function Clear-StalePostmasterPid {
+    $pidFile = Join-Path $env:USERPROFILE '.paperclip\instances\default\db\postmaster.pid'
+    if (-not (Test-Path $pidFile)) { return }
+    $first = (Get-Content -LiteralPath $pidFile -TotalCount 1 -ErrorAction SilentlyContinue)
+    $owner = $null
+    if ($first -match '^[0-9]+$') { $owner = Get-Process -Id ([int]$first) -ErrorAction SilentlyContinue }
+    if ($owner -and $owner.ProcessName -match '^postgres') { return }   # Postgres sungguhan masih hidup: jangan disentuh
+    Write-Host "postmaster.pid basi (PID $first bukan postgres: $(if ($owner) { $owner.ProcessName } else { 'tidak ada proses' })). Dihapus agar Paperclip bisa start."
+    Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+}
+if (-not $Foreground) { Clear-StalePostmasterPid }
+
 $env:Path = Get-NodePath
 # Gemini CLI ACP cold start can exceed Paperclip default of 15s on this machine.
 $env:ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS = '120000'

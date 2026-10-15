@@ -64,7 +64,7 @@ describe('konfigurasi agent', () => {
   it('working directory agent = workspace/agent di dalam repo, timeout terbatas, tanpa izin interaktif', () => {
     const c = div.defaultAdapterConfig;
     expect(path.normalize(c.cwd)).toBe(path.normalize(path.join(repoRoot, 'workspace', 'agent')));
-    expect(c.timeoutSec).toBeLessThanOrEqual(900);
+    expect(c.timeoutSec).toBeLessThanOrEqual(1800); // batas wajar 30 menit (keputusan 25 menit di 503432b); bukan tanpa batas
     expect(c.nonInteractivePermissions).toBe('deny');
   });
   it('tidak ada secret atau flag bypass sandbox di konfigurasi division', () => {

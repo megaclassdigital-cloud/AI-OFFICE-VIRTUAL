@@ -5,24 +5,74 @@
   "referenceDesign": "divisions/edukasiai/brand/reference/patokan-design.json",
   "variant": {
     "uniformPerCarousel": true,
-    "allowed": ["model", "editorial", "risiko", "teknologi"],
-    "legacy": ["default", "tegas", "terang"],
+    "allowed": [
+      "model",
+      "editorial",
+      "risiko",
+      "teknologi"
+    ],
+    "legacy": [
+      "default",
+      "tegas",
+      "terang"
+    ],
     "catatan": "Satu carousel memakai SATU varian warna untuk semua slide. Varian dipilih sesuai topik: model (rilis model), editorial (analisis/cek fakta), risiko (keamanan/regulasi), teknologi (produk/infrastruktur). Varian lama hanya untuk fixture uji."
   },
   "family": {
-    "hero": ["hero-cover", "hero-explain", "hero-cta"],
-    "plain": ["cover", "point", "cta"],
-    "neutral": ["stat", "quote", "comparison", "compare-cards", "flow", "icon-list"],
+    "hero": [
+      "hero-cover",
+      "hero-explain",
+      "hero-cta"
+    ],
+    "plain": [
+      "cover",
+      "point",
+      "cta"
+    ],
+    "neutral": [
+      "stat",
+      "quote",
+      "comparison",
+      "compare-cards",
+      "flow",
+      "icon-list"
+    ],
     "catatan": "Slide pembuka dan penutup harus satu keluarga (hero-cover dengan hero-cta, atau cover dengan cta), supaya carousel terasa satu seri."
   },
-  "structure": { "firstRole": "hook", "lastRole": "cta", "minSlides": 6, "maxSlides": 10 },
-  "emphasis": { "maxPerSlide": 2 },
+  "structure": {
+    "firstRole": "hook",
+    "lastRole": "cta",
+    "minSlides": 6,
+    "maxSlides": 10
+  },
+  "emphasis": {
+    "maxPerSlide": 2
+  },
   "visualChecklist": [
-    "Palet, font, dan posisi logo/penomoran sama dengan gambar acuan (contact sheet patokan)",
+    "Format sama dengan postingan acuan owner (gambar di reference/ig/ dan empat tautan referencePosts): foto atas memudar ke hitam, blok teks kiri bawah, kicker kecil, kata kunci beraksen, footer handle kiri dan sumber kanan",
     "Satu varian warna di semua slide",
     "Slide pembuka dan penutup sekeluarga template",
     "Kata penekanan terbaca jelas (tidak sewarna latar), maksimal 2 per slide",
     "Gambar/logo asli proporsional, tidak terpotong, tidak menutupi teks",
     "Margin dan jarak antar elemen setara dengan acuan; tidak ada slide yang terasa kosong atau penuh sesak dibanding acuan"
+  ],
+  "referencePosts": [
+    "https://www.instagram.com/p/DbfTzclGSfA/?img_index=1",
+    "https://www.instagram.com/p/DbhMcOdGXcN/?img_index=1",
+    "https://www.instagram.com/p/DbzNW8co-vA/?img_index=1",
+    "https://www.instagram.com/p/Dc1CUHco_S0/?img_index=1"
+  ],
+  "referenceImages": [
+    "divisions/edukasiai/brand/reference/ig/post1-slide1-cover.png",
+    "divisions/edukasiai/brand/reference/ig/post1-slide2-isi.png"
+  ],
+  "referenceImagesCatatan": "Empat postingan akun @edukasiai.co.id (referensi owner) adalah PATOKAN FORMAT UTAMA yang dipegang QA Finishing. Instagram butuh login, jadi gambar acuan lokal ada di reference/ig/. Owner dapat menambah slide lain ke folder itu (nama bebas, .png/.jpg); QA wajib membuka SEMUA gambar di folder itu.",
+  "ownerFormat": [
+    "Foto atau ilustrasi relevan memenuhi bagian atas slide (sekitar separuh tinggi), memudar halus ke area hitam di bawahnya",
+    "Blok teks di kiri bawah di atas latar hitam: kicker kecil huruf kapital berjarak (warna aksen), judul/isi putih tebal",
+    "Satu kata kunci per judul/kalimat ditekankan dengan warna aksen tegas (merah pada tema risiko/keamanan)",
+    "Slide sampul: judul besar 2-3 baris dan subjudul miring satu kalimat; slide isi: paragraf pendek (3-4 baris), bukan daftar panjang",
+    "Garis tipis dan footer di setiap slide: handle edukasiai.co.id di kiri, \"Sumber: <nama media>\" di kanan (abu-abu kecil)",
+    "Teks Indonesia, nada ringkas dan netral; tidak ada logo/elemen dekoratif yang tidak ada di postingan acuan"
   ]
 }

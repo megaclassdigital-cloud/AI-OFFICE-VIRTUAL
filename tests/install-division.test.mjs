@@ -46,7 +46,7 @@ describe('install-division.mjs --dry-run', () => {
   });
   afterEach(() => new Promise((r) => fake.server.close(r)));
 
-  it('company ada, belum ada agent: merencanakan 5 agent dan TIDAK mengubah apa pun', async () => {
+  it('company ada, belum ada agent: merencanakan 6 agent dan TIDAK mengubah apa pun', async () => {
     state.companies = [{ id: 'c-edu', name: 'EdukasiAI' }];
     state.agents = [];
     const r = await runNode([installer, '--dry-run', '--api-base', fake.base]);
@@ -54,10 +54,10 @@ describe('install-division.mjs --dry-run', () => {
     expect(r.code).toBe(0);
     expect(r.stdout).toMatch(/DRY RUN/);
     expect(r.stdout).toMatch(/company 'EdukasiAI' sudah ada \(id=c-edu\)/);
-    for (const name of ['Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA']) {
+    for (const name of ['Manager', 'Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA']) {
       expect(r.stdout).toContain(`akan MEMBUAT agent '${name}'`);
     }
-    expect(r.stdout).toMatch(/dibuat=5/);
+    expect(r.stdout).toMatch(/dibuat=6/);
 
     const mutating = fake.log.filter((q) => q.method !== 'GET');
     expect(mutating).toEqual([]);
@@ -69,13 +69,13 @@ describe('install-division.mjs --dry-run', () => {
 
     expect(r.code).toBe(0);
     expect(r.stdout).toMatch(/akan MEMBUAT company 'EdukasiAI'/);
-    expect(r.stdout).toMatch(/dibuat=5/);
+    expect(r.stdout).toMatch(/dibuat=6/);
     expect(fake.log.filter((q) => q.method !== 'GET')).toEqual([]);
   });
 
   it('agent sudah ada: merencanakan MEMPERBARUI (idempoten), bukan membuat ganda', async () => {
     state.companies = [{ id: 'c-edu', name: 'EdukasiAI' }];
-    state.agents = ['Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA'].map((name, i) => ({ id: `a${i}`, name }));
+    state.agents = ['Manager', 'Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA'].map((name, i) => ({ id: `a${i}`, name }));
     const r = await runNode([installer, '--dry-run', '--api-base', fake.base]);
 
     expect(r.code).toBe(0);

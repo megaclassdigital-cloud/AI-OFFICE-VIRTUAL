@@ -98,6 +98,8 @@ const valid = {
   },
 };
 
+valid['asset-requests'] = { requests: [{ slide: 1, file: 'openai-logo.png', kind: 'brand', brand: 'OpenAI', query: 'OpenAI official logo transparent background' }] };
+
 /** Kasus INVALID per skema: [nama, fungsi pengubah, potongan pesan/kata kunci yang harus muncul]. */
 const invalid = {
   'research-output': [
@@ -137,6 +139,12 @@ const invalid = {
     ['skor pecahan', (d) => (d.ranking[0].scores.novelty = 3.5), /must be integer/],
     ['kriteria skor hilang', (d) => delete d.ranking[1].scores.relevance, /relevance/],
     ['properti total diisi LLM ditolak', (d) => (d.ranking[0].total = 15), /tidak dikenal "total"/],
+  ],
+  'asset-requests': [
+    ['kind di luar enum', (d) => (d.requests[0].kind = 'ilustrasi'), /allowed values|enum/],
+    ['nama berkas bukan gambar', (d) => (d.requests[0].file = 'logo.exe'), /pattern/],
+    ['daftar permintaan kosong', (d) => (d.requests = []), /fewer than 1 items|minItems/],
+    ['properti tidak dikenal', (d) => (d.requests[0].html = '<b>x</b>'), /tidak dikenal "html"/],
   ],
   'approval-record': [
     ['diputuskan oleh agent (bukan owner)', (d) => (d.decided_by = 'agent'), /must be equal to constant|const/],

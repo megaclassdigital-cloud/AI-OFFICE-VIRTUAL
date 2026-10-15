@@ -8,6 +8,7 @@
 //   node scripts/office-launcher.mjs --status                                 tampilkan status terakhir
 //   node scripts/office-launcher.mjs --command shutdown|stop-now|open|restart [komponen]   kirim perintah ke pengawas yang berjalan
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
+import os from 'node:os';
 import net from 'node:net';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync, truncateSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -73,8 +74,10 @@ let stopping = false; let paperclipRestartAt = 0; let paperclipDownSince = null;
 // Paperclip butuh beberapa menit untuk start (pemulihan Postgres tertanam); jangan diluncurkan ulang selama masa tunggu ini.
 const PAPERCLIP_STARTUP_GRACE_MS = 8 * 60_000;
 const STARTUP_WARMUP_MS = 90_000;
+const LOW_MEMORY_MB = 700; // laptop owner 7,9 GB: di bawah ini Paperclip/agent melambat dan timeout; tray memberi peringatan
 const PAPERCLIP_HUNG_MS = 30 * 60_000;
 let slowLogAt = 0;
+let pluginBadSince = null; let pluginRepairAt = 0;
 
 /** Proses node yang sudah berjalan (mis. dinyalakan manual): diadopsi, bukan digandakan. */
 function listNodeProcs() {
@@ -156,7 +159,8 @@ async function probe() {
 let lastStatusSig = '';
 function writeStatus(health, extra) {
   const settings = readJson(SETTINGS_FILE, {});
-  const status = { at: Date.now(), startedAt, pid: process.pid, ui: UI, public: PUBLIC, overall: health.overall, summary: summaryLine({ ...health, paused: settings.paused === true }), paused: settings.paused === true, components: health.components.map((c) => ({ ...c, restarts: comp.get(c.key)?.restarts.length ?? 0, pid: comp.get(c.key)?.pid ?? null })), problems: health.problems, ...extra };
+  const freeMB = Math.round(os.freemem() / 1048576);
+  const status = { at: Date.now(), startedAt, pid: process.pid, ui: UI, public: PUBLIC, memoryFreeMB: freeMB, lowMemory: freeMB < LOW_MEMORY_MB, overall: health.overall, summary: summaryLine({ ...health, paused: settings.paused === true }), paused: settings.paused === true, components: health.components.map((c) => ({ ...c, restarts: comp.get(c.key)?.restarts.length ?? 0, pid: comp.get(c.key)?.pid ?? null })), problems: health.problems, ...extra };
   try { mkdirSync(path.dirname(STATUS_FILE), { recursive: true }); writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2) + NL); } catch { /* abaikan */ }
   const sig = `${health.overall}|${health.problems.join(';')}`;
   if (sig !== lastStatusSig) { log(`status: ${status.summary}${health.problems.length ? ' — ' + health.problems.join(' | ') : ''}`); lastStatusSig = sig; }
@@ -237,6 +241,16 @@ async function cycle() {
   } else paperclipDownSince = null;
 
   // Komponen: nyalakan yang belum berjalan, pulihkan yang mati/tidak terhubung.
+  // Plugin approval-gate sering berstatus error setelah boot dingin (RPC initialize 15 dtk habis saat mesin sibuk). start-paperclip.ps1 yang dijalankan saat
+  // Paperclip sudah sehat hanya memperbaiki plugin (`plugin enable`), tanpa menyalakan ulang server. Dilakukan otomatis, maks sekali per 5 menit.
+  const pluginState = health.components.find((x) => x.key === 'plugin')?.state;
+  if (pcOk && pluginState && pluginState !== 'ok' && pluginState !== 'mulai') {
+    pluginBadSince ??= nowMs;
+    if (nowMs - pluginBadSince > 60_000 && nowMs - pluginRepairAt > 300_000) {
+      pluginRepairAt = nowMs; log('Plugin approval-gate belum siap >60 dtk: memperbaiki lewat plugin enable');
+      try { const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', f('scripts', 'start-paperclip.ps1')], { cwd: ROOT, windowsHide: true, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch { /* dicoba lagi 5 menit kemudian */ }
+    }
+  } else pluginBadSince = null;
   const procsOnce = { list: null };
   for (const c of comp.values()) {
     const h = health.components.find((x) => x.key === c.def.key);

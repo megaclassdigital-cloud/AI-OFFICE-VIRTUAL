@@ -73,6 +73,7 @@ namespace AIOffice
         readonly ToolStripMenuItem statusItem, pauseItem, autoItem;
         Process supervisor;
         string lastOverall = "";
+        DateTime lastMemWarn = DateTime.MinValue;
         readonly DateTime started = DateTime.Now;
         bool paused;
         string ui = "http://127.0.0.1:3190";
@@ -290,6 +291,11 @@ namespace AIOffice
                 string uiField = Field(json, "ui");
                 if (!string.IsNullOrEmpty(uiField)) ui = uiField;
                 paused = json.Contains("\"paused\": true");
+                if (json.Contains("\"lowMemory\": true") && (DateTime.Now - lastMemWarn).TotalMinutes > 30)
+                {
+                    lastMemWarn = DateTime.Now;
+                    tray.ShowBalloonTip(8000, "AI Office: memori hampir habis", "RAM bebas di bawah 0,7 GB, jadi AI Office bisa lambat atau terputus. Tutup Chrome, ChatGPT/Claude Desktop, atau aplikasi lain yang tidak dipakai.", ToolTipIcon.Warning);
+                }
                 pauseItem.Text = paused ? "Lanjutkan pekerjaan" : "Jeda pekerjaan";
                 var text = "AI Office: " + (string.IsNullOrEmpty(summary) ? overall : summary);
                 tray.Text = text.Length > 63 ? text.Substring(0, 63) : text;

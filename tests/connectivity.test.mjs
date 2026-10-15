@@ -83,3 +83,22 @@ describe('heartbeat dan kunci proses', () => {
     releaseLock(first.file); // bukan pid kita sekarang? sudah ditimpa pid kita oleh acquire terakhir -> terlepas
   });
 });
+
+import http from 'node:http';
+import { waitForPaperclip } from '../scripts/heartbeat.mjs';
+describe('waitForPaperclip: basis URL dengan atau tanpa /api', () => {
+  it('berhasil untuk http://host:port dan http://host:port/api (regresi: dulu menjadi /api/api/health dan menunggu selamanya)', async () => {
+    const seen = [];
+    const srv = http.createServer((req, res) => { seen.push(req.url); res.writeHead(req.url === '/api/health' ? 200 : 404, { 'content-type': 'application/json' }); res.end(JSON.stringify({ status: 'ok' })); });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${srv.address().port}`;
+    try {
+      expect(await waitForPaperclip(base, { maxMs: 3000, pollMs: 100 })).toBe(true);
+      expect(await waitForPaperclip(base + '/api', { maxMs: 3000, pollMs: 100 })).toBe(true);
+      expect(await waitForPaperclip(base + '/api/', { maxMs: 3000, pollMs: 100 })).toBe(true);
+      expect(seen.every((u) => u === '/api/health')).toBe(true);
+    } finally { srv.close(); }
+  });
+  it('maxMs=0 tidak menunggu sama sekali (CLI sekali jalan)', async () => { expect(await waitForPaperclip('http://127.0.0.1:1', { maxMs: 0 })).toBe(true); });
+  it('server tidak ada: menyerah setelah maxMs, tanpa melempar galat', async () => { expect(await waitForPaperclip('http://127.0.0.1:1', { maxMs: 600, pollMs: 100 })).toBe(false); });
+});
