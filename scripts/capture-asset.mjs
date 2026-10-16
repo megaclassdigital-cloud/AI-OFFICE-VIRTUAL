@@ -289,6 +289,9 @@ export async function main(argv) {
       const entry = { slide: req.slide, file: req.file, kind: req.kind, brand: req.brand ?? null };
       const owner = inboxPath(issue, req.file);
       if (owner) { copyFileSync(owner, out); manifest.assets.push({ ...entry, status: 'owner-supplied', source: owner }); continue; }
+      // Logo EdukasiAI sendiri: berkas resmi ada di brand kit; tidak perlu dan tidak boleh dicari di Google (rawan CAPTCHA, hasil bisa salah).
+      const ownLogo = path.join(root, 'divisions', 'edukasiai', 'brand', 'logo', 'edukasiai-logo.png');
+      if (req.kind === 'brand' && /edukasi\s*-?\s*ai/i.test(`${req.brand ?? ''} ${req.query ?? ''}`) && existsSync(ownLogo)) { copyFileSync(ownLogo, out); manifest.assets.push({ ...entry, status: 'owner-supplied', source: ownLogo }); continue; }
       // Berkas yang sudah ada hanya dipertahankan bila manifest sebelumnya mencatatnya hasil capture/owner (bukti ikut dibawa); selain itu diambil ulang.
       const was = prevBy.get(req.file);
       if (!force && existsSync(out) && statSync(out).size > 2000 && was && ['captured', 'owner-supplied'].includes(was.status)) { manifest.assets.push({ ...was, keptAt: new Date().toISOString() }); continue; }
