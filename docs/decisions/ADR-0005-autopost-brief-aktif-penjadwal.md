@@ -50,7 +50,7 @@ Jawaban atas pertanyaan owner:
 - **Risiko ketentuan platform:** otomatisasi browser pada Instagram/TikTok bertentangan dengan ketentuan layanan keduanya dan dapat membuat akun dibatasi. Owner menerima risiko ini; pagar (dry-run, batas harian, jeda, kill switch) mengurangi kemungkinan tetapi tidak meniadakannya.
 - **Kerapuhan UI:** perubahan tampilan situs akan merusak runner; ia berhenti aman (tanpa klik final) dan memberi tahu owner. Perlu pemeliharaan selector.
 - **Sesi login** dapat kedaluwarsa; runner mendeteksi dan meminta owner login ulang.
-- **TikTok web:** unggah carousel foto di web perlu diverifikasi saat membangun; bila tidak didukung, alternatifnya slideshow video dari slide (keputusan lanjutan).
+- **TikTok web:** TERVERIFIKASI 16 Okt 2026: TikTok Studio punya tab Photos (sampai 35 foto, judul maks 90, deskripsi maks 4000), jadi carousel foto didukung tanpa slideshow video. Pesan "N photos uploaded" muncul SEBELUM Post dan bukan bukti terkirim.
 - **Aturan tertulis yang kini usang:** CLAUDE.md butir 9 ("tidak ada posting otomatis") dan PRD butir 144. Claude tidak boleh mengubah CLAUDE.md; dicatat sebagai `REVIEW-OWNER` (D-020) agar owner yang memperbaruinya.
 - Plugin tetap generik (aturan 10): logika platform ada di `divisions/edukasiai/` dan `scripts/autopost/`, bukan di `plugins/`.
 
