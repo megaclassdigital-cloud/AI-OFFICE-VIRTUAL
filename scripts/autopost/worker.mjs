@@ -77,9 +77,10 @@ async function postOne({ platform, candidate }) {
     log(`POSTING ${candidate.content} -> ${platform} (${pkg.slides.length} slide, approved ${new Date(candidate.approvedAt).toISOString()})`);
     const result = await LIVE_FLOWS[platform]({
       page: s.page, pkg, evidenceDir, log,
+      soundIndex: loadLedger().filter((e) => e.mode === 'live' && e.platform === 'tiktok' && (e.status === 'diposting' || e.status === 'tidak_pasti')).length, // lagu Favorites bergiliran
       onBeforeShare: async () => { const l = loadLedger(); l.push({ ...entry, status: 'sedang_diposting', at: new Date().toISOString() }); saveLedger(l); }, // tulis-dulu SEBELUM klik Share
     });
-    entry.status = result.status; entry.at = new Date().toISOString(); if (result.reason) entry.error = result.reason;
+    entry.status = result.status; entry.at = new Date().toISOString(); if (result.reason) entry.error = result.reason; if (result.sound) entry.sound = result.sound;
     return entry;
   } catch (e) {
     entry.status = 'gagal'; entry.error = String(e.message).slice(0, 240); entry.at = new Date().toISOString();

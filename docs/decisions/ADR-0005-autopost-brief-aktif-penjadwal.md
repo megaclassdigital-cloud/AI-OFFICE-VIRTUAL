@@ -67,3 +67,8 @@ Jawaban atas pertanyaan owner:
 - Tes penjadwal: slot hanya di dalam jendela owner; batas harian dan jeda dihormati; konten dengan `freshUntil` terdekat mendapat slot lebih dulu; konten yang kehilangan semua slot menjadi `kedaluwarsa`.
 - Tes pagar autoposter: tanpa approval/hash cocok ditolak; `paused:true` menolak; ledger mencegah kirim ganda; status tak pasti tidak dicoba ulang; dry-run tidak pernah mengklik tombol final.
 - Bukti end-to-end dry-run: satu konten approved menghasilkan tangkapan layar halaman unggah terisi lengkap di tiap platform tanpa terkirim.
+
+## Addendum 2026-10-16: sound
+- **TikTok:** sound WAJIB. Admin Publikasi memasang satu lagu dari tab **Favorites** akun (owner yang menyimpannya), bergiliran menurut jumlah posting TikTok sebelumnya. Favorites kosong atau lagu tidak terpasang di formulir => posting DIBATALKAN sebelum Post (tidak terkirim, ledger `gagal`, dicoba lagi sesuai backoff). Lagu terpilih dicatat di ledger (`sound`).
+- **Instagram:** tanpa musik. Instagram web tidak punya fitur musik di alur "New post" (dipindai di tiap langkah).
+- Dry-run TikTok 16 Okt 2026: langkah sound berjalan sampai Favorites dan berhenti dengan benar karena Favorites kosong.

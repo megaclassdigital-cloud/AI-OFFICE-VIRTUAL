@@ -20,6 +20,12 @@ export function deriveTitle(caption, max = 90) {
   return (sp > max * 0.5 ? cut.slice(0, sp) : cut).trim();
 }
 
+/** Urutan lagu Favorites TikTok yang dipakai: bergiliran menurut jumlah posting TikTok sebelumnya (mod jumlah favorit). 0 bila tidak ada favorit. */
+export function pickSoundIndex(postedCount, available) {
+  const n = Number(available) || 0;
+  return n > 0 ? (((Number(postedCount) || 0) % n) + n) % n : 0;
+}
+
 /** Susun caption akhir: caption + baris kosong + hashtag (sekali saja bila caption sudah memuatnya). */
 export function composeCaption(caption, hashtags) {
   const c = String(caption ?? '').trim();

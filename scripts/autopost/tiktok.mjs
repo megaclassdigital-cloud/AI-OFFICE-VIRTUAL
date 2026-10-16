@@ -5,7 +5,7 @@
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { assertClickAllowed } from './guards.mjs';
-import { deriveTitle } from './package.mjs';
+import { deriveTitle, pickSoundIndex } from './package.mjs';
 import { StepError } from './instagram.mjs';
 
 export const UPLOAD_URL = 'https://www.tiktok.com/tiktokstudio/upload';
@@ -20,7 +20,7 @@ function makeKit({ page, evidenceDir, dryRun, log }) {
 }
 
 /** Persiapan: sampai semua foto terunggah, judul dan deskripsi terisi dan terverifikasi. Mengembalikan alat dan tombol Post (belum diklik). */
-export async function prepareTikTok({ page, pkg, evidenceDir, dryRun, log = () => {} }) {
+export async function prepareTikTok({ page, pkg, evidenceDir, dryRun, soundIndex = 0, log = () => {} }) {
   mkdirSync(evidenceDir, { recursive: true });
   const kit = makeKit({ page, evidenceDir, dryRun, log });
   let step = 'awal';
@@ -61,12 +61,42 @@ export async function prepareTikTok({ page, pkg, evidenceDir, dryRun, log = () =
     const counters = await page.evaluate(() => (document.body.innerText.match(/\d+\s*\/\s*\d+/g) ?? []).slice(0, 4));
     log(`penghitung formulir: ${counters.join(' | ')}`);
 
+    step = 'pilih sound';
+    const sound = await chooseFavoriteSound({ page, kit, soundIndex, log });
+
     step = 'tombol Post';
     const post = page.getByRole('button', { name: /^Post$/ });
     try { await post.first().waitFor({ state: 'visible', timeout: 15000 }); } catch { throw new StepError(step, 'tombol "Post" tidak ada (diperiksa ADA, tidak diklik pada dry-run)'); }
     await kit.shot('01-formulir-terisi');
-    return { kit, post, title };
+    return { kit, post, title, sound };
   } catch (e) { await kit.shot('galat').catch(() => {}); throw fail(e); }
+}
+
+/**
+ * Wajib: pasang satu lagu dari tab Favorites (owner menyimpannya sendiri). Bergiliran lewat soundIndex (mod jumlah favorit) supaya lagu tidak itu-itu saja.
+ * Favorites kosong, tombol tidak ditemukan, atau hasil tidak terverifikasi => StepError, dan posting dibatalkan SEBELUM Post.
+ */
+export async function chooseFavoriteSound({ page, kit, soundIndex = 0, log = () => {} }) {
+  const step = 'pilih sound';
+  const add = page.getByText(/^Add sound$/).or(page.getByRole('button', { name: /Add sound/i }));
+  if (!(await add.count())) throw new StepError(step, 'tombol "Add sound" tidak ada (antarmuka berubah)');
+  await kit.click(add, 'Add sound'); await page.waitForTimeout(3000);
+  const fav = page.getByRole('tab', { name: /^Favorites$/i }).or(page.getByText(/^Favorites$/));
+  if (!(await fav.count())) throw new StepError(step, 'tab "Favorites" tidak ada di panel sound');
+  await kit.click(fav, 'Favorites (tab)'); await page.waitForTimeout(2500);
+  const use = page.getByRole('button', { name: /^Use$/i });
+  const n = await use.count();
+  if (!n) throw new StepError(step, 'Favorites TikTok kosong: owner perlu menyimpan lagu ke Favorites (posting dibatalkan, tidak terkirim)');
+  const idx = pickSoundIndex(soundIndex, n);
+  log(`sound: ${n} favorit, memakai urutan ke-${idx + 1}`);
+  await use.nth(idx).scrollIntoViewIfNeeded().catch(() => {});
+  await kit.click(use.nth(idx), 'Use (sound)'); await page.waitForTimeout(2500);
+  const done = page.getByRole('button', { name: /^(Confirm|Done|Save|Apply|OK)$/i });
+  if (await done.count()) { await kit.click(done, 'Confirm (sound)'); await page.waitForTimeout(2000); }
+  const info = await page.evaluate(() => { const e = [...document.querySelectorAll('div,span,p')].find((x) => /^Sound$/.test((x.innerText || '').trim())); return e ? (e.parentElement.innerText || '').split(/\s+/).join(' ').slice(0, 200) : ''; });
+  if (!info || !/Replace/i.test(info) || /Add sound/i.test(info)) throw new StepError(step, `sound tidak terpasang di formulir (bagian Sound: "${info.slice(0, 80)}")`);
+  log(`sound terpasang: ${info.replace(/\s*Replace.*$/i, '').slice(0, 80)}`);
+  return { index: idx, of: n, label: info.replace(/^Sound\s*/i, '').replace(/\s*Replace.*$/i, '').slice(0, 80) };
 }
 
 /** Buang unggahan (tombol Discard) supaya dry-run tidak meninggalkan apa pun. */
@@ -78,11 +108,11 @@ export async function discardUpload({ page, kit, log = () => {} }) {
 }
 
 /** DRY-RUN: persiapan lengkap, BERHENTI sebelum Post, buang unggahan. */
-export async function dryRunTikTok({ page, pkg, evidenceDir, log = () => {} }) {
+export async function dryRunTikTok({ page, pkg, evidenceDir, soundIndex = 0, log = () => {} }) {
   let prep = null;
   try {
-    prep = await prepareTikTok({ page, pkg, evidenceDir, dryRun: true, log });
-    return { ok: true, stoppedBefore: 'Post', slides: pkg.slides.length, captionChars: pkg.captionFull.length, evidenceDir };
+    prep = await prepareTikTok({ page, pkg, evidenceDir, dryRun: true, soundIndex, log });
+    return { ok: true, stoppedBefore: 'Post', sound: prep.sound, slides: pkg.slides.length, captionChars: pkg.captionFull.length, evidenceDir };
   } finally { await discardUpload({ page, kit: prep?.kit ?? makeKit({ page, evidenceDir, dryRun: true, log }), log }); }
 }
 
@@ -90,16 +120,16 @@ export async function dryRunTikTok({ page, pkg, evidenceDir, log = () => {} }) {
  * LIVE: persiapan yang sama, lalu Post (izin eksplisit) dan verifikasi. Hasil: { status:'diposting' } bila TikTok mengonfirmasi (halaman konten Studio
  * atau "Manage your posts"); { status:'tidak_pasti', reason } bila sudah diklik tetapi tidak terkonfirmasi (TIDAK pernah diulang otomatis).
  */
-export async function postTikTok({ page, pkg, evidenceDir, log = () => {}, onBeforeShare = async () => {} }) {
+export async function postTikTok({ page, pkg, evidenceDir, soundIndex = 0, log = () => {}, onBeforeShare = async () => {} }) {
   let prep = null; let clicked = false;
   try {
-    prep = await prepareTikTok({ page, pkg, evidenceDir, dryRun: false, log });
+    prep = await prepareTikTok({ page, pkg, evidenceDir, dryRun: false, soundIndex, log });
     await onBeforeShare();
     await prep.kit.click(prep.post, 'Post', { allowFinal: true });
     clicked = true;
     const t0 = Date.now();
     while (Date.now() - t0 < 90000) {
-      if (SENT_URL_RE.test(page.url()) || (await page.getByText(SENT_RE).count().catch(() => 0))) { await prep.kit.shot('02-terkirim'); log('TikTok mengonfirmasi: post terkirim'); return { status: 'diposting', slides: pkg.slides.length, evidenceDir }; }
+      if (SENT_URL_RE.test(page.url()) || (await page.getByText(SENT_RE).count().catch(() => 0))) { await prep.kit.shot('02-terkirim'); log('TikTok mengonfirmasi: post terkirim'); return { status: 'diposting', slides: pkg.slides.length, sound: prep.sound, evidenceDir }; }
       const modal = page.locator('div[role=dialog], div[class*=modal]').getByRole('button', { name: MODAL_CONTINUE_RE });
       if (await modal.count().catch(() => 0)) await prep.kit.click(modal, (await modal.first().innerText().catch(() => 'Continue')).trim(), { allowFinal: true }); // dialog konfirmasi setelah Post
       await page.waitForTimeout(2000);
