@@ -850,6 +850,22 @@ if (a.includes('--tidy')) {
   await parkMaster(blocked);
   writeState(s);
   log('tahap ' + STAGE_AGENT[stageName] + ' diulang untuk ' + blocked.identifier);
+} else if (a.includes('--revise')) {
+  // Minta tahap yang SEDANG berjalan (mis. ditahan menunggu gambar) direvisi dengan catatan dari owner: buat ulang issue tahap itu dengan umpan balik.
+  // Pemakaian: node scripts/orchestrator.mjs --revise --feedback-file <berkas.txt>
+  const s = readState();
+  const job = s.job;
+  if (!job || job.phase !== 'running' || job.stageIndex < 0) { console.log('Tidak ada job yang sedang berjalan pada suatu tahap.'); process.exit(1); }
+  const fbFile = arg('--feedback-file', '');
+  const fb = fbFile && existsSync(fbFile) ? readFileSync(fbFile, 'utf8').replace(/^﻿/, '').trim() : '';
+  if (!fb) { console.log('Butuh --feedback-file berisi catatan revisi.'); process.exit(1); }
+  const stageName = STAGES[job.stageIndex];
+  const oldIssueId = job.stageIssueId;
+  job.stageStartedMs = Date.now(); job.stageRetries = 0; job.stageAttempts = 1;
+  job.stageIssueId = await createStage(job, stageName, fb.slice(0, 2500));
+  if (oldIssueId) await j('/issues/' + oldIssueId, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {});
+  writeState(s);
+  log('tahap ' + STAGE_AGENT[stageName] + ' direvisi atas permintaan owner untuk ' + job.identifier);
 } else if (a.includes('--resume')) {
   // Lanjutkan job terblokir (terakhir) bila work order-nya kini valid: kembali ke fase planning, orkestrator memulai tahap 1.
   const s = readState();
