@@ -17,6 +17,7 @@ import { notifyOwner } from './notify.mjs';
 import { validate } from '../schemas/validate.mjs';
 import { contentOf, revisionOf, runDirOf, nextRunKey, writeRunMeta, runKeyForMaster, labelOf, latestRunKey, CONTENT_RE, masterLabelMap, humanizeIds, revisiTitle } from './run-registry.mjs';
 import { writeContentHistory } from './run-index.mjs';
+import { writeOverride, readValidOverride } from './owner-override.mjs';
 import { planTidy, applyTidy } from './tidy-workspace.mjs';
 import { renderManagerContext, startOfDayWib } from './manager-context.mjs';
 import { appendOutbox, buildPlanMessage, speakerName } from './manager-outbox.mjs';
@@ -128,7 +129,12 @@ function checkOutput(job, stageName) {
   let data;
   try { data = JSON.parse(readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); } catch (e) { return { ok: false, errors: [`bukan JSON valid: ${e.message}`] }; }
   const spec = STAGE_OUTPUT[stageName];
-  if (stageName === 'qa') return checkQaResult(data);
+  if (stageName === 'qa') {
+    const r = checkQaResult(data);
+    // Keputusan owner (owner-override.json, terikat hash qa-result.json) menggantikan penolakan QA; QA yang lolos tidak butuh override.
+    if (!r.ok && !r.hold && readValidOverride(path.dirname(p))) return { ok: true, errors: [], ownerOverride: true };
+    return r;
+  }
   if (stageName === 'researcher') {
     try {
       const norm = normalizeResearch(data);
@@ -868,6 +874,17 @@ if (a.includes('--tidy')) {
   await parkMaster(blocked);
   writeState(s);
   log('tahap ' + STAGE_AGENT[stageName] + ' diulang untuk ' + blocked.identifier);
+} else if (a.includes('--accept-owner')) {
+  // Owner menerima konten apa adanya walau QA menolak (jatah revisi habis). Pemakaian: node scripts/orchestrator.mjs --accept-owner EDU-105 [--note "alasan"]
+  const s = readState();
+  const blocked = pickBlocked(s, true);
+  if (!blocked || STAGES[blocked.stageIndex] !== 'qa') { console.log('Hanya untuk job terblokir pada tahap QA.'); process.exit(1); }
+  const dir = runDirOf(OUTPUTS, runKeyOf(blocked));
+  const rec = writeOverride(dir, { note: arg('--note', '') });
+  s.history = s.history.filter((x) => x.masterIssueId !== blocked.masterIssueId);
+  s.job = { ...blocked, phase: 'running', stageStartedMs: Date.now() }; delete s.job.endedMs; delete s.job.abandoned;
+  writeState(s);
+  log('keputusan owner dicatat: ' + labelOf(runKeyOf(blocked)) + ' diterima walau QA menolak (' + rec.qa.notes.length + ' catatan QA diterima)');
 } else if (a.includes('--revise')) {
   // Minta tahap yang SEDANG berjalan (mis. ditahan menunggu gambar) direvisi dengan catatan dari owner: buat ulang issue tahap itu dengan umpan balik.
   // Pemakaian: node scripts/orchestrator.mjs --revise --feedback-file <berkas.txt>

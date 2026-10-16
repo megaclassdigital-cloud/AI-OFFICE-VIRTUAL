@@ -7,6 +7,7 @@
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readValidOverride, llmWithOverride, overrideComment } from './owner-override.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const API = 'http://127.0.0.1:3177/api';
@@ -71,7 +72,8 @@ async function main() {
     if (assetErrors.length) throw new Error(`aset gambar tidak lolos: ${assetErrors.join(' | ').slice(0, 400)}`);
   }
   const qaFile = ['qa-result.json.accepted', 'qa-result.json'].map((f) => path.join(dir, f)).find((f) => existsSync(f));
-  const llm = llmFromQaResult(qaFile ? readJson(qaFile) : null, { textOk: flag('--text-ok'), designOk: flag('--design-ok') });
+  const ownerOverride = readValidOverride(dir); // keputusan owner terikat hash hasil QA; hasil QA asli tidak diubah
+  const llm = llmWithOverride(llmFromQaResult(qaFile ? readJson(qaFile) : null, { textOk: flag('--text-ok'), designOk: flag('--design-ok') }), ownerOverride);
   if (!llm) throw new Error('penilaian QA (llmReview.textOk/designOk) tidak ada; QA harus menulisnya, atau beri --text-ok/--design-ok secara sadar');
   const id = master.id;
   const qaAgent = agents.find((x) => x.name === 'QA'); const managerAgent = agents.find((x) => x.name === 'Manager');
@@ -130,6 +132,7 @@ async function main() {
   // Selama render/QA berjalan (bisa puluhan detik), pemulihan eksekusi Paperclip dapat memblokir issue karena penerimanya (QA) sengaja dipause: pastikan in_progress tepat sebelum handoff.
   await fetch(`${API}/issues/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assigneeAgentId: qaAgent.id, status: 'in_progress' }) });
   const ho = await tool('handoff_to_owner', { issueId: id }, 'QA');
+  if (ho.ok === true && ownerOverride) await fetch(`${API}/issues/${id}/comments`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ body: overrideComment(ownerOverride) }), 'utf8') }).catch(() => {});
   log(`handoff_to_owner: ${JSON.stringify(ho).slice(0, 260)}`);
   if (ho.ok === true) {
     // Manager = pengelola: paket diserahkan ke Manager untuk laporan akhir; keputusan tetap di Owner (owner-decide).
