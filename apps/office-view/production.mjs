@@ -34,12 +34,12 @@ export function productionStatus({ master, hasHandoff, job, unknown = false, hol
   let key = 'draf';
   if (job && job.phase === 'running' || job?.phase === 'planning') key = 'berjalan';
   else if (job?.phase === 'blocked') key = 'terblokir';
-  if (key === 'berjalan' && holdCount > 0) key = 'menunggu_aset'; // Designer selesai, produksi ditahan menunggu gambar asli (bukan "sedang bekerja")
   else if (master?.status === 'done') key = 'disetujui';
   else if (master?.status === 'in_review' && hasHandoff) key = 'menunggu_approval';
   else if (master?.status === 'in_progress' && hasHandoff) key = 'perlu_revisi';
   else if (master?.status === 'cancelled') key = 'dibatalkan'; // sudah ditolak/diganti: tidak ada keputusan yang bisa diambil lagi
   else if (hasHandoff && !master) key = 'menunggu_approval';
+  if (key === 'berjalan' && holdCount > 0) key = 'menunggu_aset'; // Designer selesai, produksi ditahan menunggu gambar asli (bukan "sedang bekerja")
   return { key, ...STATUS[key] };
 }
 
