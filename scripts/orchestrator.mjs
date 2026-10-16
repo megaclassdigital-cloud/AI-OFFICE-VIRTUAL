@@ -518,7 +518,9 @@ async function gatherFacts(job, state) {
           const chk = checkOutput(job, STAGES[job.stageIndex]);
           if (!chk.ok) { const why = String(chk.errors?.[0] ?? (chk.hold ? 'menunggu aset' : 'tanpa alasan')).replace(/[─-╿]+/g, '').replace(/\s+/g, ' ').slice(0, 700); if (job._lastWhy !== why) { job._lastWhy = why; log(job.identifier + ' keluaran ' + STAGE_AGENT[STAGES[job.stageIndex]] + ' belum lolos gerbang: ' + why); } }
           // Vonis QA berupa penolakan dengan tujuan revisi (qaReturn) atau vonis akhir (fatal) juga hasil FINAL: tidak perlu menunggu run QA berakhir sendiri.
-          if (chk.ok || (STAGES[job.stageIndex] === 'qa' && (chk.qaReturn || chk.fatal))) {
+          // chk.hold: keluaran valid tetapi menunggu gambar asli. Agen sudah selesai (issue bisa dibalik "blocked" oleh Paperclip karena tidak memanggil complete_stage):
+          // perlakukan sebagai selesai-ditahan, bukan terblokir, supaya produksi menunggu gambar dengan jam tahap yang digeser.
+          if (chk.ok || chk.hold || (STAGES[job.stageIndex] === 'qa' && (chk.qaReturn || chk.fatal))) {
             status = 'done'; output = chk; failedNow = false;
             // Agen yang sudah menulis keluaran valid tetapi tidak pernah menyudahi run-nya: hentikan run itu (hemat kuota) dan tutup issue tahap.
             for (const r of mine.filter((x) => ['running', 'queued'].includes(x.status))) {
