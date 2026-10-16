@@ -19,20 +19,22 @@ const STATUS = {
   dibatalkan: { label: 'DIBATALKAN / SUDAH DITOLAK', tone: 'mut' },
   perlu_revisi: { label: 'PERLU REVISI', tone: 'bad' },
   berjalan: { label: 'SEDANG DIPRODUKSI', tone: 'run' },
+  menunggu_aset: { label: 'MENUNGGU GAMBAR ASLI', tone: 'warn' },
   terblokir: { label: 'TERBLOKIR', tone: 'bad' },
   draf: { label: 'DRAF', tone: 'mut' },
   tidak_diketahui: { label: 'STATUS TIDAK DIKETAHUI', tone: 'mut' },
 };
 
 /** "Produksi: Carousel ..." -> "Carousel ..." (awalan teknis tidak berguna di layar). */
-export const cleanTitle = (t) => String(t ?? '').replace(/^Produksi:\s*/i, '').replace(/\s*\([0-9]{2}-[0-9]{2} [0-9:]{4,5}\)\s*$/, '').trim();
+export const cleanTitle = (t) => String(t ?? '').replace(/^Produksi:\s*/i, '').replace(/^(Revisi\s+)+/i, 'Revisi ').replace(/\s*\([0-9]{2}-[0-9]{2} [0-9:]{4,5}\)\s*$/, '').trim();
 
 /** Pure: production status from the master issue, the handoff document and the orchestrator job. */
-export function productionStatus({ master, hasHandoff, job, unknown = false }) {
+export function productionStatus({ master, hasHandoff, job, unknown = false, holdCount = 0 }) {
   if (unknown && !(job?.phase)) return { key: 'tidak_diketahui', ...STATUS.tidak_diketahui };
   let key = 'draf';
   if (job && job.phase === 'running' || job?.phase === 'planning') key = 'berjalan';
   else if (job?.phase === 'blocked') key = 'terblokir';
+  if (key === 'berjalan' && holdCount > 0) key = 'menunggu_aset'; // Designer selesai, produksi ditahan menunggu gambar asli (bukan "sedang bekerja")
   else if (master?.status === 'done') key = 'disetujui';
   else if (master?.status === 'in_review' && hasHandoff) key = 'menunggu_approval';
   else if (master?.status === 'in_progress' && hasHandoff) key = 'perlu_revisi';
@@ -42,7 +44,7 @@ export function productionStatus({ master, hasHandoff, job, unknown = false }) {
 }
 
 /** Pure: state of each stage from the artifacts that exist (and the job, when it is the active one). */
-export function stageStates({ have, job, mtimes = {} }) {
+export function stageStates({ have, job, mtimes = {}, holdCount = 0 }) {
   const order = ['manager', 'researcher', 'verifier', 'copywriter', 'designer', 'qa'];
   const doneByFile = { manager: have.order, researcher: have.research, verifier: have.verification, copywriter: have.carousel, designer: have.design && have.render, qa: have.qa };
   return STAGE_ORDER.map((s, i) => {
@@ -51,6 +53,7 @@ export function stageStates({ have, job, mtimes = {} }) {
       const cur = job.phase === 'planning' ? 0 : job.stageIndex + 1;
       if (i === cur) state = 'running';
     }
+    if (state === 'running' && s.key === 'designer' && holdCount > 0) state = 'hold';
     if (job?.phase === 'blocked' && i === (job.stageIndex >= 0 ? job.stageIndex + 1 : 0)) state = 'blocked';
     return { ...s, state, index: order.indexOf(s.key), doneAt: state === 'done' ? (mtimes[s.key] ?? null) : null };
   });
@@ -64,12 +67,13 @@ const verdictText = (c) => {
   return parts;
 };
 
-export function summarizeProduction({ prod, order, research, verification, carousel, design, qa, visualQa, master, handoff, job, renderFiles = [], mtimes = {}, paperclipOk = true }) {
+export function summarizeProduction({ prod, order, research, verification, carousel, design, qa, visualQa, master, handoff, job, renderFiles = [], mtimes = {}, paperclipOk = true, hold = null, fallbackSlides = null, qaHistory = [] }) {
   const have = { order: !!order, research: !!research, verification: !!verification, carousel: !!carousel, design: !!design, render: renderFiles.some((f) => /slide-01\.png$/.test(f)), qa: !!qa };
   const slidePngs = renderFiles.filter((f) => /slide-[0-9]+\.png$/.test(f)).sort();
   const contact = renderFiles.find((f) => /contact-sheet\.png$/.test(f)) ?? null;
   const titleOf = new Map((research?.candidates ?? []).map((c) => [c.id, c]));
-  const status = productionStatus({ master, hasHandoff: !!handoff, job: job?.identifier === prod ? job : null, unknown: !paperclipOk });
+  const holdCount = hold?.missing?.length ?? 0;
+  const status = productionStatus({ master, hasHandoff: !!handoff, job: job?.identifier === prod ? job : null, unknown: !paperclipOk, holdCount });
 
   const designBy = new Map((design?.slides ?? []).map((s) => [s.index, s]));
   const verified = (verification?.results ?? []).filter((r) => r.status === 'verified').length;
@@ -94,8 +98,11 @@ export function summarizeProduction({ prod, order, research, verification, carou
     paperclipOk,
     status,
     stats: { slides: slidePngs.length, candidates: research?.candidates?.length ?? 0, verified, sources: (carousel?.sources ?? []).length, qa: handoff ? 'lolos' : qa ? (qa.passed ? 'lolos (agen)' : 'belum') : '—' },
-    stages: stageStates({ have, job: job?.identifier === prod ? job : null, mtimes }),
-    slides: slidePngs.map((p, i) => ({ index: i + 1, image: p })),
+    stages: stageStates({ have, job: job?.identifier === prod ? job : null, mtimes, holdCount }),
+    hold: holdCount ? { missing: hold.missing.map((m) => ({ file: m.file, reason: String(m.reason ?? '').slice(0, 200) })) } : null,
+    qaHistory,
+    slidesFrom: !slidePngs.length && fallbackSlides?.files?.length ? fallbackSlides.label : null,
+    slides: (slidePngs.length ? slidePngs : (fallbackSlides?.files ?? [])).map((p, i) => ({ index: i + 1, image: p })),
     contactSheet: contact,
     caption: carousel?.caption ?? null,
     hashtags: carousel?.hashtags ?? [],

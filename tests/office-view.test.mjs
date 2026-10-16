@@ -407,3 +407,23 @@ describe('thoughtOf: teks "berbicara dalam hati" dari log (tanpa LLM)', () => {
   });
   it('owner tidak punya pikiran', () => { expect(thoughtOf({ ...base, isOwner: true, state: 'idle' }, 1)).toBe(''); });
 });
+
+import { cleanTitle, productionStatus, stageStates } from '../apps/office-view/production.mjs';
+describe('TV: judul revisi, penahanan gambar', () => {
+  it('cleanTitle meringkas awalan "Revisi Revisi" berulang', () => {
+    expect(cleanTitle('Revisi Revisi EDU-97: ditolak owner')).toBe('Revisi EDU-97: ditolak owner');
+    expect(cleanTitle('Produksi: Revisi Revisi Revisi X')).toBe('Revisi X');
+    expect(cleanTitle('Carousel tren AI')).toBe('Carousel tren AI');
+  });
+  it('produksi yang berjalan tetapi ditahan gambar -> MENUNGGU GAMBAR ASLI; tanpa penahanan tetap SEDANG DIPRODUKSI', () => {
+    const job = { phase: 'running', stageIndex: 3 };
+    expect(productionStatus({ master: null, hasHandoff: false, job, holdCount: 2 }).key).toBe('menunggu_aset');
+    expect(productionStatus({ master: null, hasHandoff: false, job, holdCount: 0 }).key).toBe('berjalan');
+  });
+  it('tahap Designer berstatus hold (bukan running) saat ditahan', () => {
+    const have = { order: true, research: true, verification: true, carousel: true, design: true, render: false, qa: false };
+    const job = { phase: 'running', stageIndex: 3 };
+    expect(stageStates({ have, job, holdCount: 3 }).find((s) => s.key === 'designer').state).toBe('hold');
+    expect(stageStates({ have, job, holdCount: 0 }).find((s) => s.key === 'designer').state).toBe('running');
+  });
+});

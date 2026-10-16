@@ -123,6 +123,32 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     const dir = path.join(runDirOf(outputRoot, runKey), 'render');
     return (await readdir(dir).catch(() => [])).filter((f) => /[.](png|json)$/.test(f)).map((f) => `runs/${runKey}/render/${f}`);
   }
+  // Penahanan gambar asli (assets-hold.json berisi null bila tidak ada): daftar gambar yang belum terambil.
+  async function readHold(dir) {
+    const h = await readJsonSafe(path.join(dir, 'assets-hold.json'));
+    return h && Array.isArray(h.missing) && h.missing.length ? h : null;
+  }
+  // Putaran QA yang sudah diarsipkan (runs/<ID>/arsip/qa-putaran-N-*/qa-result.json): riwayat kenapa revisi terjadi.
+  async function readQaHistory(dir) {
+    const base = path.join(dir, 'arsip');
+    const out = [];
+    for (const e of (await readdir(base, { withFileTypes: true }).catch(() => [])).filter((x) => x.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+      const q = await readJsonSafe(path.join(base, e.name, 'qa-result.json'));
+      if (!q) continue;
+      out.push({ round: e.name, passed: q.passed === true, returnTo: [].concat(q.returnTo ?? []), fromScratch: q.fromScratch === true, notes: (Array.isArray(q.notes) ? q.notes : [q.notes]).filter(Boolean).map((n) => String(n).slice(0, 320)).slice(0, 8) });
+    }
+    return out;
+  }
+  // Slide versi sebelumnya sebagai cadangan tampilan selama versi sekarang belum punya render (mis. revisi ditahan menunggu gambar). Selalu diberi label.
+  async function prevSlidesFor(contentId, runKey) {
+    const cur = revisionOf(runKey);
+    const revs = [0, ...listRevisions(outputRoot, contentId)].filter((n) => n < cur).sort((a, b) => b - a);
+    for (const n of revs) {
+      const files = (await listRender(runKeyFor(contentId, n))).filter((x) => /slide-[0-9]+[.]png$/.test(x)).sort();
+      if (files.length) return { label: n === 0 ? 'versi asli' : `revisi ${n}`, files };
+    }
+    return null;
+  }
   async function masterOf(masterIdentifier, issues = null) {
     const { companyId } = await ctx();
     const master = (issues ?? (await api(`/companies/${companyId}/issues`))).find((i) => i.identifier === masterIdentifier) ?? null;
@@ -157,9 +183,13 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     try { ({ master, handoff } = await masterOf(masterIdentifier)); } catch { paperclipOk = false; }
     const mt = async (f) => (await stat(path.join(dir, f)).catch(() => null))?.mtimeMs ?? null;
     const mtimes = { manager: (await stat(path.join(outputRoot, 'orders', `${masterIdentifier}.json`)).catch(() => null))?.mtimeMs ?? null, researcher: await mt('research-output.json'), verifier: await mt('verification-result.json'), copywriter: await mt('carousel.json'), designer: await mt('carousel-design.json'), qa: await mt('qa-result.json.accepted') ?? await mt('qa-result.json') };
+    const hold = await readHold(dir);
+    const qaHistory = await readQaHistory(dir);
+    const hasRender = (await listRender(runKey)).some((x) => /slide-01[.]png$/.test(x));
+    const fallbackSlides = hasRender ? null : await prevSlidesFor(run.contentId, runKey);
     const aj = await activeJobFor(masterIdentifier);
     const job = aj ? { ...aj, identifier: run.contentId } : null; // summarizeProduction mencocokkan job dengan kode konten
-    const view = summarizeProduction({ prod: run.contentId, order, research, verification, carousel, design, qa: qaAcc ?? qaMain, visualQa, master, handoff, job, renderFiles: await listRender(runKey), mtimes, paperclipOk });
+    const view = summarizeProduction({ prod: run.contentId, order, research, verification, carousel, design, qa: qaAcc ?? qaMain, visualQa, master, handoff, job, renderFiles: await listRender(runKey), hold, fallbackSlides, qaHistory, mtimes, paperclipOk });
     return { status: 200, body: { ...view, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
   }
   /** Papan Tayang: tiga konten terbaru (versi terbaru tiap konten) dengan sampul dan status. */
@@ -185,7 +215,9 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
       const runStat = await stat(runDirOf(outputRoot, runKey)).catch(() => null);
       const orderStat = await stat(path.join(outputRoot, 'orders', `${masterIdentifier}.json`)).catch(() => null);
       const createdMs = Date.parse(master?.createdAt ?? '') || orderStat?.birthtimeMs || orderStat?.mtimeMs || runStat?.birthtimeMs || runStat?.mtimeMs || 0;
-      items.push({ createdAt: createdMs ? new Date(createdMs).toISOString() : null,  prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? null, slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown }) });
+      const holdB = await readHold(runDirOf(outputRoot, runKey));
+      const fbB = slides.length ? null : await prevSlidesFor(prod, runKey);
+      items.push({ createdAt: createdMs ? new Date(createdMs).toISOString() : null,  prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? fbB?.files?.[0] ?? null, coverFrom: slides.length ? null : (fbB?.label ?? null), slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown, holdCount: holdB?.missing?.length ?? 0 }) });
     }
     if (!limit) items.sort((a, b) => Date.parse(b.createdAt ?? 0) - Date.parse(a.createdAt ?? 0));
     // Riwayat tidak boleh hilang dari TV: simpan snapshot terakhir yang baik. Saat Paperclip error, status per konten memakai snapshot (bukan "tidak diketahui");

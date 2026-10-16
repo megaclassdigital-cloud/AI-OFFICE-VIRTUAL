@@ -85,12 +85,19 @@ function render() {
   for (const b of tabs.children) b.classList.toggle('on', b.dataset.tab === st.tab);
   const d = st.data;
   chip.textContent = d?.status?.label ?? ''; chip.className = `tv-chip ${d?.status?.tone ?? ''}`;
-  setKids(stages, ...(d?.stages ?? []).map((s) => h('div', { class: `stg ${s.state}`, title: s.label }, h('span', { class: 'dot' }), h('b', {}, s.agent), h('small', {}, s.state === 'done' && s.doneAt ? `selesai ${hhmm(s.doneAt)}` : s.state === 'running' ? 'sedang bekerja' : s.state === 'blocked' ? 'terblokir' : s.label))));
+  setKids(stages, ...(d?.stages ?? []).map((s) => h('div', { class: `stg ${s.state}`, title: s.label }, h('span', { class: 'dot' }), h('b', {}, s.agent), h('small', {}, s.state === 'done' && s.doneAt ? `selesai ${hhmm(s.doneAt)}` : s.state === 'running' ? 'sedang bekerja' : s.state === 'hold' ? 'menunggu gambar asli' : s.state === 'blocked' ? 'terblokir' : s.label))));
   if (st.tab === 'all') { setKids(main, allContents()); return; }
   if (!d) { setKids(main, empty(st.prod ? 'Memuat…' : 'Belum ada produksi yang bisa ditayangkan.')); return; }
   const view = { show, manager, researcher, verifier, copywriter, designer, qa }[st.tab];
   // replaceChildren(null) menulis teks "null": susun daftar anak tanpa nilai kosong.
-  setKids(main, ...[d.paperclipOk === false ? h('div', { class: 'tv-warn' }, '⚠ Paperclip tidak terhubung: status produksi mungkin belum akurat. Hasil kerja di bawah dibaca langsung dari berkas.') : null, view(d)].filter(Boolean));
+  setKids(main, ...[d.paperclipOk === false ? h('div', { class: 'tv-warn' }, '⚠ Paperclip tidak terhubung: status produksi mungkin belum akurat. Hasil kerja di bawah dibaca langsung dari berkas.') : null, holdBanner(d), d.slidesFrom ? h('div', { class: 'tv-warn' }, `ℹ Versi ini belum dirender. Slide yang tampil adalah milik ${d.slidesFrom}, bukan hasil terbaru.`) : null, view(d)].filter(Boolean));
+}
+
+// Produksi ditahan menunggu gambar asli: tampilkan apa yang kurang dan cara melanjutkannya (bukan sekadar "sedang bekerja").
+function holdBanner(d) {
+  if (!d?.hold?.missing?.length) return null;
+  return h('div', { class: 'tv-warn' }, h('b', {}, `⏸ Ditahan: ${d.hold.missing.length} gambar asli belum terambil.`), ' ',
+    d.hold.missing.map((m) => m.file).join(', '), '. Desain sudah selesai; produksi lanjut sendiri setelah gambarnya ada. Selesaikan verifikasi Google (node scripts/browser-login.mjs) atau taruh gambar di workspace/inbox/assets/', d.runKey ?? d.prod, '/.');
 }
 
 // Daftar SEMUA konten (tidak ada yang disembunyikan), terbaru dibuat di atas, lengkap dengan tanggal dibuat dan status.
@@ -99,7 +106,7 @@ function allContents() {
   if (!items.length) return empty('Belum ada konten.');
   return h('div', {}, st.stale ? h('div', { class: 'tv-warn' }, '⚠ Koneksi ke server/Paperclip bermasalah: menampilkan daftar terakhir yang tersimpan. Semua konten tetap ada; status bisa tertinggal sampai tersambung lagi.') : null, lead(`${items.length} konten. Klik kartu untuk membuka tayangannya.`),
     h('div', { class: 'tv-all' }, items.map((i) => h('button', { type: 'button', class: 'tv-item', onclick: () => { st.prod = i.prod; st.rev = ''; st.slide = 0; st.tab = 'show'; sel.value = i.prod; load(true); }, title: i.title },
-      i.cover ? h('img', { src: img(i.cover), alt: '', loading: 'lazy' }) : h('div', { class: 'ph' }, 'belum ada gambar'),
+      i.cover ? h('div', { class: 'cv' }, h('img', { src: img(i.cover), alt: '', loading: 'lazy' }), i.coverFrom ? h('span', { class: 'cvnote' }, `gambar ${i.coverFrom}`) : null) : h('div', { class: 'ph' }, 'belum ada gambar'),
       h('div', { class: 'meta' },
         h('div', { class: 'row' }, h('b', {}, i.label ?? i.prod), h('span', { class: `tv-chip ${i.status?.tone ?? ''}` }, i.status?.label ?? '')),
         h('div', { class: 'ttl' }, i.title),
@@ -206,9 +213,14 @@ function designer(d) {
     h('div', { class: 'tv-grid' }, x.slides.map((s) => card(s.image ? h('img', { class: 'tv-mini', src: img(s.image), alt: `Slide ${s.index}`, loading: 'lazy' }) : null,
       h('b', {}, `${s.index}. ${s.template}`, s.image ? h('a', { class: 'dlx', href: dlUrl(s.image), download: '', title: 'Unduh gambar slide ini' }, ' ⬇') : null), h('p', { class: 'sub' }, s.variant + (s.icon ? ` · ikon ${s.icon}` : '')), s.emphasis.length ? h('p', { class: 'sub' }, 'Ditekankan: ' + s.emphasis.join(', ')) : null))));
 }
+function qaHistoryCards(d) {
+  return (d.qaHistory ?? []).map((r) => card(h('h4', {}, `Putaran QA sebelumnya (${r.round.replace(/^qa-putaran-/, '').replace(/-/g, ' ')})`),
+    h('p', {}, r.passed ? '✔ Lolos' : `✖ Ditolak${r.fromScratch ? ', diminta dibuat dari awal' : r.returnTo.length ? `, dikembalikan ke: ${r.returnTo.join(', ')}` : ''}`),
+    r.notes.length ? h('ul', {}, r.notes.map((n) => h('li', {}, n))) : null));
+}
 function qa(d) {
-  const q = d.qa; if (!q) return empty();
-  return h('div', {}, q.official ? card(h('span', { class: 'pill ok' }, '✔ Lolos QA resmi'), h('p', {}, q.official.label), q.official.contentHash ? h('p', { class: 'sub' }, `Hash isi paket: ${q.official.contentHash.slice(0, 16)}…`) : null) : card(h('span', { class: 'pill warn' }, 'Belum ada vonis QA resmi')),
+  const q = d.qa; if (!q) return (d.qaHistory ?? []).length ? h('div', {}, lead('Versi ini belum diperiksa QA. Riwayat putaran sebelumnya:'), ...qaHistoryCards(d)) : empty();
+  return h('div', {}, ...qaHistoryCards(d), q.official ? card(h('span', { class: 'pill ok' }, '✔ Lolos QA resmi'), h('p', {}, q.official.label), q.official.contentHash ? h('p', { class: 'sub' }, `Hash isi paket: ${q.official.contentHash.slice(0, 16)}…`) : null) : card(h('span', { class: 'pill warn' }, 'Belum ada vonis QA resmi')),
     q.checks.length ? card(h('h4', {}, 'Pemeriksaan'), h('ul', { class: 'tick' }, q.checks.map((c) => h('li', { class: c.ok ? 'ok' : 'bad' }, `${c.ok ? '✔' : '✖'} ${c.label}`)))) : null,
     q.notes.length ? card(h('h4', {}, 'Catatan QA'), h('ul', {}, q.notes.map((n) => h('li', {}, n)))) : null);
 }

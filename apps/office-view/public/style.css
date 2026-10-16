@@ -136,7 +136,8 @@ details.card summary { cursor: pointer; font-weight: 700; } .row2 { margin-top: 
 .tv-side { overflow: auto; min-width: 0; } .tv-side h3 { margin: 0 0 4px; } .tv-side ul { margin: 4px 0; padding-left: 18px; }
 #tvStages { display: flex; gap: 6px; padding: 8px 12px; background: #0b101c; border-top: 1px solid var(--line); overflow-x: auto; }
 .stg { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #121a2b; white-space: nowrap; font-size: 12px; } .stg small { color: var(--muted); }
-.stg .dot { width: 9px; height: 9px; border-radius: 50%; background: #475569; } .stg.done .dot { background: #22c55e; } .stg.running .dot { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; } .stg.blocked .dot { background: #ef4444; }
+.stg .dot { width: 9px; height: 9px; border-radius: 50%; background: #475569; } .stg.done .dot { background: #22c55e; } .stg.hold .dot { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.25); } .tv-item .cv { position: relative; } .tv-item .cvnote { position: absolute; left: 6px; bottom: 6px; background: rgba(15,23,42,.85); color: #fbbf24; font-size: 11px; padding: 2px 6px; border-radius: 6px; }
+.stg.running .dot { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; } .stg.blocked .dot { background: #ef4444; }
 @media (max-width: 900px) { .tv-show { grid-template-columns: 1fr; } }
 
 .tv-kpi { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0 12px; }
