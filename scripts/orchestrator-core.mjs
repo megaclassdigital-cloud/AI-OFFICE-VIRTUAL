@@ -71,7 +71,10 @@ export function qaFeedbackText(notes, stage, round, scratch = false) {
   const head = scratch
     ? `REVISI DARI QA (putaran ${round}): isi/sumber sebelumnya dinyatakan TIDAK VALID. Kerjakan DARI AWAL dengan sumber dan kandidat baru; hasil lama sudah diarsipkan, jangan dipakai ulang.`
     : `REVISI DARI QA (putaran ${round}): hasilmu ditolak QA. Perbaiki HANYA yang disebut, jangan mengubah yang sudah benar, lalu serahkan ulang.`;
-  return `${head}\nDepartemen yang diminta merevisi: ${STAGE_AGENT[stage]}.\nCatatan QA:\n- ${notes.join('\n- ').slice(0, 1500)}`;
+  const imgRule = stage === 'designer' && !scratch
+    ? '\nATURAN GAMBAR REVISI: gambar yang DITOLAK QA wajib diganti dan DIAMBIL ULANG, jadi pakai NAMA BERKAS BARU (mis. tambah -v2) dan perbarui query di asset-requests.json. Gambar yang TIDAK disebut QA jangan diubah namanya: dipakai ulang tanpa pengambilan ulang.'
+    : '';
+  return `${head}${imgRule}\nDepartemen yang diminta merevisi: ${STAGE_AGENT[stage]}.\nCatatan QA:\n- ${notes.join('\n- ').slice(0, 1500)}`;
 }
 const DONE_STATUSES = new Set(['in_review', 'done']);
 

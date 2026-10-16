@@ -558,7 +558,12 @@ function archiveRunFiles(runKey, stages, label, scratch) {
   for (const n of names) {
     const from = path.join(runDir, n);
     if (!existsSync(from)) continue;
-    try { mkdirSync(dest, { recursive: true }); renameSync(from, path.join(dest, n)); moved++; } catch (e) { log(`arsip ${runKey}: ${n} gagal dipindah (${String(e?.code ?? e).slice(0, 40)})`); }
+    try {
+      mkdirSync(dest, { recursive: true });
+      // Manifest aset hanya DISALIN (bukan dipindah) pada revisi biasa: catatan gambar yang sudah sah tetap dibaca capture, sehingga gambar yang tidak dikritik QA dipertahankan tanpa pengambilan ulang (hemat waktu dan CAPTCHA).
+      if (n === 'assets-manifest.json' && !scratch) copyFileSync(from, path.join(dest, n)); else renameSync(from, path.join(dest, n));
+      moved++;
+    } catch (e) { log(`arsip ${runKey}: ${n} gagal dipindah (${String(e?.code ?? e).slice(0, 40)})`); }
   }
   // Aset gambar yang bukan "scratch" tetap di tempat (Designer dapat memakai ulang); folder arsip hanya dibuat bila ada isinya.
   if (moved) log(`arsip ${runKey}: ${moved} berkas/folder hasil lama dipindah ke arsip/${label}`);
