@@ -38,6 +38,7 @@ export function normalizeResearch(raw, { sources, generatedAt = new Date().toISO
         published_at: c.published_at,
         source_name: c.source_name,
       };
+      if (typeof c.image_url === 'string' && /^https:\/\//.test(c.image_url)) cand.image_url = c.image_url.slice(0, 1000);
       if (!isWhitelisted(c.url, cfg.whitelistDomains)) cand.non_whitelist = true;
       return cand;
     }),

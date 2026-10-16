@@ -5,13 +5,18 @@
 // bila pencarian diblokir (CAPTCHA / "unusual traffic") atau tidak ada hasil layak, aset ditandai MISSING dan skrip keluar kode 2.
 // CAPTCHA TIDAK dilewati. Owner dapat menaruh berkas sendiri di workspace/inbox/assets/<ISSUE>/<nama-berkas> (menang atas pencarian).
 //
-// Pemakaian: node scripts/capture-asset.mjs --issue EDU-27 [--requests <asset-requests.json>] [--headed] [--force]
+// URUTAN: (1) berkas owner di inbox, (2) logo EdukasiAI dari brand kit, (3) GAMBAR UTAMA SUMBER PRIMER berita (og:image halaman yang divalidasi Verifier; hanya untuk
+// slide dengan tepat satu sumber dan kind photo/product), (4) pencarian google -> bing. Unduhan (3) dilakukan kode langsung ke folder run, bukan lewat unduhan
+// browser, sehingga folder Downloads dan unduhan lain tidak tersentuh.
+//
+// Pemakaian: node scripts/capture-asset.mjs --issue EDU-27 [--requests <asset-requests.json>] [--headed] [--force] [--no-source]
 // Keluaran : workspace/agent/runs/<ISSUE>/assets/<file> + assets-manifest.json. Exit: 0 semua ada, 2 ada yang MISSING/blocked, 1 galat.
 import './playwright-env.mjs'; // harus pertama: arahkan Playwright ke tools/ms-playwright bila ada
 import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROFILE_DIR } from './browser-login.mjs';
+import { pickSource, extractImageUrls, extractTitle, isPublicHttpsUrl } from './source-image.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from 'node:fs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -106,7 +111,7 @@ async function edgeRows(context, buf, mime) {
 }
 
 /** Ambil file gambar asli dari URL-nya dan tempelkan di atas latar putih (transparansi jadi putih, bukan kotak-kotak). */
-async function saveComposite(page, url, outFile) {
+async function saveComposite(page, url, outFile, { minW = 200, minH = 120 } = {}) {
   if (!/^https?:/.test(String(url))) return false;
   const resp = await page.context().request.get(url, { timeout: 15000 }).catch(() => null);
   if (!resp || !resp.ok()) return false;
@@ -117,15 +122,15 @@ async function saveComposite(page, url, outFile) {
   const p = await page.context().newPage();
   try {
     const type = path.extname(outFile) === '.png' ? 'image/png' : 'image/jpeg';
-    const out = await p.evaluate(async ({ b64, ct, type }) => {
+    const out = await p.evaluate(async ({ b64, ct, type, minW, minH }) => {
       const img = new Image(); img.src = 'data:' + ct + ';base64,' + b64; await img.decode();
       const w = img.naturalWidth; const h = img.naturalHeight;
-      if (w < 200 || h < 120) return null;
+      if (w < minW || h < minH) return null;
       const k = Math.min(1, 1600 / Math.max(w, h));
       const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
       const g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
       return c.toDataURL(type, 0.92).split(',')[1];
-    }, { b64: body.toString('base64'), ct, type });
+    }, { b64: body.toString('base64'), ct, type, minW, minH });
     if (!out) return false;
     const buf = Buffer.from(out, 'base64');
     if (await looksBlank(page.context(), buf, type)) return false;
@@ -264,6 +269,24 @@ export async function captureOne(page, req, outFile, engines = ['google', 'bing'
   return { status: allBlocked ? 'blocked' : 'missing', query: q, reason: notes.join(' | ') };
 }
 
+/** Gambar utama halaman sumber primer (og:image) -> PNG/JPEG di outFile. Mengembalikan { ok, imageUrl, title } atau { ok:false, reason }. */
+export async function fromSource(page, src, outFile) {
+  const urls = []; let title = null; const notes = [];
+  if (src.imageUrl && isPublicHttpsUrl(src.imageUrl)) urls.push(src.imageUrl);
+  const resp = await page.context().request.get(src.url, { timeout: 20000, headers: { accept: 'text/html,application/xhtml+xml' } }).catch(() => null);
+  if (resp && resp.ok() && /html/i.test(String(resp.headers()['content-type'] ?? ''))) {
+    const html = await resp.text();
+    title = extractTitle(html);
+    for (const u of extractImageUrls(html, resp.url())) if (!urls.includes(u)) urls.push(u);
+  } else notes.push(`halaman sumber tidak terbaca (${resp ? resp.status() : 'tanpa respons'})`);
+  for (const u of urls.slice(0, 4)) {
+    // foto sumber harus cukup besar untuk memenuhi separuh atas slide tanpa pecah
+    if (await saveComposite(page, u, outFile, { minW: 600, minH: 300 })) return { ok: true, imageUrl: u, title: title ?? src.title ?? null };
+  }
+  notes.push(urls.length ? 'gambar utama sumber tidak memenuhi syarat (format/ukuran minimal 600x300)' : 'sumber tidak menyediakan gambar utama (og:image)');
+  return { ok: false, reason: notes.join('; ') };
+}
+
 export async function main(argv) {
   const get = (k) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : null);
   const issue = get('--issue');
@@ -279,6 +302,8 @@ export async function main(argv) {
   let prev = null; try { prev = JSON.parse(readFileSync(manifestFile, 'utf8').replace(/^\uFEFF/, '')); } catch { /* belum ada manifest */ }
   const prevBy = new Map((prev?.assets ?? []).map((a) => [a.file, a]));
   const manifest = { issue, createdAt: new Date().toISOString(), note: 'Screenshot hasil pencarian gambar atau berkas dari owner. Hak cipta tetap milik pemilik aslinya; owner bertanggung jawab atas penggunaan.', assets: [] };
+  const readJ = (p) => { try { return JSON.parse(readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); } catch { return null; } };
+  const srcData = { carousel: readJ(path.join(runDir, 'carousel.json')), research: readJ(path.join(runDir, 'research-output.json')), verification: readJ(path.join(runDir, 'verification-result.json')) };
   let browser = null; let context = null; let page = null;
   const engines = (get('--engines') ?? 'google,bing').split(',').filter((n) => ENGINES[n]);
   const state = { blocked: new Set() };
@@ -296,7 +321,8 @@ export async function main(argv) {
       // Berkas yang sudah ada hanya dipertahankan bila manifest sebelumnya mencatatnya hasil capture/owner (bukti ikut dibawa); selain itu diambil ulang.
       const was = prevBy.get(req.file);
       if (!force && existsSync(out) && statSync(out).size > 2000 && was && ['captured', 'owner-supplied'].includes(was.status)) { manifest.assets.push({ ...was, keptAt: new Date().toISOString() }); continue; }
-      if (!context) {
+      const ensurePage = async () => {
+        if (context) return;
         // Profil Edge tersimpan (sesi hasil verifikasi OWNER via browser-login.mjs) dipakai bila ada; selain itu Chromium bawaan.
         if (existsSync(PROFILE_DIR) && !argv.includes('--no-profile')) {
           context = await chromium.launchPersistentContext(PROFILE_DIR, { channel: 'msedge', headless: !argv.includes('--headed'), locale: 'id-ID', viewport: { width: 1400, height: 1000 } });
@@ -305,10 +331,23 @@ export async function main(argv) {
           context = await browser.newContext({ locale: 'id-ID', viewport: { width: 1400, height: 1000 } });
         }
         page = await context.newPage();
+      };
+      // (3) Sumber primer: hanya foto/produk pada slide dengan tepat satu sumber terverifikasi.
+      let sourceNote = null;
+      if (['photo', 'product'].includes(req.kind) && !argv.includes('--no-source')) {
+        const src = pickSource({ slideIndex: req.slide, ...srcData });
+        if (src) {
+          await ensurePage();
+          const s = await fromSource(page, src, out).catch((e) => ({ ok: false, reason: `galat: ${String(e?.message ?? e).slice(0, 80)}` }));
+          if (s.ok) { manifest.assets.push({ ...entry, status: 'captured', engine: 'sumber-primer', source: src.url, sourceId: src.id, imageUrl: s.imageUrl, title: s.title, capturedAt: new Date().toISOString() }); continue; }
+          sourceNote = `sumber primer (${src.id}): ${s.reason}`;
+        }
       }
+      await ensurePage();
       // Pembatasan laju: pencarian beruntun cepat memicu verifikasi Google; beri jeda antar permintaan (bukan mengakali verifikasi).
       if (queried++ > 0) await new Promise((res) => setTimeout(res, PACE_MS));
       const r = await captureOne(page, req, out, engines, state).catch((e) => ({ status: 'missing', query: buildQuery(req), reason: `galat: ${e.message}` }));
+      if (sourceNote && r.status !== 'captured') r.reason = [sourceNote, r.reason].filter(Boolean).join(' | ');
       manifest.assets.push({ ...entry, ...r, capturedAt: new Date().toISOString() });
     }
   } finally { if (context) await context.close().catch(() => {}); if (browser) await browser.close().catch(() => {}); }

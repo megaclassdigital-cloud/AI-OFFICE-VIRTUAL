@@ -53,6 +53,7 @@ terhadap `schemas/research-output.json`.
 | `url` | URL https lengkap yang benar-benar kamu buka. Bukan hasil tebakan |
 | `published_at` | Tanggal terbit dari halaman, format `YYYY-MM-DD` atau ISO 8601 |
 | `source_name` | Nama media/organisasi penerbit |
+| `image_url` | **Opsional.** URL gambar utama halaman sumber (mis. `og:image`) bila kamu memang melihatnya saat membuka halaman. Hanya menulis URL-nya: jangan mengunduh atau menyimpan gambar. Jangan menebak: kosongkan bila tidak yakin. Kode memvalidasi dan mengunduhnya ke folder run, dan memakainya sebagai gambar slide sebelum mencari di internet. |
 
 Jangan mengarang URL. Jika tidak menemukan URL asli, buang kandidat itu. Kurang dari 5 kandidat sah
 lebih baik dilaporkan sebagai `needs_human` daripada diisi dengan tebakan.

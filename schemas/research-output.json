@@ -4,7 +4,11 @@
   "title": "Output Researcher EdukasiAI",
   "description": "Kandidat berita AI dari Researcher. Divalidasi kode sebelum diteruskan ke Verifier (F1.2).",
   "type": "object",
-  "required": ["generatedAt", "windowDays", "candidates"],
+  "required": [
+    "generatedAt",
+    "windowDays",
+    "candidates"
+  ],
   "additionalProperties": false,
   "properties": {
     "generatedAt": {
@@ -22,13 +26,22 @@
       "type": "array",
       "minItems": 5,
       "maxItems": 10,
-      "items": { "$ref": "#/$defs/candidate" }
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
     }
   },
   "$defs": {
     "candidate": {
       "type": "object",
-      "required": ["id", "title", "summary", "url", "published_at", "source_name"],
+      "required": [
+        "id",
+        "title",
+        "summary",
+        "url",
+        "published_at",
+        "source_name"
+      ],
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -73,6 +86,12 @@
           "type": "string",
           "maxLength": 500,
           "description": "Diisi bila halaman memuat teks yang mencoba memberi perintah kepada agent. Isi: kutipan singkat + tindakan (diabaikan)."
+        },
+        "image_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "description": "OPSIONAL. URL gambar utama dari halaman sumber (mis. og:image) bila Researcher melihatnya. Hanya URL; tidak mengunduh apa pun. Kode memvalidasi dan mengunduhnya."
         }
       }
     }
