@@ -21,6 +21,7 @@ import { appendOutbox, buildPlanMessage, speakerName } from './manager-outbox.mj
 import { buildManagerInstruction } from './manager-instruction.mjs';
 import { writeJsonAtomic, readJsonSafe } from './safe-json.mjs';
 import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelFile, doneFile } from './revision-router.mjs';
+import { prefetchRunning, prefetchDoneFor, requestsSig, shouldPrefetch, startPrefetch } from './asset-prefetch.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -95,8 +96,11 @@ function assetGate(job, design, designPath) {
   // Aset yang sudah lengkap di manifest (mis. owner menyelesaikan CAPTCHA lalu capture dijalankan manual) membatalkan hold basi.
   if (prev) { try { if (manifestVerdict(JSON.parse(readFileSync(manFile, 'utf8')), files).complete) { writeHold(holdFile, null); prev = null; } } catch { /* manifest belum ada */ } }
   if (prev && !shouldRetryCapture(prev, sig, Date.now())) return { ok: false, hold: true, missing: prev.missing, errors: [holdMessage(runKeyOf(job), prev.missing)] };
-  markBusy('ambil-aset', 430_000);
-  spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'capture-asset.mjs'), '--issue', runKeyOf(job)], { encoding: 'utf8', timeout: 420_000 });
+  let pfSig = ''; try { pfSig = requestsSig(readFileSync(reqFile, 'utf8'), sig); } catch { /* tanpa tanda tangan: capture biasa */ }
+  if (!prefetchDoneFor(runKeyOf(job), pfSig)) {
+    markBusy('ambil-aset', 430_000);
+    spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'capture-asset.mjs'), '--issue', runKeyOf(job)], { encoding: 'utf8', timeout: 420_000 });
+  }
   let manifest = null;
   try { manifest = JSON.parse(readFileSync(manFile, 'utf8')); } catch { /* dianggap belum ada */ }
   const verdict = manifestVerdict(manifest, files);
@@ -505,7 +509,8 @@ async function gatherFacts(job, state) {
     let failedNow = failed;
     // Selesai berbasis berkas: agent yang sudah menulis keluaran valid dan SEGAR (lebih baru dari awal tahap) tetapi lupa memanggil
     // complete_stage tidak boleh dianggap macet. Berkas basi dari percobaan sebelumnya tidak dihitung (cek waktu ubah).
-    if (!['in_review', 'done'].includes(status)) {
+    const waitPrefetch = STAGES[job.stageIndex] === 'designer' && prefetchRunning();
+    if (!waitPrefetch && !['in_review', 'done'].includes(status)) {
       try {
         const st = statSync(outPathFor(runKeyOf(job), STAGES[job.stageIndex]));
         // Berkas segar (ditulis selama tahap ini) dan STABIL (tidak berubah >= 60 dtk, jadi bukan setengah tertulis).
@@ -523,6 +528,7 @@ async function gatherFacts(job, state) {
         }
       } catch { /* berkas belum ada */ }
     }
+    if (waitPrefetch && ['in_review', 'done'].includes(status)) status = 'in_progress'; // tunggu capture dini selesai; tick berikutnya menilai
     stage = { status, failed: failedNow, error: failedNow ? last.error : undefined };
     if (!output && ['in_review', 'done'].includes(status)) output = checkOutput(job, STAGES[job.stageIndex]);
     // Salinan keluaran yang SUDAH diterima gerbang (sidecar .accepted): agen yang masih hidup tidak bisa menimpa keputusan yang sudah diambil.
@@ -710,7 +716,25 @@ const isFinished = (j) => ['done', 'blocked'].includes(j.phase);
  * Satu langkah untuk satu konten: kumpulkan fakta, putuskan, terapkan. Konten yang ingin maju ke tahap yang masih dipegang konten di depannya
  * menunggu (laneWait): tiap agent hanya memegang SATU konten pada satu waktu, urutan konten tidak saling mendahului.
  */
+/** Mulai mengambil gambar begitu Designer menulis asset-requests.json (tidak menunggu desain selesai). Aman dipanggil tiap tick. */
+function maybePrefetchAssets(job) {
+  if (job.phase !== 'running' || STAGES[job.stageIndex] !== 'designer') return;
+  const runKey = runKeyOf(job);
+  const runDir = path.dirname(outPathFor(runKey, 'designer'));
+  const reqFile = path.join(runDir, 'asset-requests.json');
+  let st; let raw; let doc;
+  try { st = statSync(reqFile); raw = readFileSync(reqFile, 'utf8'); doc = JSON.parse(raw.replace(/^﻿/, '')); } catch { return; }
+  if (!validate('asset-requests', doc).ok) return;
+  const sig = requestsSig(raw, inboxSignature(ROOT, runKey));
+  let complete = false;
+  try { complete = manifestVerdict(JSON.parse(readFileSync(path.join(runDir, 'assets-manifest.json'), 'utf8')), (doc.requests ?? []).map((r) => r.file)).complete; } catch { /* manifest belum ada */ }
+  if (shouldPrefetch({ reqExists: true, mtimeMs: st.mtimeMs, stageStartedMs: job.stageStartedMs ?? 0, nowMs: Date.now(), running: prefetchRunning(), complete, lastSig: undefined, sig }) && !prefetchDoneFor(runKey, sig)) {
+    startPrefetch({ root: ROOT, runKey, sig, log });
+  }
+}
+
 async function advanceJob(job, net, occupied, state) {
+  try { maybePrefetchAssets(job); } catch { /* percepat saja; gerbang tetap bekerja tanpa ini */ }
   const facts = await gatherFacts(job, state);
   facts.offline = net.hold === true;
   const decision = decideAdvance(job, facts, occupied);

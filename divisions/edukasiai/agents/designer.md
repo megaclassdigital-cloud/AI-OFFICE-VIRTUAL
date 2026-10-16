@@ -50,6 +50,9 @@ Slot `source` diisi nama media dari daftar `sources` carousel (awalan "Sumber:" 
 3. Tulis `asset-requests.json` di folder run yang sama dengan `carousel-design.json` (skema `schemas/asset-requests.json`):
    `{"requests":[{"slide":1,"file":"claude-logo.png","kind":"brand","brand":"Claude","query":"Claude Anthropic"}]}`.
    `query` pendek (2-4 kata kunci, nama resmi); `kind: "photo"` untuk foto topik.
+   **Tulis `asset-requests.json` LEBIH DULU**, begitu kamu tahu gambar apa yang dibutuhkan tiap slide (dari `carousel.json`), sebelum menyusun
+   `carousel-design.json`. Kode mulai mengambil gambar di latar belakang segera setelah berkas itu utuh, sehingga gambar sudah siap saat desainmu selesai.
+   Tulis berkas itu **sekali, utuh** (jangan diubah setelahnya kecuali memang ada gambar yang harus diganti; perubahan memulai pengambilan ulang).
 4. Di slot `image` tulis `runs/<ID>/assets/<file>` dengan `<file>` **sama persis** dengan `file` di permintaan, dan `slide` cocok.
 5. Bila aset belum bisa diambil (Google meminta verifikasi, tidak ada hasil asli), orkestrator **menahan** produksi dan memberi tahu owner.
    Kamu tidak perlu mengulang dan tidak boleh mengganti dengan gambar lain.
