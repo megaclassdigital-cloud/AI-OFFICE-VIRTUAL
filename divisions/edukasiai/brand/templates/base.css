@@ -119,11 +119,14 @@ mark { background: none; color: var(--accent); font-weight: inherit; }
 .kicker.plain::before { display: none; }
 .kicker.top { margin-top: 36px; }
 .hl { font-size: 76px; font-weight: 800; line-height: 1.1; text-transform: uppercase; letter-spacing: -.005em; }
+/* Judul tidak boleh menyisakan satu kata sendirian di baris terakhir (visualChecklist: "tidak ada baris yatim satu kata"): seimbangkan pemenggalan baris. */
+.hl, .hero, .display, .heading { text-wrap: balance; }
 .hl.md { font-size: 62px; }
 .sub-it { font-size: 34px; line-height: 1.35; font-style: italic; color: var(--muted); }
 .lede { font-size: 40px; line-height: 1.5; color: var(--text); font-weight: 400; }
 .lede.wide { margin-top: 26px; }
-.src { font-size: var(--fs-kicker); color: var(--muted); font-weight: 500; text-align: right; }
+.src { font-size: var(--fs-kicker); color: var(--muted); font-weight: 500; text-align: right; text-wrap: balance; } /* bila membungkus, seimbangkan (tanpa kata yatim); sumber ideal cukup satu baris (acuan: "Sumber: Reuters") */
+.footer { gap: 28px; } .footer .brandmark { white-space: nowrap; flex: none; }
 
 .ic { color: var(--accent); display: grid; place-items: center; }
 .ic svg { width: 100%; height: 100%; stroke-width: 1.6; }
