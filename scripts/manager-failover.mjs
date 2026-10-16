@@ -104,8 +104,10 @@ async function main() {
 
   // opencode dipanggil lewat jalur absolut ke binernya: pencarian PATH di dalam run Paperclip terbukti gagal ("Command not found in PATH: opencode",
   // 16 Okt 2026) padahal PATH prosesnya benar. Adapter lain: kosongkan (null) agar tidak mewarisi command adapter sebelumnya.
-  const OPENCODE_EXE = path.join(process.env.APPDATA ?? '', 'npm', 'node_modules', 'opencode-ai', 'bin', 'opencode.exe').split(path.sep).join('/');
-  const commandFor = (adapterType) => (adapterType === 'opencode_local' && existsSync(OPENCODE_EXE) ? OPENCODE_EXE : null);
+  // Terbukti lewat endpoint test-environment: server Paperclip TIDAK dapat melihat folder %APPDATA%\npm sama sekali (folder, claude.cmd, opencode.exe: semuanya tak terlihat),
+  // sedangkan %LOCALAPPDATA% dan D: terlihat. Karena itu dipakai SALINAN biner di %LOCALAPPDATA%\Programs\opencode-bin (disalin dari paket npm; perbarui bila opencode di-upgrade).
+  const OPENCODE_EXES = [path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'opencode-bin', 'opencode.exe'), path.join(process.env.APPDATA ?? '', 'npm', 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')].map((p) => p.split(path.sep).join('/'));
+  const commandFor = (adapterType) => (adapterType === 'opencode_local' ? (OPENCODE_EXES.find((p) => existsSync(p)) ?? null) : null);
 
   async function apply(name, entry, why) {
     const agent = await agentOf(name);
