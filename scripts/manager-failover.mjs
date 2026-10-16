@@ -102,6 +102,11 @@ async function main() {
     return m;
   };
 
+  // opencode dipanggil lewat jalur absolut ke binernya: pencarian PATH di dalam run Paperclip terbukti gagal ("Command not found in PATH: opencode",
+  // 16 Okt 2026) padahal PATH prosesnya benar. Adapter lain: kosongkan (null) agar tidak mewarisi command adapter sebelumnya.
+  const OPENCODE_EXE = path.join(process.env.APPDATA ?? '', 'npm', 'node_modules', 'opencode-ai', 'bin', 'opencode.exe').split(path.sep).join('/');
+  const commandFor = (adapterType) => (adapterType === 'opencode_local' && existsSync(OPENCODE_EXE) ? OPENCODE_EXE : null);
+
   async function apply(name, entry, why) {
     const agent = await agentOf(name);
     const live = (await j(`/companies/${company.id}/heartbeat-runs?limit=60`)).filter((r) => r.agentId === agent.id);
@@ -111,7 +116,7 @@ async function main() {
     const de = dotenv();
     for (const spec of entry.envFromDotenv ?? []) { const [k, src = k] = spec.split('='); if (!de.has(src)) throw new Error(`${src} tidak ada di .env`); env[k] = de.get(src); }
     // PATCH menggabungkan config lama; kunci model dari adapter sebelumnya harus dikosongkan bila entri tidak menyebut model.
-    const adapterConfig = { ...base, ...(entry.adapterConfig.model ? {} : { model: null }), ...entry.adapterConfig, ...(Object.keys(env).length ? { env } : {}) };
+    const adapterConfig = { ...base, ...(entry.adapterConfig.model ? {} : { model: null }), ...entry.adapterConfig, ...(Object.keys(env).length ? { env } : {}), command: commandFor(entry.adapterType) };
     await j(`/agents/${agent.id}`, jb('PATCH', { adapterType: entry.adapterType, adapterConfig }));
     await j(`/agents/${agent.id}/runtime-state/reset-session`, jb('POST', {})).catch(() => {}); // sesi model/engine lama tidak bisa dilanjutkan oleh yang baru
     await j(`/agents/${agent.id}/resume`, jb('POST', {}));
