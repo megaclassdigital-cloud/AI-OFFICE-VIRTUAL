@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { writeHeartbeat, waitForPaperclip, isConnectionError, acquireLock, releaseLock } from './heartbeat.mjs';
-import { summarizeVerification, laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { sanitizeVerification, summarizeVerification, laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
@@ -132,6 +132,11 @@ function checkOutput(job, stageName) {
       }
     } catch (e) { return { ok: false, errors: [(e.errors ? e.errors.slice(0, 6).map((x) => `${x.path || '(root)'}: ${x.message}`) : [e.message]).join('; ')] }; }
     return { ok: true, errors: [] };
+  }
+  if (stageName === 'verifier') {
+    // Rapikan bentuk (properti tak dikenal, null) sebelum validasi: hemat satu putaran agen penuh per penolakan gerbang.
+    const sv = sanitizeVerification(data);
+    if (sv.changes.length) { data = sv.data; try { writeFileSync(p, JSON.stringify(data, null, 2) + '\n', 'utf8'); } catch { /* gerbang tetap memakai data yang sudah dirapikan */ } log(`${job.identifier} verification-result dirapikan otomatis: ${sv.changes.slice(0, 4).join('; ')}`); }
   }
   if (spec.schema) {
     const r = validate(spec.schema, data);
@@ -446,6 +451,7 @@ async function tidyStageIssues(production, activeJob) {
 // Dipanggil berkala: issue tahap blocked milik produksi yang SUDAH SELESAI dikembalikan ke in_review (menunggu approval, tetap tampil di tab Approval);
 // milik produksi lain yang tidak aktif dibatalkan. Issue tahap job yang sedang berjalan tidak disentuh.
 let lastTidyMs = 0;
+let connFails = 0; // galat koneksi beruntun ke Paperclip (untuk mundur bertahap dan log tidak membanjir)
 async function tidyBlocked(state) {
   if (Date.now() - lastTidyMs < 60_000) return;
   lastTidyMs = Date.now();
@@ -759,7 +765,7 @@ async function once() {
   for (const job of [state.job, ...state.followers].filter(Boolean)) {
     let out = job;
     if (!isFinished(job)) {
-      try { out = await advanceJob(job, net, occupied, state); } catch (e) { log(job.identifier + ' galat saat maju: ' + String(e?.message ?? e).slice(0, 160)); }
+      try { out = await advanceJob(job, net, occupied, state); connFails = 0; } catch (e) { const em = String(e?.message ?? e); if (isConnectionError(em)) { connFails += 1; if (connFails === 1 || connFails % 10 === 0) log(job.identifier + ' galat saat maju: ' + em.slice(0, 160) + (connFails > 1 ? ' (x' + connFails + ', Paperclip belum terjangkau; menunggu)' : '')); } else log(job.identifier + ' galat saat maju: ' + em.slice(0, 160)); }
     }
     advanced.push(out);
     const lane = laneOf(out);
@@ -839,6 +845,9 @@ if (a.includes('--tidy')) {
     let ok = true; let error = null;
     try { await once(); } catch (e) { ok = false; error = String(e?.message ?? e); log(`galat: ${e.message}`); }
     writeHeartbeat(ROOT, 'orchestrator', { ok, paperclipOk: !(error && isConnectionError(error)), error: error ? error.slice(0, 160) : null, intervalMs: ms });
-    await new Promise((r) => setTimeout(r, ms));
+    // Paperclip tidak terjangkau: jangan menghantam tiap 15 dtk (membebani laptop yang sedang memulihkan Paperclip dan memenuhi log); mundur bertahap sampai 60 dtk.
+    const down = (error && isConnectionError(error)) || connFails > 0;
+    const wait = down ? Math.min(60_000, ms * (1 + Math.min(connFails, 3))) : ms;
+    await new Promise((r) => setTimeout(r, wait));
   }
 } else await once();

@@ -424,3 +424,32 @@ export function stageDescription({ order, stage, identifier, outputsDir, brief, 
     `Selesai: panggil tool complete_stage (outcome awaiting_approval) lewat aao-tool.mjs, lalu berhenti.`,
   ].filter(Boolean).join('\n\n').replace(/[A-Za-z]:\\[^\s"'`)\]]*/g, (m) => m.replace(/\\/g, '/')); // = forwardSlashPaths, lihat di atas
 }
+
+const VERIFICATION_TOP = ['verifiedAt', 'windowDays', 'results'];
+const dropNulls = (v) => {
+  if (Array.isArray(v)) return v.map(dropNulls);
+  if (v && typeof v === 'object') { const o = {}; for (const [k, x] of Object.entries(v)) if (x !== null && x !== undefined) o[k] = dropNulls(x); return o; }
+  return v;
+};
+/**
+ * Merapikan verification-result.json yang bentuknya hampir benar (model kecil sering menambah properti, mengisi null): buang properti tingkat atas
+ * yang tidak dikenal dan nilai null, lalu pastikan checks.urlReachable.ok boolean (tidak diperiksa = false). Fakta tidak diubah; hanya bentuk.
+ * Menghemat satu putaran agen penuh per penolakan gerbang. Tidak menebak isi yang hilang: yang masih tidak valid tetap ditolak skema.
+ */
+export function sanitizeVerification(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return { data, changes: [] };
+  const changes = [];
+  const out = {};
+  for (const [k, v] of Object.entries(data)) { if (VERIFICATION_TOP.includes(k)) out[k] = v; else changes.push(`properti "${k}" dibuang`); }
+  const before = JSON.stringify(out);
+  const clean = dropNulls(out);
+  if (JSON.stringify(clean) !== before) changes.push('nilai null dibuang');
+  if (Array.isArray(clean.results)) {
+    for (const r of clean.results) {
+      const u = r?.checks?.urlReachable;
+      if (u && typeof u === 'object' && typeof u.ok !== 'boolean') { u.ok = false; if (!u.error) u.error = 'tidak diperiksa oleh Verifier'; changes.push(`urlReachable.ok diisi false (kandidat ${r.candidateId ?? r.id ?? '?'})`); }
+      if (u && typeof u === 'object') { if ('httpStatus' in u && !Number.isInteger(u.httpStatus)) delete u.httpStatus; if ('finalUrl' in u && typeof u.finalUrl !== 'string') delete u.finalUrl; }
+    }
+  }
+  return { data: clean, changes };
+}

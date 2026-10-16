@@ -76,6 +76,7 @@ const PAPERCLIP_STARTUP_GRACE_MS = 8 * 60_000;
 const STARTUP_WARMUP_MS = 90_000;
 const LOW_MEMORY_MB = 700; // laptop owner 7,9 GB: di bawah ini Paperclip/agent melambat dan timeout; tray memberi peringatan
 const PAPERCLIP_HUNG_MS = 30 * 60_000;
+const EMBEDDED_DB_PORT = Number(process.env.PAPERCLIP_DB_PORT ?? 54329); // Postgres tertanam Paperclip
 let slowLogAt = 0;
 let pluginBadSince = null; let pluginRepairAt = 0;
 
@@ -232,11 +233,13 @@ async function cycle() {
     if (nowMs - paperclipDownSince > 30_000 && nowMs - paperclipRestartAt > PAPERCLIP_STARTUP_GRACE_MS) {
       const procs = listNodeProcs().filter((p) => /paperclipai/.test(p.cmd));
       if (await tcpOpen(3177)) { if (nowMs - slowLogAt > 300_000) { slowLogAt = nowMs; log('Paperclip lambat tetapi prosesnya hidup (port 3177 terbuka): tidak diluncurkan ulang'); } }
-      else if (procs.length && nowMs - paperclipRestartAt < PAPERCLIP_HUNG_MS) {
+      // Database internal (embedded Postgres) yang mati setelah laptop tidur membuat server Paperclip tidak pernah membuka port. Port DB tertutup di luar masa
+      // tenggang = DB sudah mati (bukan sedang memulihkan diri; saat pulih, port DB sudah terbuka): jangan tunggu sampai PAPERCLIP_HUNG_MS, langsung nyalakan ulang.
+      else if (procs.length && nowMs - paperclipRestartAt < PAPERCLIP_HUNG_MS && (await tcpOpen(EMBEDDED_DB_PORT))) {
         // Proses Paperclip ADA tetapi belum membuka port: masih memulai (pemulihan database bisa lama setelah laptop tidur). Meluncurkan lagi hanya menumpuk proses yang berebut database.
         if (nowMs - slowLogAt > 300_000) { slowLogAt = nowMs; log('Paperclip masih memulai (proses ada, port belum terbuka): menunggu, tidak diluncurkan ulang'); }
       } else {
-        if (procs.length) { log('Paperclip macet >' + Math.round(PAPERCLIP_HUNG_MS / 60_000) + ' menit tanpa membuka port: dihentikan lalu dinyalakan ulang'); try { spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', f('scripts', 'start-paperclip.ps1'), '-Stop'], { cwd: ROOT, windowsHide: true, timeout: 60_000 }); } catch { /* lanjut menyalakan */ } }
+        if (procs.length) { log('Paperclip macet (port tidak terbuka; database internal mati atau >' + Math.round(PAPERCLIP_HUNG_MS / 60_000) + ' menit): dihentikan lalu dinyalakan ulang'); try { spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', f('scripts', 'start-paperclip.ps1'), '-Stop'], { cwd: ROOT, windowsHide: true, timeout: 60_000 }); } catch { /* lanjut menyalakan */ } }
         startPaperclip('tidak terjangkau');
       }
     }

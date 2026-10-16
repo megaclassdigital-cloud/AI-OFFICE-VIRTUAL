@@ -369,3 +369,19 @@ describe('QA: penilaian desain wajib dan "buat dari awal"', () => {
     expect(qaFeedbackText(['x'], 'researcher', 1, true)).toContain('DARI AWAL');
   });
 });
+
+import { sanitizeVerification } from '../scripts/orchestrator-core.mjs';
+describe('sanitizeVerification (hemat putaran agen)', () => {
+  it('membuang properti tak dikenal dan null, mengisi urlReachable.ok, tanpa mengubah fakta', () => {
+    const r = sanitizeVerification({ verifiedAt: 'x', windowDays: 7, results: [{ candidateId: 'c1', checks: { urlReachable: { ok: null, httpStatus: null, finalUrl: null } } }], topicStatus: 'ok' });
+    expect(Object.keys(r.data).sort()).toEqual(['results', 'verifiedAt', 'windowDays']);
+    expect(r.data.results[0].checks.urlReachable.ok).toBe(false);
+    expect(r.data.results[0].checks.urlReachable.httpStatus).toBeUndefined();
+    expect(r.changes.length).toBeGreaterThan(0);
+  });
+  it('data yang sudah rapi tidak berubah', () => {
+    const d = { verifiedAt: 'x', windowDays: 7, results: [{ checks: { urlReachable: { ok: true, httpStatus: 200 } } }] };
+    const r = sanitizeVerification(d);
+    expect(r.changes).toEqual([]); expect(r.data).toEqual(d);
+  });
+});
