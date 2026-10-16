@@ -8,10 +8,16 @@
 //    new owner files in the inbox change the signature and allow a new attempt;
 //  - the capture process is detached from the event loop (async spawn), so other jobs keep moving.
 import { spawn } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
-const state = { child: null, runKey: null, done: new Map() };
+// Catatan "permintaan ini sudah dicoba" disimpan ke disk: restart orkestrator tidak boleh mengulang pencarian yang sama (menghemat waktu dan CAPTCHA Google).
+const DONE_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'workspace', 'prefetch-done.json');
+const loadDone = () => { try { return new Map(Object.entries(JSON.parse(readFileSync(DONE_FILE, 'utf8')))); } catch { return new Map(); } };
+const saveDone = (m) => { try { mkdirSync(path.dirname(DONE_FILE), { recursive: true }); writeFileSync(DONE_FILE, JSON.stringify(Object.fromEntries([...m].slice(-50)))); } catch { /* kosmetik */ } };
+const state = { child: null, runKey: null, done: loadDone() };
 
 export const prefetchRunning = () => state.child !== null;
 export const prefetchDoneFor = (runKey, sig) => state.done.get(runKey) === sig;
@@ -42,7 +48,7 @@ export function startPrefetch({ root, runKey, sig, log = () => {}, timeoutMs = 4
   const finish = (why) => {
     if (ended) return; ended = true; clearTimeout(timer);
     if (state.child === child) { state.child = null; state.runKey = null; }
-    state.done.set(runKey, sig);
+    state.done.set(runKey, sig); saveDone(state.done);
     log(`${runKey} ambil aset dini selesai (${why}, ${Math.round((Date.now() - t0) / 1000)} dtk)`);
   };
   child.on('exit', (code) => finish(`kode ${code}`));
