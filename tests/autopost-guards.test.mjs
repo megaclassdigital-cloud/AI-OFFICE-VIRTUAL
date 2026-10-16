@@ -109,3 +109,17 @@ describe('jeda dihitung dari waktu posting terakhir (keputusan owner)', () => {
     expect(formatRemaining(0)).toBe('siap'); expect(formatRemaining(14 * 60_000)).toBe('14 menit'); expect(formatRemaining(134 * 60_000)).toBe('2 jam 14 menit'); expect(formatRemaining(120 * 60_000)).toBe('2 jam');
   });
 });
+
+describe('kegagalan sebelum terkirim: coba ulang berjeda dan berbatas', () => {
+  const fail = (minAgo) => ({ content: 'EDU-1', platform: 'instagram', mode: 'live', status: 'gagal', at: new Date(NOW - minAgo * 60_000).toISOString() });
+  it('menunggu jeda coba ulang; setelah jeda boleh lagi; setelah 3 kegagalan butuh pemeriksaan owner', () => {
+    const r1 = canPostLive({ settings: live(), platform: 'instagram', ledger: [fail(10)], content: 'EDU-1', approval: OK, nowMs: NOW });
+    expect(r1.ok).toBe(false); expect(r1.reasons.join(' ')).toMatch(/menunggu coba ulang setelah gagal \(sisa 20 menit/);
+    expect(canPostLive({ settings: live(), platform: 'instagram', ledger: [fail(40)], content: 'EDU-1', approval: OK, nowMs: NOW }).ok).toBe(true);
+    const r3 = canPostLive({ settings: live(), platform: 'instagram', ledger: [fail(400), fail(300), fail(200)], content: 'EDU-1', approval: OK, nowMs: NOW });
+    expect(r3.ok).toBe(false); expect(r3.reasons.join(' ')).toMatch(/gagal 3x.*owner/);
+  });
+  it('kegagalan konten lain atau platform lain tidak memengaruhi', () => {
+    expect(canPostLive({ settings: live(), platform: 'instagram', ledger: [{ ...fail(5), content: 'EDU-2' }], content: 'EDU-1', approval: OK, nowMs: NOW }).ok).toBe(true);
+  });
+});

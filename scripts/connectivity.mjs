@@ -2,8 +2,8 @@
 // Dipakai office-launcher (pengawas) dan dites tanpa jaringan.
 import { isFresh } from './heartbeat.mjs';
 
-export const HEARTBEAT_MAX_AGE_MS = { orchestrator: 75_000, failover: 150_000 };
-export const COMPONENT_LABEL = { paperclip: 'Paperclip', plugin: 'Plugin approval-gate', agents: 'Agent EdukasiAI', 'office-view': 'Office View', orchestrator: 'Orkestrator', failover: 'Failover model' };
+export const HEARTBEAT_MAX_AGE_MS = { orchestrator: 75_000, failover: 150_000, autopost: 150_000 };
+export const COMPONENT_LABEL = { paperclip: 'Paperclip', plugin: 'Plugin approval-gate', agents: 'Agent EdukasiAI', 'office-view': 'Office View', orchestrator: 'Orkestrator', failover: 'Failover model', autopost: 'Admin Publikasi' };
 
 /**
  * @param {object} p
@@ -17,7 +17,7 @@ export const COMPONENT_LABEL = { paperclip: 'Paperclip', plugin: 'Plugin approva
  * @param {{orchestrator?:boolean, failover?:boolean}} [p.alive]   proses hidup menurut pengawas
  * @returns {{overall:'ok'|'sebagian'|'putus', components:{key:string,label:string,state:'ok'|'mulai'|'tidak-terhubung'|'mati',detail:string}[], problems:string[]}}
  */
-export function evaluateHealth({ nowMs, paperclip, plugin, agents, officeView, orchestrator, failover, alive = {} }) {
+export function evaluateHealth({ nowMs, paperclip, plugin, agents, officeView, orchestrator, failover, autopost, alive = {} }) {
   const c = [];
   const add = (key, state, detail) => c.push({ key, label: COMPONENT_LABEL[key], state, detail });
   const pcOk = paperclip?.reachable === true && paperclip.status === 'ok';
@@ -40,8 +40,9 @@ export function evaluateHealth({ nowMs, paperclip, plugin, agents, officeView, o
   else if (officeView.connected === false) add('office-view', 'tidak-terhubung', 'UI hidup tetapi jembatan ke Paperclip putus');
   else add('office-view', 'ok', 'UI dan jembatan ke Paperclip terhubung');
 
-  for (const key of ['orchestrator', 'failover']) {
-    const hb = key === 'orchestrator' ? orchestrator : failover;
+  // Admin Publikasi hanya dievaluasi bila dilaporkan (autopost === undefined = komponen belum dipasang pada pemanggil ini).
+  for (const key of autopost === undefined ? ['orchestrator', 'failover'] : ['orchestrator', 'failover', 'autopost']) {
+    const hb = key === 'orchestrator' ? orchestrator : key === 'failover' ? failover : autopost;
     // 'sibuk sampai' = komponen sedang menjalankan panggilan sinkron yang lama (render/ambil aset/finalisasi) dan sengaja tidak berdetak; bukan macet.
     const fresh = isFresh(hb, HEARTBEAT_MAX_AGE_MS[key], nowMs) || (Number.isFinite(hb?.busyUntil) && hb.busyUntil > nowMs);
     if (!fresh && alive[key] === false) add(key, 'mati', 'proses tidak berjalan');

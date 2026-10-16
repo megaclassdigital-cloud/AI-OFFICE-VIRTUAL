@@ -45,8 +45,10 @@ export function findChrome(env = process.env, exists = existsSync) {
 }
 
 /** Argumen Chrome biasa: profil khusus + port debug lokal; TANPA --enable-automation. headless hanya untuk --check. */
-export function chromeArgs({ dir, port, url, headless }) {
-  return [`--user-data-dir=${dir}`, `--remote-debugging-port=${port}`, '--no-first-run', '--no-default-browser-check', '--window-size=1200,900', ...(headless ? ['--headless=new'] : []), url];
+export function chromeArgs({ dir, port, url, headless, offscreen = false }) {
+  // offscreen: jendela di luar layar (tidak mengganggu owner) tetapi tetap dirender penuh (Chrome tidak diminta menghentikan render jendela yang tertutup).
+  const off = offscreen && !headless ? ['--window-position=-32000,0', '--disable-features=CalculateNativeWinOcclusion', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'] : [];
+  return [`--user-data-dir=${dir}`, `--remote-debugging-port=${port}`, '--no-first-run', '--no-default-browser-check', '--window-size=1280,900', ...off, ...(headless ? ['--headless=new'] : []), url];
 }
 
 async function connect(port, timeoutMs = 30000) {
@@ -110,11 +112,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
  * Buka Chrome biasa dengan profil khusus platform dan sambungkan Playwright lewat CDP lokal (tanpa penanda otomatisasi).
  * Mengembalikan { browser, ctx, page, close() }. headless=false menampilkan jendela (dry-run pertama sebaiknya terlihat).
  */
-export async function openSocialChrome(platform, { headless = false, url = null } = {}) {
+export async function openSocialChrome(platform, { headless = false, url = null, offscreen = false } = {}) {
   const P = PLATFORMS[platform]; if (!P) throw new Error(`platform tidak dikenal: ${platform}`);
   const chrome = findChrome(); if (!chrome) throw new Error('chrome.exe tidak ditemukan');
   const dir = profileDirFor(platform); mkdirSync(dir, { recursive: true });
-  const child = spawn(chrome, chromeArgs({ dir, port: P.port, url: url ?? P.homeUrl, headless }), { stdio: 'ignore', windowsHide: headless });
+  const child = spawn(chrome, chromeArgs({ dir, port: P.port, url: url ?? P.homeUrl, headless, offscreen }), { stdio: 'ignore', windowsHide: headless });
   const browser = await connect(P.port);
   const ctx = browser.contexts()[0];
   const page = ctx.pages().find((p) => /^https?:/.test(p.url())) ?? ctx.pages()[0] ?? (await ctx.newPage());

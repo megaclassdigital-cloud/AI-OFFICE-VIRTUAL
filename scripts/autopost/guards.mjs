@@ -8,6 +8,8 @@ export const DEFAULT_AUTOPOST_SETTINGS = Object.freeze({
   paused: false,                          // kill switch global: true = tidak ada posting sama sekali
   cooldownHours: 3,                       // jeda antar posting per platform, dari posting terakhir
   autopostSince: null,                    // ISO; null = tidak ada konten yang boleh diposting otomatis
+  retryAfterMinutes: 30,                  // jeda coba ulang setelah GAGAL SEBELUM terkirim (tidak pernah untuk tidak_pasti)
+  maxFailures: 3,                         // setelah sekian kegagalan, konten menunggu pemeriksaan owner
   platforms: {
     instagram: { live: false, maxPerDay: 6 },
     tiktok: { live: false, maxPerDay: 6 },
@@ -71,6 +73,12 @@ export function canPostLive({ settings, platform, ledger, content, approval, now
   else if (approval.hashMatches !== true) reasons.push('isi konten berubah setelah approval (hash tidak cocok)');
   const dup = ledgerBlocks(ledger, content, platform);
   if (dup) reasons.push(`sudah tercatat ${dup.status} pada ${dup.at} (tidak dikirim ulang${dup.status === 'tidak_pasti' ? '; owner perlu memeriksa hasilnya' : ''})`);
+  const fails = (ledger ?? []).filter((e) => e.mode === 'live' && e.content === content && e.platform === platform && e.status === 'gagal');
+  if (fails.length >= s.maxFailures) reasons.push(`gagal ${fails.length}x sebelum terkirim; butuh pemeriksaan owner`);
+  else if (fails.length) {
+    const wait = Math.max(...fails.map((e) => Date.parse(e.at))) + s.retryAfterMinutes * 60_000 - nowMs;
+    if (wait > 0) reasons.push(`menunggu coba ulang setelah gagal (sisa ${formatRemaining(wait)})`);
+  }
   const t = postingsToday(ledger, platform, nowMs, utcOffsetMinutes);
   if (t.count >= (p.maxPerDay ?? 1)) reasons.push(`batas harian ${platform} tercapai (${t.count}/${p.maxPerDay})`);
   const gap = gapMinutes(s, platform);

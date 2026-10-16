@@ -102,3 +102,17 @@ describe('waitForPaperclip: basis URL dengan atau tanpa /api', () => {
   it('maxMs=0 tidak menunggu sama sekali (CLI sekali jalan)', async () => { expect(await waitForPaperclip('http://127.0.0.1:1', { maxMs: 0 })).toBe(true); });
   it('server tidak ada: menyerah setelah maxMs, tanpa melempar galat', async () => { expect(await waitForPaperclip('http://127.0.0.1:1', { maxMs: 600, pollMs: 100 })).toBe(false); });
 });
+
+describe('Admin Publikasi dalam evaluasi kesehatan', () => {
+  const base = { nowMs: 1_000_000, paperclip: { reachable: true, status: 'ok' }, plugin: { ready: true }, agents: { count: 6 }, officeView: { reachable: true, connected: true }, orchestrator: { at: 1_000_000 - 1000, paperclipOk: true }, failover: { at: 1_000_000 - 1000, paperclipOk: true } };
+  it('tanpa parameter autopost komponen tidak dievaluasi (kompatibel mundur)', () => {
+    expect(evaluateHealth(base).components.map((c) => c.key)).toEqual(['paperclip', 'plugin', 'agents', 'office-view', 'orchestrator', 'failover']);
+  });
+  it('ok bila berdetak; mati bila prosesnya tidak berjalan; sibuk memposting tidak dianggap macet', () => {
+    const find = (h) => h.components.find((c) => c.key === 'autopost');
+    expect(find(evaluateHealth({ ...base, autopost: { at: 1_000_000 - 5000, ok: true } }))).toMatchObject({ label: 'Admin Publikasi', state: 'ok' });
+    expect(find(evaluateHealth({ ...base, autopost: null, alive: { autopost: false } })).state).toBe('mati');
+    expect(find(evaluateHealth({ ...base, autopost: { at: 1_000_000 - 400_000, busy: 'posting', busyUntil: 1_000_000 + 60_000 } })).state).toBe('ok');
+    expect(find(evaluateHealth({ ...base, autopost: { at: 1_000_000 - 400_000 }, alive: { autopost: true } })).state).toBe('tidak-terhubung');
+  });
+});

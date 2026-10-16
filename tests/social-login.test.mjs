@@ -35,3 +35,13 @@ describe('Chrome biasa tanpa penanda otomatisasi', () => {
     expect(findChrome({}, () => false)).toBeNull();
   });
 });
+
+describe('jendela di luar layar untuk posting otomatis', () => {
+  it('offscreen menggeser jendela dan mematikan penghentian render; tidak berlaku untuk headless; tetap tanpa penanda otomatisasi', () => {
+    const a = chromeArgs({ dir: 'D:/p', port: 9341, url: 'https://x.test/', headless: false, offscreen: true });
+    expect(a).toContain('--window-position=-32000,0'); expect(a).toContain('--disable-backgrounding-occluded-windows');
+    expect(a.some((x) => /enable-automation/.test(x))).toBe(false);
+    expect(chromeArgs({ dir: 'D:/p', port: 9341, url: 'https://x.test/', headless: true, offscreen: true }).some((x) => /window-position/.test(x))).toBe(false);
+    expect(chromeArgs({ dir: 'D:/p', port: 9341, url: 'https://x.test/', headless: false }).some((x) => /window-position/.test(x))).toBe(false);
+  });
+});

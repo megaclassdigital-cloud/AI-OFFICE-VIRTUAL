@@ -65,6 +65,8 @@ const DEFS = [
   { key: 'office-view', label: 'Office View', needsPaperclip: false, match: 'apps/office-view/server.mjs', args: ['apps/office-view/server.mjs', '--port', String(PORT), '--paperclip', API, '--enable-talk', '--enable-owner', ...(PUBLIC ? ['--public'] : [])] },
   { key: 'orchestrator', label: 'Orkestrator', needsPaperclip: true, match: 'scripts/orchestrator.mjs', args: ['scripts/orchestrator.mjs', '--watch'] },
   { key: 'failover', label: 'Failover model', needsPaperclip: true, match: 'scripts/manager-failover.mjs', args: ['scripts/manager-failover.mjs', '--watch'] },
+  // Admin Publikasi (ADR-0005): kode tanpa LLM; hanya membaca berkas approval, jadi tidak butuh Paperclip. Mode dry-run/live diatur di workspace/agent/autopost/settings.json.
+  { key: 'autopost', label: 'Admin Publikasi', needsPaperclip: false, match: 'scripts/autopost/worker.mjs', args: ['scripts/autopost/worker.mjs', '--watch'] },
 ];
 const comp = new Map(DEFS.map((d) => [d.key, { def: d, child: null, pid: null, adopted: false, restarts: [], nextStartAt: 0, badSince: null, failed: false }]));
 let pcMisses = 0; let lastGoodPaperclip = null;
@@ -159,8 +161,8 @@ async function probe() {
   let officeView = { reachable: false, connected: null };
   try { const r = await fetchJson(`${UI}/api/status`, 5000); if (r.data) officeView = { reachable: true, connected: r.data.connected }; } catch { /* UI belum menjawab */ }
 
-  const alive = { orchestrator: isAlive(comp.get('orchestrator')), failover: isAlive(comp.get('failover')) };
-  return { pcOk, input: { nowMs, paperclip, plugin, agents, officeView, orchestrator: liveHeartbeat('orchestrator', alive), failover: liveHeartbeat('failover', alive), alive } };
+  const alive = { orchestrator: isAlive(comp.get('orchestrator')), failover: isAlive(comp.get('failover')), autopost: isAlive(comp.get('autopost')) };
+  return { pcOk, input: { nowMs, paperclip, plugin, agents, officeView, orchestrator: liveHeartbeat('orchestrator', alive), failover: liveHeartbeat('failover', alive), autopost: liveHeartbeat('autopost', alive), alive } };
 }
 
 let lastStatusSig = '';
