@@ -17,3 +17,6 @@ Thumbs.db
 # Loop engineering
 loop/.guard-state.json
 loop/journal/run-*.log
+
+# salinan alat nyata (npm global + browser Playwright); disalin dari penyimpanan virtual aplikasi Claude
+tools/

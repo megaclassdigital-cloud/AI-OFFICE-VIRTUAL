@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // ui-shot.mjs — headless screenshot of the Office View for visual review (no browser pane needed).
 // Usage: node scripts/ui-shot.mjs <out.png> [--url http://127.0.0.1:3190/] [--w 1366] [--h 768] [--click "x,y"] [--eval "js"] [--wait 2500]
+import './playwright-env.mjs'; // harus pertama: arahkan Playwright ke tools/ms-playwright bila ada
 import { chromium } from 'playwright';
 import path from 'node:path';
 

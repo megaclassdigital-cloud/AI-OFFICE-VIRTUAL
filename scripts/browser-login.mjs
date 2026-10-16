@@ -2,6 +2,7 @@
 // browser-login.mjs — membuka jendela Edge (terlihat) dengan PROFIL TERSIMPAN agar OWNER menyelesaikan CAPTCHA/login mesin pencari sendiri.
 // Kode tidak menyentuh CAPTCHA. Setelah owner lolos, cookie tersimpan di profil dan dipakai ulang oleh capture-asset.mjs.
 // Pemakaian: node scripts/browser-login.mjs [--engine google|bing] [--timeout 600]
+import './playwright-env.mjs'; // harus pertama: arahkan Playwright ke tools/ms-playwright bila ada
 import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

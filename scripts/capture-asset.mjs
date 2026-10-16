@@ -7,6 +7,7 @@
 //
 // Pemakaian: node scripts/capture-asset.mjs --issue EDU-27 [--requests <asset-requests.json>] [--headed] [--force]
 // Keluaran : workspace/agent/runs/<ISSUE>/assets/<file> + assets-manifest.json. Exit: 0 semua ada, 2 ada yang MISSING/blocked, 1 galat.
+import './playwright-env.mjs'; // harus pertama: arahkan Playwright ke tools/ms-playwright bila ada
 import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

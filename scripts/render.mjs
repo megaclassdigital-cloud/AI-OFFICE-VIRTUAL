@@ -13,6 +13,7 @@
 // Pemakaian:
 //   node scripts/render.mjs --design <path> [--out <dir>] [--division edukasiai]
 
+import './playwright-env.mjs'; // harus pertama: arahkan Playwright ke tools/ms-playwright bila ada
 import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { existsSync, readFileSync, statSync } from 'node:fs';

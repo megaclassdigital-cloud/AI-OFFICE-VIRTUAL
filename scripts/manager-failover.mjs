@@ -106,8 +106,15 @@ async function main() {
   // 16 Okt 2026) padahal PATH prosesnya benar. Adapter lain: kosongkan (null) agar tidak mewarisi command adapter sebelumnya.
   // Terbukti lewat endpoint test-environment: server Paperclip TIDAK dapat melihat folder %APPDATA%\npm sama sekali (folder, claude.cmd, opencode.exe: semuanya tak terlihat),
   // sedangkan %LOCALAPPDATA% dan D: terlihat. Karena itu dipakai SALINAN biner di %LOCALAPPDATA%\Programs\opencode-bin (disalin dari paket npm; perbarui bila opencode di-upgrade).
-  const OPENCODE_EXES = [path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'opencode-bin', 'opencode.exe'), path.join(process.env.APPDATA ?? '', 'npm', 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')].map((p) => p.split(path.sep).join('/'));
-  const commandFor = (adapterType) => (adapterType === 'opencode_local' ? (OPENCODE_EXES.find((p) => existsSync(p)) ?? null) : null);
+  // PENYEBAB SEBENARNYA (16 Okt 2026): aplikasi Claude adalah paket MSIX; instalasi npm global buatannya (claude, gemini, opencode) dan folder ms-playwright yang
+  // dia ubah tersimpan di penyimpanan virtual paket itu. Proses yang menyala dari login Windows melihat disk ASLI tanpa semua itu. Karena itu CLI dipanggil dari
+  // salinan di repo (tools\npm-global, di D:, tidak diredirect). Urutan: salinan repo, lalu salinan Programs, lalu lokasi npm biasa.
+  const TOOLS_BIN = path.join(ROOT, 'tools', 'npm-global');
+  const CLI_CANDIDATES = {
+    opencode_local: [path.join(TOOLS_BIN, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe'), path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'opencode-bin', 'opencode.exe'), path.join(process.env.APPDATA ?? '', 'npm', 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')],
+    claude_local: [path.join(TOOLS_BIN, 'claude.cmd')],
+  };
+  const commandFor = (adapterType) => ((CLI_CANDIDATES[adapterType] ?? []).map((p) => p.split(path.sep).join('/')).find((p) => existsSync(p)) ?? null);
 
   async function apply(name, entry, why) {
     const agent = await agentOf(name);

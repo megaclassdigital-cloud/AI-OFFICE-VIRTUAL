@@ -139,6 +139,10 @@ function Clear-StalePostmasterPid {
 if (-not $Foreground) { Clear-StalePostmasterPid }
 
 $env:Path = Get-NodePath
+# CLI global (claude, gemini, opencode) disalin ke tools\npm-global karena aplikasi Claude (paket MSIX) menyimpan instalasi npm global buatannya di penyimpanan
+# virtual yang TIDAK terlihat oleh proses yang menyala dari login Windows (terbukti 16 Okt 2026: "Command not found in PATH"). Salinan di repo (D:) terlihat semua proses.
+$toolsBin = Join-Path $RepoRoot 'tools\npm-global'
+if (Test-Path $toolsBin) { $env:Path = "$toolsBin;$($env:Path)" }
 # Gemini CLI ACP cold start can exceed Paperclip default of 15s on this machine.
 $env:ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS = '120000'
 
