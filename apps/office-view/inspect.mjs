@@ -95,7 +95,7 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
       status: 200,
       body: {
         job,
-        items: issues.map((i) => ({ id: i.id, identifier: i.identifier, title: i.title, updatedAt: i.updatedAt, assignee: names.get(i.assigneeAgentId) ?? null, package: /^Produksi:/.test(String(i.title ?? '')), ...(productionOf(i.title) ?? {}) })),
+        items: issues.map((i) => ({ id: i.id, identifier: i.identifier, title: i.title, updatedAt: i.updatedAt, assignee: names.get(i.assigneeAgentId) ?? null, package: /^(Produksi:|Revisi )/.test(String(i.title ?? '')), internal: /^EDU-[0-9]+ · [A-Za-z]+/.test(String(i.title ?? '')), ...(productionOf(i.title) ?? {}) })),
         agents: agents.map((a) => a.name),
       },
     };

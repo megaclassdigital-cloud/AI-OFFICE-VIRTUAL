@@ -91,7 +91,7 @@ describe('endpoint inspeksi (Paperclip tiruan)', () => {
   });
   it('approvals mengelompokkan per produksi dan memberi penanggung jawab', async () => {
     const { res } = await call('GET', '/api/inspect/approvals');
-    expect(res.body.items).toEqual([expect.objectContaining({ identifier: 'EDU-42', production: 'EDU-9', stage: 'QA', assignee: 'QA' })]);
+    expect(res.body.items).toEqual([expect.objectContaining({ identifier: 'EDU-42', production: 'EDU-9', stage: 'QA', assignee: 'QA', internal: true, package: false })]); // issue tahap = internal (dilipat di tampilan, tidak dihitung di lencana)
   });
   it('issue: deskripsi (input) dan percakapan berlabel', async () => {
     const { res } = await call('GET', '/api/inspect/issue?id=i1');

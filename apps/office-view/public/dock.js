@@ -185,16 +185,20 @@ async function loadAppr() {
   let d; try { d = await jget('/api/inspect/approvals'); } catch { d = null; }
   if (state.tab !== 'appr' || state.appr) return;
   if (!d || d.error) { setKids(apprTab, h('p', { class: 'hint' }, 'Tidak bisa memuat approval.')); return; }
-  setBadge(d.items.length);
+  setBadge(d.items.filter((x) => !x.internal).length);
   const byProd = new Map();
   for (const it of d.items) { const k = it.production ?? '—'; if (!byProd.has(k)) byProd.set(k, []); byProd.get(k).push(it); }
   const blocks = [h('p', { class: 'hint' }, 'Hasil tiap tahap dikumpulkan Manager di sini. Klik item untuk melihat apa yang sudah dikerjakan, komentar agen, dan berkasnya.')];
   if (d.job) blocks.push(h('div', { class: 'card' }, h('b', {}, `Produksi ${d.job.identifier}`), ` · ${d.job.phase}${d.job.stageIndex >= 0 ? ` · tahap ${d.job.stageIndex + 1}/5` : ''}`,
     h('div', { class: 'row2' }, h('button', { type: 'button', class: 'ghost', onclick: () => openProd(d.job.identifier) }, '📁 Lihat paket produksi'))));
-  if (!d.items.length) blocks.push(h('p', { class: 'hint' }, 'Tidak ada yang menunggu approval.'));
+  if (!d.items.some((x) => !x.internal)) blocks.push(h('p', { class: 'hint' }, 'Tidak ada paket yang menunggu approval.'));
   for (const [prod, items] of byProd) {
     blocks.push(h('h4', { class: 'grp' }, prod === '—' ? 'Lainnya' : `Produksi ${prod}`, prod !== '—' ? h('button', { type: 'button', class: 'ghost sm', onclick: () => openProd(prod) }, '📁 berkas') : null));
-    for (const it of items.slice().sort((p, q) => Number(q.package) - Number(p.package))) blocks.push(h('button', { type: 'button', class: 'item' + (it.package ? ' pkg' : ''), onclick: () => openIssue(it) }, it.package ? h('span', { class: 'pill ok' }, '📦 Paket final') : null, it.package ? ' ' : null, h('b', {}, it.stage ?? it.identifier), ' ', h('span', { class: 'sub' }, `${it.identifier}${it.assignee ? ' · ' + it.assignee : ''}${it.updatedAt ? ' · ' + ago(Date.parse(it.updatedAt)) : ''}`)));
+    const row = (it) => h('button', { type: 'button', class: 'item' + (it.package ? ' pkg' : ''), onclick: () => openIssue(it) }, it.package ? h('span', { class: 'pill ok' }, '📦 Paket final') : null, it.package ? ' ' : null, h('b', {}, it.stage ?? it.identifier), ' ', h('span', { class: 'sub' }, `${it.identifier}${it.assignee ? ' · ' + it.assignee : ''}${it.updatedAt ? ' · ' + ago(Date.parse(it.updatedAt)) : ''}`));
+    for (const it of items.filter((x) => !x.internal).sort((p, q) => Number(q.package) - Number(p.package))) blocks.push(row(it));
+    // Hasil tahap (QA, Designer, ...) tiap percobaan: bukan untuk di-approve; dilipat supaya satu konten tidak terlihat seperti belasan approval.
+    const inner = items.filter((x) => x.internal);
+    if (inner.length) blocks.push(h('details', { class: 'int' }, h('summary', { class: 'sub' }, `Hasil tahap internal (${inner.length})`), ...inner.map(row)));
   }
   setKids(apprTab, ...blocks);
 }
@@ -251,6 +255,6 @@ addEventListener('office:select', (e) => {
 });
 setInterval(() => { if (state.open && state.tab === 'agent' && state.agent) loadAgent(); }, 4000);
 setInterval(() => { if (state.tab === 'appr' && !state.appr && state.open) loadAppr(); }, 8000);
-(async () => { try { const d = await jget('/api/inspect/approvals'); setBadge(d.items.length); } catch { /* badge menyusul */ } })();
-setInterval(async () => { try { const d = await jget('/api/inspect/approvals'); setBadge(d.items.length); } catch { /* abaikan */ } }, 15000);
+(async () => { try { const d = await jget('/api/inspect/approvals'); setBadge(d.items.filter((x) => !x.internal).length); } catch { /* badge menyusul */ } })();
+setInterval(async () => { try { const d = await jget('/api/inspect/approvals'); setBadge(d.items.filter((x) => !x.internal).length); } catch { /* abaikan */ } }, 15000);
 setOpen(state.open); setTab(['chat', 'agent', 'appr'].includes(state.tab) ? state.tab : 'chat');
