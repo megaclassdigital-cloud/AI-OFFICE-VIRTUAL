@@ -82,7 +82,15 @@ export const server = http.createServer(async (req, res) => {
 
 let timer;
 export function startPolling(ms = POLL_MS) {
-  const tick = async () => { await bridge.poll(); timer = setTimeout(tick, ms); };
+  // Adaptif: cepat (ms) selama ada agen bekerja; saat sepi 4 dtk; saat Paperclip tidak terjangkau mundur bertahap sampai 15 dtk (tidak menghantam yang sedang pulih).
+  let fails = 0;
+  const tick = async () => {
+    await bridge.poll();
+    const st = bridge.status();
+    fails = st.connected ? 0 : Math.min(fails + 1, 5);
+    const next = !st.connected ? Math.min(15_000, ms * 2 ** fails) : bridge.isBusy() ? ms : Math.max(ms, 4000);
+    timer = setTimeout(tick, next);
+  };
   tick();
 }
 export const stopPolling = () => clearTimeout(timer);

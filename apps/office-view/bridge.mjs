@@ -69,6 +69,11 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
   const issueRef = (i) => ({ id: i.id, identifier: i.identifier, title: i.title });
   const push = (ev, observedAt) => { st.seq += 1; st.events.push({ seq: st.seq, observedAt, ...ev }); if (st.events.length > RING) st.events.shift(); };
 
+  const commentCache = new Map(); // issueId -> { key, at, list }
+  const COMMENT_CACHE_MS = 15_000;
+  /** Ada agen yang sedang bekerja? Dipakai server untuk memperlambat polling saat kantor sepi (hemat CPU/RAM Paperclip). */
+  const isBusy = () => [...(st.prev?.agents?.values() ?? [])].some((a) => a.state === 'working');
+
   async function poll() {
     const t0 = now();
     try {
@@ -77,10 +82,18 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
       const tracked = issues
         .filter((i) => ['in_progress', 'in_review', 'blocked', 'todo'].includes(i.status) && t0 - (Date.parse(i.lastActivityAt ?? i.updatedAt ?? 0) || 0) < ACTIVE_COMMENT_WINDOW_MS)
         .slice(0, MAX_TRACKED_ISSUES);
+      // Komentar hanya diambil ulang bila issue berubah (updatedAt/lastActivityAt) atau cache > 15 dtk; sebelumnya SEMUA issue aktif tiap 1,5 dtk.
       const commentLists = await Promise.all(tracked.map(async (i) => {
-        const r = await get(`/issues/${i.id}/comments`).catch(() => []);
-        return [i, Array.isArray(r) ? r : r.comments ?? []];
+        const key = `${i.updatedAt ?? ''}|${i.lastActivityAt ?? ''}|${i.status}`;
+        const hit = commentCache.get(i.id);
+        // Issue yang sedang dikerjakan TIDAK di-cache (komentar harus muncul seketika); yang menunggu review/terblokir/todo jarang berubah.
+        if (i.status !== 'in_progress' && hit && hit.key === key && t0 - hit.at < COMMENT_CACHE_MS) return [i, hit.list];
+        const r = await get(`/issues/${i.id}/comments`).catch(() => null);
+        const list = r === null ? (hit?.list ?? []) : (Array.isArray(r) ? r : r.comments ?? []);
+        commentCache.set(i.id, { key, at: t0, list });
+        return [i, list];
       }));
+      if (commentCache.size > 200) for (const k of [...commentCache.keys()].slice(0, 100)) commentCache.delete(k);
       const agentState = derive(agents, issues, runs);
       const inReview = issues.filter((i) => i.status === 'in_review');
       const seenComments = new Set();
@@ -151,5 +164,5 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
   const eventsSince = (since) => ({ epoch: st.epoch, seq: st.seq, connected: st.connected, error: st.error, events: st.events.filter((e) => e.seq > since) });
   const status = () => ({ connected: st.connected, error: st.error, lastOkAt: st.lastOkAt, lastPollMs: st.lastPollMs, epoch: st.epoch, seq: st.seq, base });
 
-  return { poll, snapshot, eventsSince, status, _state: st };
+  return { poll, snapshot, eventsSince, status, isBusy, _state: st };
 }
