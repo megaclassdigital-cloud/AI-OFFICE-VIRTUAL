@@ -20,3 +20,18 @@ describe('sessionState (hanya nama cookie dan kedaluwarsa)', () => {
     expect(profileDirFor('tiktok')).not.toBe(profileDirFor('instagram'));
   });
 });
+
+import { findChrome, chromeArgs } from '../scripts/autopost/social-login.mjs';
+describe('Chrome biasa tanpa penanda otomatisasi', () => {
+  it('argumen tidak memuat --enable-automation; headless hanya untuk --check', () => {
+    const a = chromeArgs({ dir: 'D:/p', port: 9341, url: 'https://x.test/', headless: false });
+    expect(a.some((x) => /enable-automation/.test(x))).toBe(false);
+    expect(a).toContain('--user-data-dir=D:/p'); expect(a).toContain('--remote-debugging-port=9341');
+    expect(a.some((x) => /headless/.test(x))).toBe(false);
+    expect(chromeArgs({ dir: 'D:/p', port: 9341, url: 'https://x.test/', headless: true })).toContain('--headless=new');
+  });
+  it('findChrome memakai CHROME_PATH lebih dulu, lalu lokasi umum; null bila tidak ada', () => {
+    expect(findChrome({ CHROME_PATH: 'X:/chrome.exe' }, (p) => p === 'X:/chrome.exe')).toBe('X:/chrome.exe');
+    expect(findChrome({}, () => false)).toBeNull();
+  });
+});
