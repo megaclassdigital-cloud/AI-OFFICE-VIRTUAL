@@ -49,6 +49,9 @@ describe('endpoint inspeksi (Paperclip tiruan)', () => {
     writeFileSync(path.join(root, 'runs', 'EDU-9', 'qa-result.json'), '{"passed":true}');
     writeFileSync(path.join(root, 'runs', 'EDU-9', 'render', 'contact-sheet.png'), Buffer.from([137, 80, 78, 71]));
     writeFileSync(path.join(root, 'rahasia.txt'), 'x');
+    mkdirSync(path.join(root, 'autopost'), { recursive: true });
+    writeFileSync(path.join(root, 'autopost', 'status.json'), JSON.stringify({ paused: false, cooldownHours: 3, platforms: { instagram: { live: true, remainingMs: 0, postedTotal: 1 } }, approvedWaiting: 0, ignoredOld: 2 }));
+    writeFileSync(path.join(root, 'autopost', 'ledger.json'), JSON.stringify(Array.from({ length: 15 }, (_, i) => ({ content: 'EDU-' + i, platform: 'instagram', mode: 'live', status: 'diposting', at: new Date(1_791_533_000_000 + i * 1000).toISOString(), secret: 'x' }))));
     mock = http.createServer((req, res) => {
       calls.push(`${req.method} ${req.url}`);
       const out = (j) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(j)); };
@@ -92,6 +95,11 @@ describe('endpoint inspeksi (Paperclip tiruan)', () => {
   it('approvals mengelompokkan per produksi dan memberi penanggung jawab', async () => {
     const { res } = await call('GET', '/api/inspect/approvals');
     expect(res.body.items).toEqual([expect.objectContaining({ identifier: 'EDU-42', production: 'EDU-9', stage: 'QA', assignee: 'QA', internal: true, package: false })]); // issue tahap = internal (dilipat di tampilan, tidak dihitung di lencana)
+  });
+  it('autopost: status papan + 12 catatan terakhir (terbaru dulu) tanpa bidang lain', async () => {
+    const { res } = await call('GET', '/api/inspect/autopost');
+    expect(res.code).toBe(200); expect(res.body.status).toMatchObject({ cooldownHours: 3, ignoredOld: 2 });
+    expect(res.body.recent).toHaveLength(12); expect(res.body.recent[0].content).toBe('EDU-14'); expect(Object.keys(res.body.recent[0]).sort()).toEqual(['at', 'content', 'error', 'mode', 'platform', 'status']);
   });
   it('issue: deskripsi (input) dan percakapan berlabel', async () => {
     const { res } = await call('GET', '/api/inspect/issue?id=i1');

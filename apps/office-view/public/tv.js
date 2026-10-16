@@ -18,7 +18,7 @@ const img = (p) => `/api/inspect/image?path=${encodeURIComponent(p)}`;
 const dlUrl = (p) => `${img(p)}&download=1`;
 // Unduh SATU gambar per slide (bukan gabungan): tiap berkas diunduh terpisah dengan jeda singkat agar browser tidak memblokir.
 async function downloadAll(slides) { for (const s of slides) { const a = document.createElement('a'); a.href = dlUrl(s.image); a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((r) => setTimeout(r, 450)); } }
-const TABS = [['all', '📚 Semua Konten'], ['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA']];
+const TABS = [['all', '📚 Semua Konten'], ['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA'], ['publikasi', '📣 Publikasi']];
 
 const st = { prod: null, rev: '', tab: 'all', data: null, slide: 0, sig: '', board: [] };
 const sel = h('select', { id: 'tvProd', 'aria-label': 'Pilih produksi', onchange: () => { st.prod = sel.value; st.rev = ''; st.slide = 0; load(true); } });
@@ -87,6 +87,7 @@ function render() {
   chip.textContent = d?.status?.label ?? ''; chip.className = `tv-chip ${d?.status?.tone ?? ''}`;
   setKids(stages, ...(d?.stages ?? []).map((s) => h('div', { class: `stg ${s.state}`, title: s.label }, h('span', { class: 'dot' }), h('b', {}, s.agent), h('small', {}, s.state === 'done' && s.doneAt ? `selesai ${hhmm(s.doneAt)}` : s.state === 'running' ? 'sedang bekerja' : s.state === 'hold' ? 'menunggu gambar asli' : s.state === 'blocked' ? 'terblokir' : s.label))));
   if (st.tab === 'all') { setKids(main, allContents()); return; }
+  if (st.tab === 'publikasi') { setKids(main, publikasi()); loadPub(); return; }
   if (!d) { setKids(main, empty(st.prod ? 'Memuat…' : 'Belum ada produksi yang bisa ditayangkan.')); return; }
   const view = { show, manager, researcher, verifier, copywriter, designer, qa }[st.tab];
   // replaceChildren(null) menulis teks "null": susun daftar anak tanpa nilai kosong.
@@ -99,6 +100,41 @@ function holdBanner(d) {
   return h('div', { class: 'tv-warn' }, h('b', {}, `⏸ Ditahan: ${d.hold.missing.length} gambar asli belum terambil.`), ' ',
     d.hold.missing.map((m) => m.file).join(', '), '. Desain sudah selesai; produksi lanjut sendiri setelah gambarnya ada. Selesaikan verifikasi Google (node scripts/browser-login.mjs) atau taruh gambar di workspace/inbox/assets/', d.runKey ?? d.prod, '/.');
 }
+
+// Tab Publikasi: Admin Publikasi (kode, tanpa AI). Status dibaca dari /api/inspect/autopost; hitung mundur jeda dihitung di sini dari nextAllowedAt.
+const sisa = (ms) => { if (ms <= 0) return 'siap'; const m = Math.ceil(ms / 60000); const j = Math.floor(m / 60); const mm = m % 60; return j ? `${j} jam${mm ? ` ${mm} menit` : ''}` : `${mm} menit`; };
+const STATUS_LABEL = { diposting: '✔ diposting', sedang_diposting: '⏳ sedang diposting', tidak_pasti: '⚠ tidak pasti (periksa akun)', gagal: '✖ gagal sebelum terkirim', dry_run_ok: '🧪 dry-run lolos', dry_run_gagal: '🧪 dry-run gagal' };
+async function loadPub() {
+  if (st.pubAt && Date.now() - st.pubAt < 4000) return;
+  st.pubAt = Date.now();
+  try { st.pub = await jget('/api/inspect/autopost'); } catch { st.pub = { error: true }; }
+  if (st.tab === 'publikasi' && !overlay.hidden) setKids(main, publikasi());
+}
+function publikasi() {
+  const d = st.pub; if (!d) return empty('Memuat…');
+  if (d.error) return empty('Tidak bisa memuat status Admin Publikasi.');
+  const s = d.status;
+  if (!s) return empty('Admin Publikasi belum menulis status. Pastikan komponennya berjalan.');
+  const now = Date.now();
+  const chip = (t, tone) => h('span', { class: `tv-chip ${tone}` }, t);
+  const platformCard = ([name, p]) => {
+    const remain = p.nextAllowedAt ? Math.max(0, Date.parse(p.nextAllowedAt) - now) : 0;
+    return card(h('h4', {}, name === 'instagram' ? '📷 Instagram' : name === 'tiktok' ? '🎵 TikTok' : name), chip(p.live ? 'LIVE' : 'DRY-RUN', p.live ? 'ok' : 'warn'),
+      h('p', {}, p.lastPostAt ? `Posting terakhir: ${tgl(p.lastPostAt)}` : 'Belum pernah memposting.'),
+      h('p', {}, h('b', {}, 'Boleh posting lagi: '), remain > 0 ? `dalam ${sisa(remain)} (jeda ${s.cooldownHours} jam dari posting terakhir)` : 'siap'),
+      h('p', { class: 'sub' }, `Total diposting: ${p.postedTotal}`));
+  };
+  const rows = (d.recent ?? []).map((e) => h('li', {}, `${tgl(e.at)} · ${e.content} → ${e.platform}${e.mode === 'dry-run' ? ' (dry-run)' : ''}: ${STATUS_LABEL[e.status] ?? e.status}${e.error ? ` · ${e.error}` : ''}`));
+  return h('div', {},
+    lead(`Admin Publikasi (kode, tanpa AI): memposting konten yang sudah kamu approve, dengan jeda ${s.cooldownHours} jam dari posting terakhir.`),
+    h('div', { class: 'tv-warn', hidden: !s.paused }, '⏸ DIJEDA: tidak ada yang diposting sampai dilanjutkan.'),
+    h('div', { class: 'tv-grid' }, Object.entries(s.platforms ?? {}).map(platformCard)),
+    card(h('h4', {}, 'Antrean'), h('p', {}, `${s.approvedWaiting} konten approved menunggu giliran.`),
+      s.since ? h('p', { class: 'sub' }, `Hanya approval setelah ${tgl(s.since)} yang diposting otomatis; ${s.ignoredOld} konten lama yang sudah approved diabaikan.`) : h('p', { class: 'sub' }, 'Posting otomatis belum dinyalakan (autopostSince kosong).'),
+      ...(s.blocked ?? []).slice(0, 3).map((b) => h('p', { class: 'sub' }, `Ditahan ${b.content}/${b.platform}: ${b.reasons.join('; ')}`))),
+    card(h('h4', {}, 'Riwayat terakhir'), rows.length ? h('ul', {}, rows) : h('p', { class: 'sub' }, 'Belum ada catatan.')));
+}
+setInterval(() => { if (!overlay.hidden && st.tab === 'publikasi') { st.pubAt = 0; loadPub(); } }, 15000);
 
 // Daftar SEMUA konten (tidak ada yang disembunyikan), terbaru dibuat di atas, lengkap dengan tanggal dibuat dan status.
 function allContents() {

@@ -101,6 +101,15 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     };
   }
 
+  /** Papan Admin Publikasi (baca-saja): status.json yang ditulis pekerja, ditambah riwayat ledger terakhir. */
+  async function autopostView() {
+    const dir = path.join(outputRoot, 'autopost');
+    const status = await readJsonSafe(path.join(dir, 'status.json'));
+    const ledger = (await readJsonSafe(path.join(dir, 'ledger.json'))) ?? [];
+    const recent = ledger.slice(-12).reverse().map((e) => ({ content: e.content, platform: e.platform, mode: e.mode, status: e.status, at: e.at, error: e.error ? String(e.error).slice(0, 160) : null }));
+    return { status: 200, body: { status, recent } };
+  }
+
   async function issueView(id) {
     const { names } = await ctx();
     const issue = await api(`/issues/${encodeURIComponent(id)}`);
@@ -261,6 +270,7 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
       let r;
       if (p === '/api/inspect/agent') r = await agentView(q('name'));
       else if (p === '/api/inspect/approvals') r = await approvalsView();
+      else if (p === '/api/inspect/autopost') r = await autopostView();
       else if (p === '/api/inspect/issue') r = await issueView(q('id'));
       else if (p === '/api/inspect/files') r = await filesView(q('prod'), q('rev'));
       else if (p === '/api/inspect/board') r = await boardView(Math.min(50, Math.max(0, parseInt(q('limit'), 10) || 0)));
