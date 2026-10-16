@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { makeTmp } from './helpers.mjs';
-import { mergeAutopostSettings, canPostLive, ledgerBlocks, postingsToday, assertClickAllowed, FINAL_ACTION_RE } from '../scripts/autopost/guards.mjs';
+import { mergeAutopostSettings, canPostLive, ledgerBlocks, postingsToday, assertClickAllowed, FINAL_ACTION_RE, cooldownStatus, formatRemaining, gapMinutes } from '../scripts/autopost/guards.mjs';
 import { composeCaption, validatePackage, pngSize, buildPackage, LIMITS } from '../scripts/autopost/package.mjs';
 
 const NOW = Date.UTC(2026, 9, 16, 5, 0); // 12:00 WIB
@@ -36,7 +36,7 @@ describe('canPostLive (semua pagar harus lolos)', () => {
   });
   it('batas harian dan jeda minimum antar posting', () => {
     const recent = (min) => ({ content: 'EDU-1', platform: 'instagram', mode: 'live', status: 'diposting', at: new Date(NOW - min * 60_000).toISOString() });
-    expect(canPostLive({ settings: live(), platform: 'instagram', ledger: [recent(60)], content: 'EDU-9', approval: OK, nowMs: NOW }).reasons.join(' ')).toMatch(/jeda minimum/);
+    expect(canPostLive({ settings: live(), platform: 'instagram', ledger: [recent(60)], content: 'EDU-9', approval: OK, nowMs: NOW }).reasons.join(' ')).toMatch(/jeda 3 jam antar posting belum terpenuhi \(sisa 2 jam/);
     const two = [recent(300), { ...recent(200), content: 'EDU-2' }];
     expect(canPostLive({ settings: live(), platform: 'instagram', ledger: two, content: 'EDU-9', approval: OK, nowMs: NOW }).reasons.join(' ')).toMatch(/batas harian/);
     expect(postingsToday(two, 'instagram', NOW).count).toBe(2);
@@ -85,5 +85,27 @@ describe('paket posting', () => {
     writeFileSync(path.join(rev, 'carousel.json'), JSON.stringify({ caption: 'Berita AI hari ini', hashtags: ['#EdukasiAI'] }));
     const p = buildPackage(out, 'EDU-5');
     expect(p.runKey).toBe('EDU-5/revision-1'); expect(p.slides.length).toBe(3); expect(p.errors).toEqual([]); expect(p.captionFull).toBe('Berita AI hari ini\n\n#EdukasiAI');
+  });
+});
+
+describe('jeda dihitung dari waktu posting terakhir (keputusan owner)', () => {
+  const posted = (minAgo, platform = 'instagram') => ({ content: 'EDU-1', platform, mode: 'live', status: 'diposting', at: new Date(NOW - minAgo * 60_000).toISOString() });
+  it('cooldownHours global jadi jeda; minGapMinutes per platform menimpa', () => {
+    expect(gapMinutes({}, 'instagram')).toBe(180);
+    expect(gapMinutes({ cooldownHours: 5 }, 'tiktok')).toBe(300);
+    expect(gapMinutes({ cooldownHours: 5, platforms: { tiktok: { minGapMinutes: 90 } } }, 'tiktok')).toBe(90);
+  });
+  it('hitung mundur: sisa waktu, siap setelah jeda lewat, tanpa posting = siap', () => {
+    const c = cooldownStatus([posted(60)], 'instagram', {}, NOW);
+    expect(c.ready).toBe(false); expect(c.remainingMs).toBe(120 * 60_000); expect(c.nextAllowedAt).toBe(new Date(NOW + 120 * 60_000).toISOString());
+    expect(cooldownStatus([posted(181)], 'instagram', {}, NOW).ready).toBe(true);
+    expect(cooldownStatus([], 'instagram', {}, NOW)).toMatchObject({ ready: true, remainingMs: 0, lastPostAt: null });
+    expect(cooldownStatus([posted(10, 'tiktok')], 'instagram', {}, NOW).ready).toBe(true); // platform lain tidak memengaruhi
+  });
+  it('dry-run tidak memulai jeda; hanya posting live', () => {
+    expect(cooldownStatus([{ ...posted(10), mode: 'dry-run' }], 'instagram', {}, NOW).ready).toBe(true);
+  });
+  it('formatRemaining ramah dibaca', () => {
+    expect(formatRemaining(0)).toBe('siap'); expect(formatRemaining(14 * 60_000)).toBe('14 menit'); expect(formatRemaining(134 * 60_000)).toBe('2 jam 14 menit'); expect(formatRemaining(120 * 60_000)).toBe('2 jam');
   });
 });

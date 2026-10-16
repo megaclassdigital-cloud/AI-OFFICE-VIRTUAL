@@ -74,7 +74,8 @@ export async function main(argv) {
   if (!chrome) { console.error('chrome.exe tidak ditemukan. Pasang Google Chrome atau atur CHROME_PATH.'); return 1; }
   const dir = profileDirFor(platform);
   mkdirSync(dir, { recursive: true });
-  const child = spawn(chrome, chromeArgs({ dir, port: P.port, url: check ? P.homeUrl : P.loginUrl, headless: check }), { stdio: 'ignore', windowsHide: check });
+  const startUrl = get('--url', null) ?? (check ? P.homeUrl : P.loginUrl); // --url: mis. halaman kode QR TikTok (https://www.tiktok.com/login/qrcode)
+  const child = spawn(chrome, chromeArgs({ dir, port: P.port, url: startUrl, headless: check }), { stdio: 'ignore', windowsHide: check });
   child.on('error', (e) => console.error(`gagal membuka Chrome: ${e.message}`));
   let browser;
   try {
