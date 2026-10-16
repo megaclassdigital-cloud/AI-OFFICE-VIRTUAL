@@ -168,3 +168,14 @@ Label: `AUTO` (mudah dibalik) · `REVIEW-OWNER` (owner perlu melihat di laporan 
 - Belum dibuktikan: agent opencode memanggil tool plugin aao-approval-gate (AC1.2/AC1.3), dan kualitas model gratis untuk pekerjaan nyata.
 - Biaya membalik: rendah
 - Label: REVIEW-OWNER
+
+## D-020 — Keputusan owner 2026-10-16: autoposting browser use, Manager aktif membuat brief, penjadwal berbasis kode
+- Sumber: percakapan owner (16 Okt 2026); rincian dan pagar keamanan di docs/decisions/ADR-0005-autopost-brief-aktif-penjadwal.md.
+- Menggantikan sebagian ADR-0004: butir 4 (riset hanya atas perintah owner) dan butir 6 (tidak ada posting otomatis). PRD butir 144 berakhir.
+- Metode posting: browser use untuk Instagram dan TikTok (bukan Graph API), runner berbasis kode dengan dry-run bawaan, kill switch, ledger idempotensi; hanya konten yang sudah di-approve owner.
+- Manager aktif membuat beberapa brief dengan prinsip konten hangat (segar), penarikan berbasis slot kosong, tunduk pada batas 5 approval menunggu dan guard kuota.
+- Planner jadwal = KODE (bukan agen LLM): hemat kuota, tanpa risiko basi karena horizon pendek, tanpa beban tambahan pada Manager.
+- REVIEW-OWNER: CLAUDE.md butir 9 ("Tidak ada posting otomatis dan tidak ada git push") kini bertentangan untuk bagian posting. Claude tidak boleh mengubah CLAUDE.md; owner perlu memperbarui butir itu (larangan git push tetap).
+- REVIEW-OWNER: risiko ketentuan layanan Instagram/TikTok (otomatisasi browser) diterima owner; lihat ADR-0005 Konsekuensi.
+- Biaya membalik: sedang (kode posting dapat dimatikan lewat kill switch atau dihapus; akun platform tidak dapat dipulihkan bila dibatasi)
+- Label: REVIEW-OWNER
