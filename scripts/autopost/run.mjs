@@ -10,6 +10,7 @@ import { mergeAutopostSettings } from './guards.mjs';
 import { buildPackage } from './package.mjs';
 import { openSocialChrome, sessionState, PLATFORMS } from './social-login.mjs';
 import { dryRunInstagram } from './instagram.mjs';
+import { dryRunTikTok } from './tiktok.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = path.join(ROOT, 'workspace', 'agent');
@@ -17,7 +18,7 @@ const DIR = path.join(OUT, 'autopost');
 const LOG = path.join(ROOT, 'reports', 'autopost.log');
 const log = (m) => { const l = `${new Date().toISOString()} ${m}`; console.log(l); try { mkdirSync(path.dirname(LOG), { recursive: true }); appendFileSync(LOG, l + '\n'); } catch { /* kosmetik */ } };
 
-export const FLOWS = { instagram: dryRunInstagram };
+export const FLOWS = { instagram: dryRunInstagram, tiktok: dryRunTikTok };
 
 export async function main(argv) {
   const get = (k, d) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : d);

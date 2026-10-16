@@ -16,6 +16,7 @@ import { buildPackage } from './package.mjs';
 import { approvedCandidates, nextToPost, buildStatus, currentContentHash } from './queue.mjs';
 import { openSocialChrome, sessionState } from './social-login.mjs';
 import { postInstagram, StepError } from './instagram.mjs';
+import { postTikTok } from './tiktok.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = path.join(ROOT, 'workspace', 'agent');
@@ -30,7 +31,7 @@ const STALE_POSTING_MS = 10 * 60_000;
 const log = (m) => { const l = `${new Date().toISOString()} ${m}`; console.log(l); try { mkdirSync(path.dirname(LOG), { recursive: true }); appendFileSync(LOG, l + '\n'); } catch { /* kosmetik */ } };
 
 /** Platform yang punya alur LIVE (TikTok menyusul setelah alurnya dibangun dan diuji). */
-export const LIVE_FLOWS = { instagram: postInstagram };
+export const LIVE_FLOWS = { instagram: postInstagram, tiktok: postTikTok };
 
 const loadLedger = () => readJsonSafe(LEDGER_FILE, []) ?? [];
 const saveLedger = (l) => { mkdirSync(DIR, { recursive: true }); writeJsonAtomic(LEDGER_FILE, l.slice(-500)); };

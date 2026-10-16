@@ -87,7 +87,7 @@ export function canPostLive({ settings, platform, ledger, content, approval, now
 }
 
 /** Tombol yang mengirim/mempublikasikan (multi-bahasa). Dalam dry-run, mengkliknya adalah kesalahan fatal. */
-export const FINAL_ACTION_RE = /^\s*(share|bagikan|post|posting|publish|publikasikan|kirim|upload|unggah)\s*$/i;
+export const FINAL_ACTION_RE = /^\s*(share|bagikan|post|posting|publish|publikasikan|kirim|upload|unggah)(\s+(now|sekarang|anyway))?\s*$/i;
 
 /** Pagar klik: dalam dry-run menolak tombol final; dalam live hanya mengizinkan bila allowFinal diberikan eksplisit. Melempar galat bila dilanggar. */
 export function assertClickAllowed(label, { dryRun, allowFinal = false }) {

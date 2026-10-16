@@ -12,6 +12,14 @@ export function pngSize(buf) {
 
 export const LIMITS = Object.freeze({ minSlides: 2, maxSlides: 10, maxCaption: 2200, maxHashtags: 30, width: 1080, height: 1350 });
 
+/** Judul pendek (kalimat pertama caption) untuk platform yang punya kolom judul terpisah (TikTok maks 90). Dipotong di batas kata, tanpa elipsis. */
+export function deriveTitle(caption, max = 90) {
+  const first = String(caption ?? '').split(/[.!?\n]/)[0].trim();
+  if (first.length <= max) return first;
+  const cut = first.slice(0, max); const sp = cut.lastIndexOf(' ');
+  return (sp > max * 0.5 ? cut.slice(0, sp) : cut).trim();
+}
+
 /** Susun caption akhir: caption + baris kosong + hashtag (sekali saja bila caption sudah memuatnya). */
 export function composeCaption(caption, hashtags) {
   const c = String(caption ?? '').trim();

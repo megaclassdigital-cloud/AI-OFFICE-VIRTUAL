@@ -123,3 +123,26 @@ describe('kegagalan sebelum terkirim: coba ulang berjeda dan berbatas', () => {
     expect(canPostLive({ settings: live(), platform: 'instagram', ledger: [{ ...fail(5), content: 'EDU-2' }], content: 'EDU-1', approval: OK, nowMs: NOW }).ok).toBe(true);
   });
 });
+
+import { deriveTitle } from '../scripts/autopost/package.mjs';
+import { SENT_RE, SENT_URL_RE } from '../scripts/autopost/tiktok.mjs';
+describe('TikTok: judul dan bukti terkirim', () => {
+  it('deriveTitle: kalimat pertama, maksimal 90, dipotong di batas kata', () => {
+    expect(deriveTitle('Rangkuman AI terbaru! Mulai dari Meta.', 90)).toBe('Rangkuman AI terbaru');
+    expect(deriveTitle('satu\ndua', 90)).toBe('satu');
+    const long = 'kata '.repeat(40).trim();
+    const t = deriveTitle(long, 90); expect(t.length).toBeLessThanOrEqual(90); expect(t.endsWith('kata')).toBe(true);
+    expect(deriveTitle('', 90)).toBe('');
+  });
+  it('"N photos uploaded" (sebelum Post) BUKAN bukti terkirim; "Manage your posts" dan halaman konten adalah bukti', () => {
+    expect(SENT_RE.test('7 photos uploaded. Drag and drop to reorder')).toBe(false);
+    expect(SENT_RE.test('Manage your posts')).toBe(true);
+    expect(SENT_URL_RE.test('https://www.tiktok.com/tiktokstudio/content')).toBe(true);
+    expect(SENT_URL_RE.test('https://www.tiktok.com/tiktokstudio/upload')).toBe(false);
+  });
+  it('"Post now" dan sejenisnya tergolong tombol final', () => {
+    for (const l of ['Post now', 'Post anyway', 'Posting sekarang', 'Share now']) expect(() => assertClickAllowed(l, { dryRun: true })).toThrow(/DITOLAK/);
+    expect(assertClickAllowed('Save draft', { dryRun: true })).toBe(true);
+    expect(assertClickAllowed('Discard', { dryRun: true })).toBe(true);
+  });
+});
