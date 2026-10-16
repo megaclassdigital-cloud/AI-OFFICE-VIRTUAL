@@ -516,7 +516,7 @@ async function gatherFacts(job, state) {
         // Berkas segar (ditulis selama tahap ini) dan STABIL (tidak berubah >= 60 dtk, jadi bukan setengah tertulis).
         if (st.mtimeMs >= job.stageStartedMs - 5000 && Date.now() - st.mtimeMs >= 60_000) {
           const chk = checkOutput(job, STAGES[job.stageIndex]);
-          if (!chk.ok) { const why = String(chk.errors?.[0] ?? (chk.hold ? 'menunggu aset' : 'tanpa alasan')).slice(0, 200); if (job._lastWhy !== why) { job._lastWhy = why; log(job.identifier + ' keluaran ' + STAGE_AGENT[STAGES[job.stageIndex]] + ' belum lolos gerbang: ' + why); } }
+          if (!chk.ok) { const why = String(chk.errors?.[0] ?? (chk.hold ? 'menunggu aset' : 'tanpa alasan')).replace(/[─-╿]+/g, '').replace(/\s+/g, ' ').slice(0, 700); if (job._lastWhy !== why) { job._lastWhy = why; log(job.identifier + ' keluaran ' + STAGE_AGENT[STAGES[job.stageIndex]] + ' belum lolos gerbang: ' + why); } }
           if (chk.ok) {
             status = 'done'; output = chk; failedNow = false;
             // Agen yang sudah menulis keluaran valid tetapi tidak pernah menyudahi run-nya: hentikan run itu (hemat kuota) dan tutup issue tahap.
