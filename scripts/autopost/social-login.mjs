@@ -104,3 +104,18 @@ export async function main(argv) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main(process.argv.slice(2)).then((c) => process.exit(c), (e) => { console.error(e.message ?? e); process.exit(1); });
 }
+
+/**
+ * Buka Chrome biasa dengan profil khusus platform dan sambungkan Playwright lewat CDP lokal (tanpa penanda otomatisasi).
+ * Mengembalikan { browser, ctx, page, close() }. headless=false menampilkan jendela (dry-run pertama sebaiknya terlihat).
+ */
+export async function openSocialChrome(platform, { headless = false, url = null } = {}) {
+  const P = PLATFORMS[platform]; if (!P) throw new Error(`platform tidak dikenal: ${platform}`);
+  const chrome = findChrome(); if (!chrome) throw new Error('chrome.exe tidak ditemukan');
+  const dir = profileDirFor(platform); mkdirSync(dir, { recursive: true });
+  const child = spawn(chrome, chromeArgs({ dir, port: P.port, url: url ?? P.homeUrl, headless }), { stdio: 'ignore', windowsHide: headless });
+  const browser = await connect(P.port);
+  const ctx = browser.contexts()[0];
+  const page = ctx.pages().find((p) => /^https?:/.test(p.url())) ?? ctx.pages()[0] ?? (await ctx.newPage());
+  return { browser, ctx, page, child, close: () => closeChrome(browser, child) };
+}
