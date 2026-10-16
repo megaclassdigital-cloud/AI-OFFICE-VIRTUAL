@@ -15,7 +15,9 @@ import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
 import { validate } from '../schemas/validate.mjs';
-import { contentOf, revisionOf, runDirOf, nextRunKey, writeRunMeta, runKeyForMaster, labelOf, latestRunKey, CONTENT_RE } from './run-registry.mjs';
+import { contentOf, revisionOf, runDirOf, nextRunKey, writeRunMeta, runKeyForMaster, labelOf, latestRunKey, CONTENT_RE, masterLabelMap, humanizeIds, revisiTitle } from './run-registry.mjs';
+import { writeContentHistory } from './run-index.mjs';
+import { planTidy, applyTidy } from './tidy-workspace.mjs';
 import { renderManagerContext, startOfDayWib } from './manager-context.mjs';
 import { appendOutbox, buildPlanMessage, speakerName } from './manager-outbox.mjs';
 import { buildManagerInstruction } from './manager-instruction.mjs';
@@ -39,7 +41,10 @@ const arg = (n, d) => (a.includes(n) ? a[a.indexOf(n) + 1] : d);
 const API = arg('--api', 'http://127.0.0.1:3177/api');
 const DRY = a.includes('--dry-run');
 
-const log = (m) => { const l = `${new Date().toISOString()} ${m}`; console.log(l); mkdirSync(path.dirname(LOG), { recursive: true }); appendFileSync(LOG, l + '\n'); };
+// Owner melihat KODE KONTEN (EDU-97 · revisi 1), bukan nomor master Paperclip (EDU-105) yang hanya internal.
+let idMap = { at: 0, map: new Map() };
+const humanLog = (m) => { try { if (Date.now() - idMap.at > 30_000) idMap = { at: Date.now(), map: masterLabelMap(OUTPUTS) }; return humanizeIds(m, idMap.map); } catch { return String(m); } };
+const log = (m) => { const l = `${new Date().toISOString()} ${humanLog(m)}`; console.log(l); mkdirSync(path.dirname(LOG), { recursive: true }); appendFileSync(LOG, l + '\n'); };
 const j = async (p, o) => { const r = await fetch(API + p, o); const t = await r.text(); try { return JSON.parse(t); } catch { return t; } };
 const jb = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(body), 'utf8') });
 // Pilih job terblokir untuk --recheck/--retry/--resume: identitas eksplisit (mis. "--retry EDU-85") menang; tanpa itu ambil yang TERBARU dan
@@ -336,7 +341,7 @@ async function ingestRevision(f, full, brief, rev, title) {
   }
   if (DRY) { log(`[dry-run] revisi ${f} dari ${fromKey} mulai ${rev.start}`); return null; }
   const runKey = nextRunKey(OUTPUTS, contentId);
-  const issue = await j(`/companies/${company.id}/issues`, jb('POST', { title: `Revisi ${labelOf(runKey)}: ${title} (${new Date().toISOString().slice(5, 16).replace('T', ' ')})`, description: `Revisi ${labelOf(runKey)} dari ${labelOf(fromKey)}, mulai tahap ${rev.start}. Catatan owner:\n${rev.notes.slice(0, 1500)}`, status: 'backlog', projectId: project.id }));
+  const issue = await j(`/companies/${company.id}/issues`, jb('POST', { title: `Revisi ${labelOf(runKey)}: ${revisiTitle(title).replace(/^Revisi /, '')} (${new Date().toISOString().slice(5, 16).replace('T', ' ')})`, description: `Revisi ${labelOf(runKey)} dari ${labelOf(fromKey)}, mulai tahap ${rev.start}. Catatan owner:\n${rev.notes.slice(0, 1500)}`, status: 'backlog', projectId: project.id }));
   const runDir = runDirOf(OUTPUTS, runKey);
   mkdirSync(runDir, { recursive: true });
   writeRunMeta(OUTPUTS, runKey, { masterIdentifier: issue.identifier, masterIssueId: issue.id, from: fromKey, startStage: rev.start, createdAt: new Date().toISOString() });
@@ -353,7 +358,7 @@ async function ingestRevision(f, full, brief, rev, title) {
   const note = rev.start === 'researcher'
     ? `REVISI RISET ${labelOf(runKey)} dari ${labelOf(fromKey)}: bahan lama DITOLAK owner. Lakukan riset BARU dari awal (jangan memakai ulang sumber yang ditolak), sesuai catatan owner di bawah. Gambar memakai path runs/${runKey}/assets/<berkas>. Catatan owner (data rujukan):\n${rev.notes.slice(0, 3000)}`
     : `REVISI ${labelOf(runKey)} dari ${labelOf(fromKey)} (hasil tahap sebelumnya dipakai apa adanya; jangan mengulang riset/verifikasi). Gambar memakai path runs/${runKey}/assets/<berkas>. Catatan owner (data rujukan):\n${rev.notes.slice(0, 3000)}`;
-  const order = { title: `Revisi ${title}`.slice(0, 120), stages: Object.fromEntries(STAGES.map((s, i) => [s, i < rev.startIndex ? `Dilewati (revisi): memakai hasil ${labelOf(fromKey)}.` : note])) };
+  const order = { title: revisiTitle(title).slice(0, 120), stages: Object.fromEntries(STAGES.map((s, i) => [s, i < rev.startIndex ? `Dilewati (revisi): memakai hasil ${labelOf(fromKey)}.` : note])) };
   mkdirSync(ORDERS, { recursive: true });
   writeFileSync(orderPathFor(issue.identifier), JSON.stringify(order, null, 2) + '\n', 'utf8');
   mkdirSync(PROCESSED, { recursive: true });
@@ -455,6 +460,16 @@ async function tidyStageIssues(production, activeJob) {
 // Dipanggil berkala: issue tahap blocked milik produksi yang SUDAH SELESAI dikembalikan ke in_review (menunggu approval, tetap tampil di tab Approval);
 // milik produksi lain yang tidak aktif dibatalkan. Issue tahap job yang sedang berjalan tidak disentuh.
 let lastTidyMs = 0;
+let lastFilingMs = 0;
+// Filing: perbarui RIWAYAT.md/INDEX.md konten yang aktif (hanya menulis bila isinya berubah) dan pindahkan sisa berkas agen (> 10 mnt) ke _sisa-alat/.
+function tidyFiling(state) {
+  if (Date.now() - lastFilingMs < 60_000) return;
+  lastFilingMs = Date.now();
+  const codes = new Set([state.job, ...(state.followers ?? []), ...(state.history ?? []).slice(-3)].filter(Boolean).map((x) => { try { return contentOf(runKeyOf(x)); } catch { return null; } }).filter((c) => c && CONTENT_RE.test(c)));
+  for (const c of codes) writeContentHistory(OUTPUTS, c);
+  const old = planTidy(OUTPUTS).filter((p) => { try { return Date.now() - statSync(p.from).mtimeMs > 10 * 60_000; } catch { return false; } });
+  if (old.length) { applyTidy(old); log('perapian berkas: ' + old.length + ' sisa berkas agen dipindah ke _sisa-alat/'); }
+}
 let connFails = 0; // galat koneksi beruntun ke Paperclip (untuk mundur bertahap dan log tidak membanjir)
 async function tidyBlocked(state) {
   if (Date.now() - lastTidyMs < 60_000) return;
@@ -593,7 +608,7 @@ async function createStage(job, stage, feedback = null) {
       .sort((a, b) => Date.parse(b.createdAt ?? 0) - Date.parse(a.createdAt ?? 0))[0];
     if (!made?.id) throw new Error(`issue tahap ${STAGE_AGENT[stage]} untuk ${job.identifier} tidak terbaca setelah dibuat`);
   }
-  log(`tahap ${STAGE_AGENT[stage]} -> issue ${made.identifier}`);
+  log(`tahap ${STAGE_AGENT[stage]} dibuat (issue internal ${made.identifier})`);
   return made.id;
 }
 
@@ -788,6 +803,7 @@ async function once() {
   if (state.pausedLogged) { delete state.pausedLogged; log('jeda dicabut: pekerjaan dilanjutkan'); }
   const net = await checkNetwork(state.job);
   try { await tidyBlocked(state); } catch { /* pembersihan hanya kosmetik; jangan pernah mengganggu alur */ }
+  try { tidyFiling(state); } catch { /* perapian berkas hanya kosmetik */ }
   try { await processRoutings(); } catch (e) { log('routing revisi galat: ' + String(e?.message ?? e).slice(0, 160)); }
   const review = settings.reviewPlans === true;
   try { await planAhead(state, net.hold, review); } catch (e) { log('perencanaan di muka galat: ' + String(e?.message ?? e).slice(0, 160)); }

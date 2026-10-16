@@ -55,3 +55,32 @@ export function runKeyForMaster(outputs, masterIdentifier) {
   }
   return null;
 }
+
+/**
+ * Peta nomor master Paperclip (INTERNAL) -> label konten untuk owner, hanya untuk run yang nomornya BERBEDA dari kode konten.
+ * Contoh: revisi EDU-97 punya issue master EDU-105; owner tidak perlu tahu nomor itu, ia melihat "EDU-97 · revisi 1".
+ */
+export function masterLabelMap(outputs) {
+  const map = new Map();
+  const base = path.join(outputs, 'runs');
+  if (!existsSync(base)) return map;
+  for (const e of readdirSync(base, { withFileTypes: true })) {
+    if (!e.isDirectory() || !CONTENT_RE.test(e.name)) continue;
+    for (const n of [0, ...listRevisions(outputs, e.name)]) {
+      const key = runKeyFor(e.name, n);
+      const master = masterIdentifierOf(outputs, key);
+      if (master && master !== e.name) map.set(master, labelOf(key));
+    }
+  }
+  return map;
+}
+
+/** Ganti nomor master internal pada teks bebas (log, pesan) dengan label konten. Nomor lain dibiarkan apa adanya. */
+export function humanizeIds(text, map) {
+  const s = String(text);
+  if (!map || !map.size) return s;
+  return s.replace(/\bEDU-[0-9]+\b/g, (id) => map.get(id) ?? id);
+}
+
+/** Judul revisi tanpa awalan "Revisi" berulang ("Revisi Revisi X" -> "Revisi X"). */
+export const revisiTitle = (t) => `Revisi ${String(t ?? '').replace(/^(Revisi\s+)+/i, '').trim()}`.trim();
