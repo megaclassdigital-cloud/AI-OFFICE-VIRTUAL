@@ -113,6 +113,12 @@ function killComponent(c) {
   c.child = null; c.pid = null; c.adopted = false;
 }
 
+/** Hentikan SEMUA proses server Paperclip (lewat skrip resmi) sebelum menyalakan ulang, supaya tidak pernah ada dua server berebut satu database. */
+function stopPaperclipProcs() {
+  try { spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', f('scripts', 'start-paperclip.ps1'), '-Stop'], { cwd: ROOT, windowsHide: true, timeout: 60_000 }); } catch { /* abaikan */ }
+}
+const countPaperclipServers = () => listNodeProcs().filter((p) => /paperclipai[\/]+dist/.test(p.cmd)).length;
+
 function startPaperclip(why) {
   log(`Menyalakan Paperclip (${why})`);
   paperclipRestartAt = Date.now();
@@ -207,7 +213,7 @@ async function handleCommand() {
 async function runCommand(c) {
   log(`perintah dari tray: ${c.cmd}${c.key ? ' ' + c.key : ''}`);
   if (c.cmd === 'open') spawn('cmd', ['/c', 'start', '', UI], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
-  else if (c.cmd === 'restart') { const x = c.key ? comp.get(c.key) : null; if (x) { killComponent(x); x.nextStartAt = 0; x.failed = false; } else if (c.key === 'paperclip') startPaperclip('perintah owner'); }
+  else if (c.cmd === 'restart') { const x = c.key ? comp.get(c.key) : null; if (x) { killComponent(x); x.nextStartAt = 0; x.failed = false; } else if (c.key === 'paperclip') { stopPaperclipProcs(); startPaperclip('perintah owner'); } }
   else if (c.cmd === 'stop-now') stopAll(false);
   else if (c.cmd === 'shutdown') await safeShutdown();
 }
@@ -230,6 +236,7 @@ async function cycle() {
   // Paperclip: bila tidak terjangkau cukup lama, nyalakan ulang (dengan jeda agar tidak berulang-ulang).
   if (!input.paperclip.reachable) {
     paperclipDownSince ??= nowMs;
+    if (nowMs - paperclipDownSince > 30_000 && nowMs - paperclipRestartAt > 60_000 && countPaperclipServers() > 1) { log('Terdeteksi lebih dari satu server Paperclip (berebut database): semua dihentikan, lalu dinyalakan satu'); stopPaperclipProcs(); startPaperclip('duplikat dibersihkan'); return; }
     if (nowMs - paperclipDownSince > 30_000 && nowMs - paperclipRestartAt > PAPERCLIP_STARTUP_GRACE_MS) {
       const procs = listNodeProcs().filter((p) => /paperclipai/.test(p.cmd));
       if (await tcpOpen(3177)) { if (nowMs - slowLogAt > 300_000) { slowLogAt = nowMs; log('Paperclip lambat tetapi prosesnya hidup (port 3177 terbuka): tidak diluncurkan ulang'); } }

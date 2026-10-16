@@ -111,6 +111,14 @@ if ($existing) {
     exit 0
 }
 
+# Proses Paperclip sudah ada tetapi belum sehat (masih booting / memulihkan database setelah mati listrik atau tidur): JANGAN menyalakan yang kedua.
+# Dua server berebut satu database tertanam, keduanya tidak pernah membuka port, dan RAM habis (terbukti 16 Okt 2026). Yang macet dihentikan lewat -Stop.
+$already = @(Get-PaperclipProcess | Where-Object { $_.CommandLine -match 'paperclipai[\\/]+dist' })
+if ($already.Count -gt 0) {
+    Write-Host "Proses server Paperclip sudah ada (PID $($already.ProcessId -join ', ')) tetapi belum sehat: tidak menyalakan duplikat. Pakai -Stop bila macet."
+    exit 0
+}
+
 if (-not (Test-Path $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 }
