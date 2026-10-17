@@ -171,7 +171,7 @@ function fakePaperclip() {
     const ok = (b) => ({ ok: true, status: 200, json: async () => b });
     if (p === '/companies') return ok(S.companies);
     if (p === '/companies/co/agents') return ok(S.agents);
-    if (p === '/companies/co/issues') return ok(S.issues);
+    if (p === '/companies/co/issues') return ok(S.issues); // filter updatedSince diabaikan seperti server lama: hasil tetap benar
     if (p.startsWith('/companies/co/heartbeat-runs')) return ok(S.runs);
     let m;
     if ((m = /^\/issues\/([^/]+)\/comments$/.exec(p))) return ok(S.comments[m[1]] ?? []);
@@ -230,12 +230,12 @@ describe('office-bridge (Paperclip palsu)', () => {
     const { S, fetchImpl } = fakePaperclip();
     S.issues = [iss('i1', { status: 'in_progress', assigneeAgentId: 'a-c' })];
     S.comments.i1 = [{ id: 'c0', authorAgentId: 'a-c' }];
-    const b = createBridge({ fetchImpl });
+    let T = 1_000_000; const b = createBridge({ fetchImpl, now: () => T });
     await b.poll();
     expect(b.eventsSince(0).events).toEqual([]);
     S.comments.i1 = [{ id: 'c0', authorAgentId: 'a-c' }, { id: 'c1', authorAgentId: 'a-c' }];
-    await b.poll();
-    await b.poll();
+    T += 5000; await b.poll(); // issue yang sedang dikerjakan dibaca ulang paling cepat tiap 4 dtk
+    T += 5000; await b.poll();
     expect(b.eventsSince(0).events.filter((e) => e.type === 'comment')).toHaveLength(1);
   });
 

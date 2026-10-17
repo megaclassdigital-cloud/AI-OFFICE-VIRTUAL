@@ -69,8 +69,26 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
   const issueRef = (i) => ({ id: i.id, identifier: i.identifier, title: i.title });
   const push = (ev, observedAt) => { st.seq += 1; st.events.push({ seq: st.seq, observedAt, ...ev }); if (st.events.length > RING) st.events.shift(); };
 
+  // Daftar issue Paperclip kini ±430 KB dan 1,5 dtk per pembacaan: dibaca penuh hanya di awal dan tiap 5 menit; selebihnya hanya issue yang berubah
+  // (?updatedSince=, margin 60 dtk) digabung ke peta lokal. Bila server mengabaikan filter, hasilnya tetap benar (hanya lebih berat).
+  const FULL_ISSUES_MS = 5 * 60_000; const SINCE_MARGIN_MS = 60_000;
+  const issueMap = new Map(); let lastFullAt = 0; let sinceIso = null;
+  async function readIssues(coId, t0) {
+    if (!lastFullAt || t0 - lastFullAt >= FULL_ISSUES_MS) {
+      const list = await get(`/companies/${coId}/issues`);
+      issueMap.clear(); for (const i of list) issueMap.set(i.id, i);
+      lastFullAt = t0; sinceIso = new Date(t0 - SINCE_MARGIN_MS).toISOString();
+      return list;
+    }
+    const upd = await get(`/companies/${coId}/issues?updatedSince=${encodeURIComponent(sinceIso)}`);
+    for (const i of upd) issueMap.set(i.id, i);
+    sinceIso = new Date(t0 - SINCE_MARGIN_MS).toISOString();
+    return [...issueMap.values()];
+  }
+
   const commentCache = new Map(); // issueId -> { key, at, list }
   const COMMENT_CACHE_MS = 15_000;
+  const ACTIVE_COMMENT_CACHE_MS = 4_000; // issue yang sedang dikerjakan: komentar baru muncul <= 4 dtk (sebelumnya dibaca ulang tiap poll)
   /** Ada agen yang sedang bekerja? Dipakai server untuk memperlambat polling saat kantor sepi (hemat CPU/RAM Paperclip). */
   const isBusy = () => [...(st.prev?.agents?.values() ?? [])].some((a) => a.state === 'working');
 
@@ -78,7 +96,7 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
     const t0 = now();
     try {
       const co = await resolveCompany();
-      const [agents, issues, runs] = await Promise.all([get(`/companies/${co.id}/agents`), get(`/companies/${co.id}/issues`), get(`/companies/${co.id}/heartbeat-runs?limit=40`)]);
+      const [agents, issues, runs] = await Promise.all([get(`/companies/${co.id}/agents`), readIssues(co.id, t0), get(`/companies/${co.id}/heartbeat-runs?limit=15`)]);
       const tracked = issues
         .filter((i) => ['in_progress', 'in_review', 'blocked', 'todo'].includes(i.status) && t0 - (Date.parse(i.lastActivityAt ?? i.updatedAt ?? 0) || 0) < ACTIVE_COMMENT_WINDOW_MS)
         .slice(0, MAX_TRACKED_ISSUES);
@@ -86,8 +104,9 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
       const commentLists = await Promise.all(tracked.map(async (i) => {
         const key = `${i.updatedAt ?? ''}|${i.lastActivityAt ?? ''}|${i.status}`;
         const hit = commentCache.get(i.id);
-        // Issue yang sedang dikerjakan TIDAK di-cache (komentar harus muncul seketika); yang menunggu review/terblokir/todo jarang berubah.
-        if (i.status !== 'in_progress' && hit && hit.key === key && t0 - hit.at < COMMENT_CACHE_MS) return [i, hit.list];
+        // Issue yang sedang dikerjakan dibaca ulang paling cepat tiap 4 dtk; yang menunggu review/terblokir/todo jarang berubah.
+        const ttl = i.status === 'in_progress' ? ACTIVE_COMMENT_CACHE_MS : COMMENT_CACHE_MS;
+        if (hit && (i.status === 'in_progress' || hit.key === key) && t0 - hit.at < ttl) return [i, hit.list];
         const r = await get(`/issues/${i.id}/comments`).catch(() => null);
         const list = r === null ? (hit?.list ?? []) : (Array.isArray(r) ? r : r.comments ?? []);
         commentCache.set(i.id, { key, at: t0, list });

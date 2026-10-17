@@ -7,7 +7,7 @@ const ctx = cv.getContext('2d');
 const W = 1920, H = 1080, SC = 3, FW = 16, FH = 32, UP = 4, ZMIN = 1, ZMAX = 5;
 const $ = (id) => document.getElementById(id);
 
-const app = { layout: null, world: null, mode: 'live', paused: false, speed: 1, epoch: 0, seq: 0, connected: true, simClock: 0, simEvents: [], simIdx: 0, simEndAt: 0, bgCache: new Map(), sprites: [], metrics: [], boardItems: [], boardImgs: new Map() };
+const app = { layout: null, world: null, mode: 'live', paused: false, speed: 1, epoch: 0, seq: 0, connected: true, simClock: 0, simEvents: [], simIdx: 0, simEndAt: 0, bgCache: new Map(), wrapCache: new Map(), sprites: [], metrics: [], boardItems: [], boardImgs: new Map() };
 
 // ───────── gambar statis (digambar sekali per mode, lalu di-cache) ─────────
 function rr(c, x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r); }
@@ -80,7 +80,7 @@ const trunc = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 function drawChar(c, ch, w) {
   const img = app.sprites[ch.sprite % app.sprites.length];
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
   const row = ch.facing === 'down' ? 0 : ch.facing === 'up' ? 1 : 2;
   let frame = 1;
   const atDesk = !ch.moving && (ch.state === 'working') && ch.deskKey;
@@ -119,7 +119,7 @@ function drawThought(c, ch, placed = []) {
   if (!txt) return;
   const baseY = ch.y - FH * SC - 62;
   c.font = 'italic 600 13px "Segoe UI", sans-serif';
-  const lines = wrap(c, txt, 250, 2); const lh = 16;
+  const wkey = txt; let lines = app.wrapCache.get(wkey); if (!lines) { lines = wrap(c, txt, 250, 2); app.wrapCache.set(wkey, lines); if (app.wrapCache.size > 200) app.wrapCache.delete(app.wrapCache.keys().next().value); } const lh = 16;
   const w = Math.max(...lines.map((l) => c.measureText(l).width)) + 22, h = lines.length * lh + 12, x = Math.max(8, Math.min(1920 - w - 8, ch.x - w / 2));
   const rectAt = (yy) => ({ x, y: yy - h, w, h });
   const hit = (r1, r2) => r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
@@ -207,8 +207,9 @@ function applyCam(zoom = cam.zoom, cx = cam.cx, cy = cam.cy) {
   const pct = $('zPct'); if (pct) pct.textContent = Math.round(cam.zoom * 100) + '%';
 }
 function fitCanvas() {
-  const r = cv.getBoundingClientRect(); const dpr = Math.min(3, window.devicePixelRatio || 1);
-  const w = Math.max(320, Math.round(r.width * dpr)), h = Math.max(180, Math.round(r.height * dpr));
+  const r = cv.getBoundingClientRect(); const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const cap = Math.min(1, 2560 / Math.max(1, r.width * dpr));
+  const w = Math.max(320, Math.round(r.width * dpr * cap)), h = Math.max(180, Math.round(r.height * dpr * cap));
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   cam.k0 = cv.width / W; applyCam();
 }
@@ -401,11 +402,14 @@ async function init() {
   })));
   fitCanvas(); new ResizeObserver(fitCanvas).observe(cv);
   await startLive();
-  setInterval(pollLive, 1000);
-  pollPublisher(); setInterval(pollPublisher, 5000);
-  pollAutonomy(); setInterval(pollAutonomy, 8000);
+  // Polling hemat: tab tersembunyi tidak memanggil server sama sekali; data yang tidak butuh hitungan detik dibaca lebih jarang.
+  const visible = (fn) => () => { if (!document.hidden) fn(); };
+  setInterval(visible(pollLive), 1000);
+  pollPublisher(); setInterval(visible(pollPublisher), 15000);
+  pollAutonomy(); setInterval(visible(pollAutonomy), 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { pollLive(); pollPublisher(); pollAutonomy(); } });
   const pollBoard = async () => { try { app.boardItems = (await jget('/api/inspect/board?limit=3')).items ?? []; } catch { /* TV tetap menampilkan data terakhir */ } };
-  pollBoard(); setInterval(pollBoard, 10000);
+  pollBoard(); setInterval(visible(pollBoard), 20000);
   requestAnimationFrame(frame);
 }
 

@@ -33,7 +33,7 @@ const RUN_COLOR = { running: 'run', succeeded: 'ok', failed: 'bad', timed_out: '
     bar.textContent = `🔌 Internet terputus${n.since ? ' sejak ' + hhmm(n.since) : ''} — pekerjaan agent ditahan, lanjut otomatis saat online`;
     bar.hidden = false;
   };
-  tick(); setInterval(tick, 5000);
+  tick(); setInterval(() => { if (!document.hidden) tick(); }, 10000);
 }
 
 // ───────── dock shell ─────────
@@ -138,7 +138,7 @@ async function pollPipe() {
   pipe.textContent = p.job ? `🏭 ${p.job.identifier}: ${p.job.phase}${stage}${p.followers ? ` · +${p.followers} paralel` : ''}${p.queue ? ` · antrean ${p.queue}` : ''}` : `🏭 Tidak ada produksi berjalan${p.queue ? ` · antrean ${p.queue}` : ''}`;
   pipe.dataset.phase = p.job?.phase ?? 'idle';
 }
-pollPipe(); setInterval(pollPipe, 5000);
+pollPipe(); setInterval(() => { if (!document.hidden) pollPipe(); }, 10000);
 
 // Pesan Manager untuk owner (rencana, analisis, pertanyaan) muncul di chat; id terakhir diingat agar tidak berulang.
 let outboxLast = Number(ls.get('outboxLast', 0)) || 0;
@@ -147,7 +147,7 @@ async function pollOutbox() {
   for (const m of d?.messages ?? []) { msg('agent', m.from ?? 'Manager', m.text, m.at); outboxLast = Math.max(outboxLast, m.id); }
   if (d?.messages?.length) ls.set('outboxLast', outboxLast);
 }
-pollOutbox(); setInterval(pollOutbox, 4000);
+pollOutbox(); setInterval(() => { if (!document.hidden) pollOutbox(); }, 8000);
 
 // ───────── Agent "memory" inspector ─────────
 const agentTab = $('tab-agent');
@@ -275,8 +275,8 @@ addEventListener('office:select', (e) => {
   else if (d.type === 'agent' && d.isOwner) { setOpen(true); state.appr = null; setTab('appr'); }
   else if (d.type === 'approvals') { setOpen(true); state.appr = null; setTab('appr'); }
 });
-setInterval(() => { if (state.open && state.tab === 'agent' && state.agent) loadAgent(); }, 4000);
-setInterval(() => { if (state.tab === 'appr' && !state.appr && state.open) loadAppr(); }, 8000);
+setInterval(() => { if (!document.hidden && state.open && state.tab === 'agent' && state.agent) loadAgent(); }, 8000); // memanggil Paperclip: jarang dan hanya saat terlihat
+setInterval(() => { if (!document.hidden && state.tab === 'appr' && !state.appr && state.open) loadAppr(); }, 15000);
 (async () => { try { const d = await jget('/api/inspect/approvals'); setBadge(d.items.filter((x) => !x.internal).length); } catch { /* badge menyusul */ } })();
-setInterval(async () => { try { const d = await jget('/api/inspect/approvals'); setBadge(d.items.filter((x) => !x.internal).length); } catch { /* abaikan */ } }, 15000);
+setInterval(async () => { if (document.hidden) return; try { const d = await jget('/api/inspect/approvals'); setBadge(d.items.filter((x) => !x.internal).length); } catch { /* abaikan */ } }, 30000);
 setOpen(state.open); setTab(['chat', 'agent', 'appr'].includes(state.tab) ? state.tab : 'chat');

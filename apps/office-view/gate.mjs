@@ -68,8 +68,9 @@ export function createLimiter({ max = 10, windowMs = MIN, now = Date.now } = {})
  */
 export function createGate({ port, publicMode = false, env = () => process.env, now = Date.now }) {
   let secure = false; // diisi per permintaan (sinkron) untuk atribut Secure pada cookie
+  let curPort = port; // port soket yang sebenarnya menerima permintaan (server bisa berjalan di port selain bawaan)
   const access = createAccess({
-    port, publicMode, now,
+    get port() { return curPort; }, publicMode, now,
     secret: () => env().AAO_SESSION_SECRET || '',
     ownerHash: () => '', // mode owner dimatikan sampai read-only terbukti
     verifyPassword: () => false,
@@ -80,6 +81,7 @@ export function createGate({ port, publicMode = false, env = () => process.env, 
   const text = (res, code, body, extra = {}) => { res.writeHead(code, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', ...extra }); res.end(body); };
 
   return function gate(req, res, u, json) {
+    curPort = req.socket?.localPort ?? port;
     const p = u.pathname; secure = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim() === 'https';
     const { role } = access.classify(req);
     if (p === '/review') {
