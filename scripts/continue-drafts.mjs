@@ -44,6 +44,10 @@ for (const id of ids) {
     await sleep(20_000);
     const stageName = STAGE_NAMES[h0.stageIndex] ?? '?';
     say(`MULAI ${id}: terblokir di ${stageName} (${String(h0.blockReason ?? '').slice(0, 90)}); menilai ulang keluaran`);
+    if (stageName === 'designer') { // gerbang aset: lengkapi aset yang masih hilang lebih dulu (yang sudah ter-capture dipertahankan), lalu nilai ulang
+      const c = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'capture-asset.mjs'), '--issue', id], { cwd: ROOT, encoding: 'utf8', timeout: 460_000 });
+      say(`  aset: ${String(c.stdout ?? '').trim().split(/\r?\n/).filter((l) => /^(captured|missing|owner-supplied|BELUM|kept)/i.test(l)).map((l) => l.slice(0, 70)).join(' | ') || 'tanpa keluaran'}`);
+    }
     say(`  ${orch('--recheck', id)}`);
   }
   let h = await waitFinish(id, 90 * 60_000);
