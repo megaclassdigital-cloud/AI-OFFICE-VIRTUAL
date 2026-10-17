@@ -129,7 +129,7 @@ function assetGate(job, design, designPath) {
     const strict = checkAssets({ design, templates: TEMPLATES, manifest, identifier: runKeyOf(job), carousel, rootDir: ROOT });
     return strict.length ? { ok: false, errors: strict } : null;
   }
-  const sinceMs = prev?.since ?? Date.now();
+  const sinceMs = prev?.since ?? prev?.at ?? Date.now();
   writeHold(holdFile, { at: Date.now(), since: sinceMs, sig, missing: verdict.missing });
   const fbk = holdFallback(verdict.missing, sinceMs); if (fbk) return fbk;
   return { ok: false, hold: true, missing: verdict.missing, errors: [holdMessage(runKeyOf(job), verdict.missing)] };

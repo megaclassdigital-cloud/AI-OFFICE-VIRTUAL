@@ -16,6 +16,8 @@ import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROFILE_DIR } from './browser-login.mjs';
+import { openSearchChrome } from './autopost/social-login.mjs';
+import { acquireBrowser, releaseBrowser } from './autopost/browser-lock.mjs';
 import { pickSource, extractImageUrls, extractTitle, isPublicHttpsUrl } from './source-image.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from 'node:fs';
 
@@ -304,7 +306,7 @@ export async function main(argv) {
   const manifest = { issue, createdAt: new Date().toISOString(), note: 'Screenshot hasil pencarian gambar atau berkas dari owner. Hak cipta tetap milik pemilik aslinya; owner bertanggung jawab atas penggunaan.', assets: [] };
   const readJ = (p) => { try { return JSON.parse(readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); } catch { return null; } };
   const srcData = { carousel: readJ(path.join(runDir, 'carousel.json')), research: readJ(path.join(runDir, 'research-output.json')), verification: readJ(path.join(runDir, 'verification-result.json')) };
-  let browser = null; let context = null; let page = null;
+  let browser = null; let context = null; let page = null; let chromeSession = null;
   const engines = (get('--engines') ?? 'google,bing').split(',').filter((n) => ENGINES[n]);
   const state = { blocked: new Set() };
   let queried = 0;
@@ -323,6 +325,20 @@ export async function main(argv) {
       if (!force && existsSync(out) && statSync(out).size > 2000 && was && ['captured', 'owner-supplied'].includes(was.status)) { manifest.assets.push({ ...was, keptAt: new Date().toISOString() }); continue; }
       const ensurePage = async () => {
         if (context) return;
+        // Cara membuka browser SAMA dengan publisher: Chrome biasa (proses mandiri) + sambungan CDP lokal, tanpa --enable-automation dan tanpa penanda
+        // headless; jendela di luar layar. Mesin pencari memblokir Edge/Chromium yang diluncurkan Playwright (terbukti: "google: blocked").
+        // Cadangan: AAO_SEARCH_BROWSER=playwright mengembalikan cara lama.
+        if (process.env.AAO_SEARCH_BROWSER !== 'playwright' && !argv.includes('--headed')) {
+          try {
+            for (let i = 0; i < 20 && !acquireBrowser(String(process.pid), Date.now(), 'search'); i++) await new Promise((r) => setTimeout(r, 3000)); // profil pencarian sendiri; kunci hanya mencegah dua pengambilan aset bersamaan
+            chromeSession = await openSearchChrome({ offscreen: true });
+            context = chromeSession.ctx; page = await context.newPage();
+            return;
+          } catch (e) {
+            console.error('Chrome biasa gagal dibuka (' + String(e.message).slice(0, 80) + '); memakai cara lama.');
+            try { await chromeSession?.close(); } catch { /* sudah tertutup */ } chromeSession = null; context = null; page = null;
+          }
+        }
         // Profil Edge tersimpan (sesi hasil verifikasi OWNER via browser-login.mjs) dipakai bila ada; selain itu Chromium bawaan.
         if (existsSync(PROFILE_DIR) && !argv.includes('--no-profile')) {
           context = await chromium.launchPersistentContext(PROFILE_DIR, { channel: 'msedge', headless: !argv.includes('--headed'), locale: 'id-ID', viewport: { width: 1400, height: 1000 } });
@@ -350,7 +366,10 @@ export async function main(argv) {
       if (sourceNote && r.status !== 'captured') r.reason = [sourceNote, r.reason].filter(Boolean).join(' | ');
       manifest.assets.push({ ...entry, ...r, capturedAt: new Date().toISOString() });
     }
-  } finally { if (context) await context.close().catch(() => {}); if (browser) await browser.close().catch(() => {}); }
+  } finally {
+    if (chromeSession) { await chromeSession.close().catch(() => {}); releaseBrowser(String(process.pid), 'search'); }
+    else { if (context) await context.close().catch(() => {}); if (browser) await browser.close().catch(() => {}); }
+  }
   const missing = manifest.assets.filter((a) => !['captured', 'owner-supplied'].includes(a.status));
   manifest.complete = missing.length === 0;
   writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');

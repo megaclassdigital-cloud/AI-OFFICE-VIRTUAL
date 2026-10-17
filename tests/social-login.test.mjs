@@ -45,3 +45,15 @@ describe('jendela di luar layar untuk posting otomatis', () => {
     expect(chromeArgs({ dir: 'D:/p', port: 9341, url: 'https://x.test/', headless: false }).some((x) => /window-position/.test(x))).toBe(false);
   });
 });
+
+import { SEARCH_PROFILE, SOCIAL_PROFILE_ROOT } from '../scripts/autopost/social-login.mjs';
+describe('profil Chrome pencarian gambar (cara buka sama dengan publisher)', () => {
+  it('profil dan port tersendiri; tanpa penanda otomatisasi; jendela di luar layar bila diminta', () => {
+    expect(SEARCH_PROFILE.port).toBe(9343);
+    expect(Object.values(PLATFORMS).map((p) => p.port)).not.toContain(SEARCH_PROFILE.port);
+    expect(SEARCH_PROFILE.dir.startsWith(SOCIAL_PROFILE_ROOT)).toBe(true);
+    const a = chromeArgs({ dir: SEARCH_PROFILE.dir, port: SEARCH_PROFILE.port, url: 'about:blank', headless: false, offscreen: true });
+    expect(a.join(' ')).not.toMatch(/enable-automation|--headless/);
+    expect(a).toContain('--window-position=-32000,0');
+  });
+});

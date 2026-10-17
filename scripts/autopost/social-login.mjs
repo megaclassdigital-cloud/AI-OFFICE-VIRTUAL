@@ -26,6 +26,8 @@ export const PLATFORMS = Object.freeze({
 });
 
 export const profileDirFor = (platform) => path.join(SOCIAL_PROFILE_ROOT, platform);
+/** Profil Chrome untuk PENCARIAN GAMBAR Designer (capture-asset): dibuka dengan cara yang SAMA dengan publisher (Chrome biasa + CDP, tanpa penanda otomatisasi). */
+export const SEARCH_PROFILE = Object.freeze({ dir: path.join(SOCIAL_PROFILE_ROOT, 'search'), port: 9343 });
 
 /** Murni: dari daftar cookie, apakah sesi masuk ada dan belum kedaluwarsa? Hanya nama dan kedaluwarsa yang dibaca. */
 export function sessionState(platform, cookies, nowSec = Date.now() / 1000) {
@@ -68,13 +70,14 @@ async function closeChrome(browser, child) {
 export async function main(argv) {
   const get = (k, d) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : d);
   const platform = get('--platform', null);
-  if (!PLATFORMS[platform]) { console.error(`Pakai: --platform ${Object.keys(PLATFORMS).join('|')} [--check] [--timeout 600]`); return 1; }
-  const P = PLATFORMS[platform];
+  const SEARCH = platform === 'search'; // profil Chrome pencarian gambar Designer: owner menyelesaikan verifikasi mesin pencari sendiri di jendela ini
+  if (!PLATFORMS[platform] && !SEARCH) { console.error(`Pakai: --platform ${[...Object.keys(PLATFORMS), 'search'].join('|')} [--check] [--timeout 600]`); return 1; }
+  const P = SEARCH ? { name: 'Pencarian gambar', loginUrl: 'https://www.google.com/search?q=logo&tbm=isch', homeUrl: 'https://www.google.com/', port: SEARCH_PROFILE.port } : PLATFORMS[platform];
   const check = argv.includes('--check');
   const timeoutS = Number(get('--timeout', '600'));
   const chrome = findChrome();
   if (!chrome) { console.error('chrome.exe tidak ditemukan. Pasang Google Chrome atau atur CHROME_PATH.'); return 1; }
-  const dir = profileDirFor(platform);
+  const dir = SEARCH ? SEARCH_PROFILE.dir : profileDirFor(platform);
   mkdirSync(dir, { recursive: true });
   const startUrl = get('--url', null) ?? (check ? P.homeUrl : P.loginUrl); // --url: mis. halaman kode QR TikTok (https://www.tiktok.com/login/qrcode)
   const child = spawn(chrome, chromeArgs({ dir, port: P.port, url: startUrl, headless: check }), { stdio: 'ignore', windowsHide: check });
@@ -83,6 +86,11 @@ export async function main(argv) {
   try {
     browser = await connect(P.port);
     const ctx = browser.contexts()[0];
+    if (SEARCH) {
+      console.log(`Jendela Chrome pencarian terbuka. Selesaikan verifikasi/CAPTCHA Google di jendela itu, cari gambar sekali agar hasil muncul, lalu TUTUP jendelanya (maks ${timeoutS} dtk). Sesi tersimpan di profil ini dan dipakai pengambilan gambar Designer.`);
+      const t0 = Date.now(); while (Date.now() - t0 < timeoutS * 1000 && child.exitCode === null) await new Promise((r) => setTimeout(r, 2000));
+      console.log('Selesai.'); return 0;
+    }
     if (check) {
       await new Promise((r) => setTimeout(r, 3000));
       const s = sessionState(platform, await ctx.cookies());
@@ -112,13 +120,20 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
  * Buka Chrome biasa dengan profil khusus platform dan sambungkan Playwright lewat CDP lokal (tanpa penanda otomatisasi).
  * Mengembalikan { browser, ctx, page, close() }. headless=false menampilkan jendela (dry-run pertama sebaiknya terlihat).
  */
-export async function openSocialChrome(platform, { headless = false, url = null, offscreen = false } = {}) {
-  const P = PLATFORMS[platform]; if (!P) throw new Error(`platform tidak dikenal: ${platform}`);
+export async function openChromeProfile({ dir, port, url = 'about:blank', headless = false, offscreen = false }) {
   const chrome = findChrome(); if (!chrome) throw new Error('chrome.exe tidak ditemukan');
-  const dir = profileDirFor(platform); mkdirSync(dir, { recursive: true });
-  const child = spawn(chrome, chromeArgs({ dir, port: P.port, url: url ?? P.homeUrl, headless, offscreen }), { stdio: 'ignore', windowsHide: headless });
-  const browser = await connect(P.port);
+  mkdirSync(dir, { recursive: true });
+  const child = spawn(chrome, chromeArgs({ dir, port, url, headless, offscreen }), { stdio: 'ignore', windowsHide: headless });
+  const browser = await connect(port);
   const ctx = browser.contexts()[0];
   const page = ctx.pages().find((p) => /^https?:/.test(p.url())) ?? ctx.pages()[0] ?? (await ctx.newPage());
   return { browser, ctx, page, child, close: () => closeChrome(browser, child) };
 }
+
+export async function openSocialChrome(platform, { headless = false, url = null, offscreen = false } = {}) {
+  const P = PLATFORMS[platform]; if (!P) throw new Error(`platform tidak dikenal: ${platform}`);
+  return openChromeProfile({ dir: profileDirFor(platform), port: P.port, url: url ?? P.homeUrl, headless, offscreen });
+}
+
+/** Profil Chrome untuk PENCARIAN GAMBAR Designer (capture-asset): cara membuka SAMA dengan publisher (Chrome biasa + CDP, tanpa penanda otomatisasi). */
+export const openSearchChrome = (opts = {}) => openChromeProfile({ ...SEARCH_PROFILE, ...opts });

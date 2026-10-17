@@ -54,7 +54,7 @@ export function holdMessage(identifier, missing) {
   const list = missing.map((m) => `- ${m.file} (${m.status}${m.reason ? `: ${String(m.reason).slice(0, 140)}` : ''})`).join('\n');
   return `Produksi ${identifier} DITAHAN: ${missing.length} gambar asli belum bisa diambil.\n${list}\n` +
     `Cara melanjutkan: taruh gambar asli (screenshot logo/produk) di workspace/inbox/assets/${identifier}/<nama-berkas>, ` +
-    `atau bila Google meminta verifikasi, jalankan "node scripts/browser-login.mjs" lalu selesaikan verifikasinya sendiri. Pipeline mencoba lagi otomatis.`;
+    `atau bila Google meminta verifikasi, jalankan "node scripts/autopost/social-login.mjs --platform search" lewat PowerShell (jendela Chrome pencarian terbuka; selesaikan verifikasinya sendiri). Pipeline mencoba lagi otomatis.`;
 }
 
 /** Tanda tangan isi folder inbox owner (nama + ukuran + waktu ubah), untuk tahu kapan perlu mencoba ulang lebih cepat. */
