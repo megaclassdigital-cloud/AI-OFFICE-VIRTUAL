@@ -31,14 +31,16 @@ export function decideAutoRetry({ job, nowMs, paperclipOk, anotherActive, settin
   if (anotherActive) return { retry: false, code: 'ada-job-aktif' };
   if (!(job.stageIndex >= 0)) return { retry: false, code: 'belum-ada-tahap' };
   if (!isInfraBlock(job.blockReason)) return { retry: false, code: 'bukan-infrastruktur', reason: job.blockReason ?? null };
-  if ((job.autoRetries ?? 0) >= s.autoRetryMax) return { retry: false, code: 'jatah-habis' };
+  const quotaBlock = /quota|exceeded your current/i.test(String(job.blockReason ?? ''));
+  const modelChanged = !!(job.blockAgentEntry && agentEntryNow && agentEntryNow !== job.blockAgentEntry);
+  if ((job.autoRetries ?? 0) >= s.autoRetryMax && !(quotaBlock && modelChanged)) return { retry: false, code: 'jatah-habis' };
   // Kuota model habis: mengulang SEBELUM failover memindah model hanya membuang run dan membuat agen 'sibuk' sehingga failover tidak bisa berpindah. Tunggu model berganti.
   if (/quota|exceeded your current/i.test(String(job.blockReason ?? ''))) {
     if (job.blockAgentEntry && agentEntryNow && agentEntryNow === job.blockAgentEntry) return { retry: false, code: 'tunggu-failover' };
     if (!job.blockAgentEntry && nowMs - (job.endedMs ?? 0) < 20 * MIN) return { retry: false, code: 'tunggu-failover' };
   }
   const ended = job.endedMs ?? 0;
-  if (!ended || nowMs - ended > s.autoRetryWindowHours * HOUR) return { retry: false, code: 'terlalu-lama' };
+  if (!ended || nowMs - ended > (quotaBlock ? 24 : s.autoRetryWindowHours) * HOUR) return { retry: false, code: 'terlalu-lama' };
   if (nowMs - ended < s.autoRetryAfterMinutes * MIN) return { retry: false, code: 'tunggu-pulih', waitMs: s.autoRetryAfterMinutes * MIN - (nowMs - ended) };
   return { retry: true, code: 'coba-ulang', attempt: (job.autoRetries ?? 0) + 1 };
 }
