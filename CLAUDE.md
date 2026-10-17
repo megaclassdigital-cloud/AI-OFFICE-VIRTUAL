@@ -3,20 +3,15 @@
 Kamu (Claude Code, model Sonnet) adalah implementation engineer untuk proyek ini.
 Owner: Farrel. Reviewer arsitektur: Claude (chat), membaca hasil loop setelah loop selesai.
 
-## MODE KERJA: LOOP ENGINEERING
+## CARA KERJA: LOOP ENGINEERING
 
-Selama `loop.status` di `loop/backlog.json` bernilai `RUNNING`, kamu bekerja **otonom** sesuai `loop/LOOP.md`:
-task demi task, sampai backlog habis, **tanpa bertanya ke owner**. Baca `loop/LOOP.md` lengkap di awal setiap sesi.
-
-Hook `SessionStart` menampilkan status loop dan task berikutnya. Hook `Stop` menolak usahamu berhenti selama masih ada
-task yang bisa dikerjakan. Jika hook menahanmu, jangan berdebat dan jangan bertanya: kerjakan task yang disebutnya.
-
-Jika `loop.status` bukan `RUNNING` (PAUSED, DONE, HARD_STOP, STALLED), kerjakan hanya apa yang diminta owner di sesi itu.
+Saat diminta bekerja (misalnya "lanjutkan"), selesaikan backlog task demi task tanpa menunggu konfirmasi, sesuai `loop/LOOP.md`.
+Ragu → pakai `loop/DEFAULTS.md`. Berhenti hanya di titik yang disebut LOOP.md bagian 3, dengan laporan singkat.
 
 ## Urutan baca di awal sesi
 
-1. Output hook SessionStart (status loop dan task berikutnya).
-2. `loop/LOOP.md` — aturan loop. Mengikat.
+1. `node scripts/loop-status.js` — status dan task berikutnya.
+2. `loop/LOOP.md` — cara kerja. Mengikat.
 3. `loop/BACKLOG.md` — DoD task yang sedang dikerjakan.
 4. `loop/DEFAULTS.md` dan entri terbaru di `loop/DECISIONS.md`.
 5. Bagian `docs/PRD.md` dan ADR di `docs/decisions/` yang relevan dengan task.
@@ -62,8 +57,7 @@ Jangan menemukan ulang hal-hal ini. Sumber: `docs/spike/report.md`, `docs/versio
 
 ## File yang tidak boleh kamu ubah
 
-`CLAUDE.md`, `loop/LOOP.md`, `loop/DEFAULTS.md`, `loop/loop-lib.js`, `scripts/loop-status.js`, `scripts/loop.ps1`, `scripts/install-loop-config.ps1`, semua isi `.claude/` dan `setup/`.
-Aturan ini juga ditegakkan oleh deny rule di `.claude/settings.json`. Jika menurutmu salah satu file itu keliru, catat sebagai `REVIEW-OWNER` di `loop/DECISIONS.md` dan lanjutkan.
+`CLAUDE.md`, `loop/LOOP.md`, `loop/DEFAULTS.md`, `loop/loop-lib.js`, `scripts/loop-status.js`. Jika menurutmu salah satu file itu keliru, catat sebagai `REVIEW-OWNER` di `loop/DECISIONS.md` dan lanjutkan.
 
 ## Struktur folder
 
@@ -72,8 +66,7 @@ AI-Agent-Office\
 ├── CLAUDE.md            # file ini
 ├── README.md            # peta folder
 ├── STATUS.md            # dibuat otomatis dari loop/backlog.json
-├── .claude\             # settings.json (izin + hooks), hooks\, agents\reviewer.md
-├── loop\                # LOOP.md, BACKLOG.md, backlog.json, DEFAULTS.md, DECISIONS.md, OWNER-QUEUE.md, journal\
+├── loop\                # LOOP.md, BACKLOG.md, backlog.json, DEFAULTS.md, DECISIONS.md, OWNER-QUEUE.md, REVIEWER.md, journal\
 ├── docs\                # PRD.md, decisions\ (ADR), spike\, evidence\, versions.md, RUNBOOK.md
 ├── reports\             # build\ per task, review\ per gate, kpi\, LOOP-FINAL.md
 ├── plugins\aao-approval-gate\

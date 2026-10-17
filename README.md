@@ -12,16 +12,16 @@ antara owner, Claude Code (builder), dan Claude chat (reviewer).
 | Claude chat (reviewer) | `STATUS.md` → `reports/LOOP-FINAL.md` → `loop/DECISIONS.md` → review gate di `reports/review/` |
 | Owner | `STATUS.md` → `loop/OWNER-QUEUE.md` → `reports/LOOP-FINAL.md` |
 
-Claude Code bekerja dalam **mode loop** (`loop/LOOP.md`): mengerjakan seluruh backlog tanpa bertanya, dan hanya
-berhenti saat selesai, HARD STOP, atau dijeda owner. Kontrol owner: `node scripts/loop-status.js [--pause|--resume]`.
+Claude Code bekerja dengan **cara kerja loop** (`loop/LOOP.md`): mengerjakan backlog task demi task tanpa bertanya,
+lalu berhenti dengan laporan singkat saat selesai, saat hanya tersisa hal milik owner, atau saat HARD STOP.
+Owner melanjutkan dengan mengetik `lanjutkan`. Tidak ada hook atau script yang memaksa sesi berjalan.
 
 ## Isi folder
 
 | Folder/file | Isi | Ditulis oleh |
 | --- | --- | --- |
 | `STATUS.md` | Ringkasan loop, dibuat otomatis | `node scripts/loop-status.js --write-status` |
-| `loop/` | Aturan loop, backlog, defaults, keputusan, antrian owner, journal | Claude Code (+ owner untuk aturan) |
-| `.claude/` | Izin, hook loop guard, subagent reviewer (dipasang dari `setup/claude/` dengan `scripts/install-loop-config.ps1`) | Owner |
+| `loop/` | Cara kerja loop, backlog, defaults, keputusan, antrian owner, prompt reviewer, journal | Claude Code (+ owner untuk aturan) |
 | `CLAUDE.md` | Aturan kerja Claude Code | Owner/Claude chat |
 | `docs/PRD.md` | Spesifikasi produk (salinan dari versi live) | Claude chat |
 | `docs/decisions/` | ADR: keputusan arsitektur | Siapa pun, sebelum implementasi |

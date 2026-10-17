@@ -60,6 +60,11 @@ export async function prepareTikTok({ page, pkg, evidenceDir, dryRun, log = () =
     if (!typed.includes(pkg.captionFull.replace(/\s+/g, ' ').slice(0, 40))) throw new StepError(step, 'deskripsi yang terisi tidak cocok dengan paket');
     const counters = await page.evaluate(() => (document.body.innerText.match(/\d+\s*\/\s*\d+/g) ?? []).slice(0, 4));
     log(`penghitung formulir: ${counters.join(' | ')}`);
+    // Hashtag terakhir memunculkan daftar saran yang menutupi tombol di bawahnya (Add sound): Escape lalu klik judul "Details" (netral) untuk melepas fokus editor.
+    await page.keyboard.press('Escape').catch(() => {});
+    const neutral = page.getByText(/^Details$/).first();
+    if (await neutral.count()) await kit.click(neutral, 'Details (tutup saran hashtag)').catch(() => {});
+    await page.waitForTimeout(800);
 
     step = 'pilih sound';
     const sound = await chooseTopSound({ page, kit, log });
