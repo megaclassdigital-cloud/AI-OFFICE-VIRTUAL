@@ -186,7 +186,11 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
   async function activeJobFor(masterIdentifier) {
     if (!stateFile) return null;
     const s = await readJsonSafe(stateFile);
-    return [s?.job, ...(s?.followers ?? [])].find((j) => j && j.identifier === masterIdentifier) ?? null;
+    const live = [s?.job, ...(s?.followers ?? [])].find((j) => j && j.identifier === masterIdentifier);
+    if (live) return live;
+    // Job yang sudah TERBLOKIR dipindah ke riwayat: tetap tampil sebagai "terblokir" (dengan alasannya), bukan "draf" yang menyesatkan.
+    const past = (s?.history ?? []).filter((j) => j && j.identifier === masterIdentifier).sort((a, b) => (b.endedMs ?? 0) - (a.endedMs ?? 0))[0];
+    return past && past.phase === 'blocked' ? past : null;
   }
   async function productionView(prod, rev) {
     const run = resolveRun(prod, rev);
@@ -210,7 +214,8 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     const job = aj ? { ...aj, identifier: run.contentId } : null; // summarizeProduction mencocokkan job dengan kode konten
     const view = summarizeProduction({ prod: run.contentId, order, research, verification, carousel, design, qa: qaAcc ?? qaMain, visualQa, master, handoff, job, renderFiles: await listRender(runKey), hold, fallbackSlides, qaHistory, mtimes, paperclipOk });
     const posted = await readJsonSafe(path.join(runDirOf(outputRoot, runKey), 'posted.json'));
-    return { status: 200, body: { ...view, status: applyLive(view.status, posted), posted: posted ?? null, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
+    const blockReason = aj?.phase === 'blocked' ? String(aj.blockReason ?? '').slice(0, 400) || null : null;
+    return { status: 200, body: { ...view, blockReason, blockStage: aj?.phase === 'blocked' && aj.stageIndex >= 0 ? aj.stageIndex : null, status: applyLive(view.status, posted), posted: posted ?? null, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
   }
   /** Papan Tayang: tiga konten terbaru (versi terbaru tiap konten) dengan sampul dan status. */
   async function boardView(limit = 0) {

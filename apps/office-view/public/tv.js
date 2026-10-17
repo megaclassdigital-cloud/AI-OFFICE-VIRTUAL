@@ -94,7 +94,7 @@ function render() {
   if (!d) { setKids(main, empty(st.prod ? 'Memuat…' : 'Belum ada produksi yang bisa ditayangkan.')); return; }
   const view = { show, manager, researcher, verifier, copywriter, designer, qa }[st.tab];
   // replaceChildren(null) menulis teks "null": susun daftar anak tanpa nilai kosong.
-  setKids(main, ...[d.paperclipOk === false ? h('div', { class: 'tv-warn' }, '⚠ Paperclip tidak terhubung: status produksi mungkin belum akurat. Hasil kerja di bawah dibaca langsung dari berkas.') : null, holdBanner(d), d.slidesFrom ? h('div', { class: 'tv-warn' }, `ℹ Versi ini belum dirender. Slide yang tampil adalah milik ${d.slidesFrom}, bukan hasil terbaru.`) : null, view(d)].filter(Boolean));
+  setKids(main, ...[d.paperclipOk === false ? h('div', { class: 'tv-warn' }, '⚠ Paperclip tidak terhubung: status produksi mungkin belum akurat. Hasil kerja di bawah dibaca langsung dari berkas.') : null, holdBanner(d), d.status?.key === 'terblokir' ? h('div', { class: 'tv-warn' }, h('b', {}, '⛔ Produksi ini TERBLOKIR dan tidak berjalan.'), ' ', d.blockReason ?? 'alasan tidak tercatat', '. Butuh keputusan: lanjutkan (retry/rute revisi) atau tutup.') : null, d.slidesFrom ? h('div', { class: 'tv-warn' }, `ℹ Versi ini belum dirender. Slide yang tampil adalah milik ${d.slidesFrom}, bukan hasil terbaru.`) : null, view(d)].filter(Boolean));
 }
 
 // Produksi ditahan menunggu gambar asli: tampilkan apa yang kurang dan cara melanjutkannya (bukan sekadar "sedang bekerja").
