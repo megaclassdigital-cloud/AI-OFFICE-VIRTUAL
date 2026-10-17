@@ -19,7 +19,7 @@ laptop (Office View lokal, agen)            Vercel (proyek ini)
 
 1. **Rahasia:** `node scripts/setup-monitor.mjs` (membuat nilai di `.env` dan `vercel-monitor/ENV-UNTUK-VERCEL.txt`; tidak dicetak).
 2. **GitHub:** branch `client-demo` (berisi folder ini) di repo `megaclassdigital-cloud/AI-OFFICE-VIRTUAL`.
-3. **Vercel:** Add New Project > impor repo > pilih branch `client-demo` > **Root Directory = `vercel-monitor`** > Framework "Other".
+3. **Vercel:** Add New Project > impor repo > Production Branch = `client-demo` > Framework "Other" > **Root Directory = `.` (kosongkan)**, karena branch `client-demo` hanya berisi isi folder ini (dibuat dengan `git subtree split --prefix=vercel-monitor -b client-demo`).
 4. **Blob:** Storage > Create > Blob, akses **Private**, hubungkan ke proyek (menambah `BLOB_READ_WRITE_TOKEN`).
 5. **Env:** tempel isi `ENV-UNTUK-VERCEL.txt` ke Settings > Environment Variables (Production), lalu Redeploy.
 6. **Laptop:** `node scripts/setup-monitor.mjs --url https://<proyek>.vercel.app`, lalu jalankan publisher: `node scripts/mirror-publisher.mjs --watch`.
