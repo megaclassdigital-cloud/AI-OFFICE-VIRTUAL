@@ -42,6 +42,7 @@ export function decideAutoBrief(ctx) {
   if (!s.enabled) return { act: false, code: 'nonaktif', reason: 'Mode otonom dimatikan owner' };
   if (ctx.paused) return { act: false, code: 'dijeda', reason: 'Produksi dijeda owner' };
   if (ctx.offline) return { act: false, code: 'offline', reason: 'Internet/Paperclip tidak tersedia' };
+  if (ctx.lowMemory) return { act: false, code: 'ram-menipis', reason: 'RAM bebas menipis: tidak menambah pekerjaan baru' };
   const busy = (ctx.idle?.job ? 1 : 0) + (ctx.idle?.followers ?? 0) + (ctx.idle?.pending ?? 0) + (ctx.idle?.inbox ?? 0);
   if (busy > 0) return { act: false, code: 'sibuk', reason: 'Masih ada pekerjaan berjalan atau antre' };
   if (ctx.breakerUntilMs && now < ctx.breakerUntilMs) return { act: false, code: 'pemutus', reason: 'Berhenti sementara setelah brief otomatis gagal berturut-turut', retryAtMs: ctx.breakerUntilMs };

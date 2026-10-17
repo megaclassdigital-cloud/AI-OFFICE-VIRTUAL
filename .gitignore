@@ -24,3 +24,4 @@ tools/
 # Monitor kedua (Vercel): berkas rahasia untuk ditempel ke pengaturan env Vercel; jangan commit
 vercel-monitor/ENV-UNTUK-VERCEL.txt
 workspace/mirror/
+vercel-monitor/TAUTAN-MONITOR.txt

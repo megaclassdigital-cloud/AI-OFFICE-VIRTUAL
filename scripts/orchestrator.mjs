@@ -26,6 +26,8 @@ import { writeJsonAtomic, readJsonSafe } from './safe-json.mjs';
 import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelFile, doneFile } from './revision-router.mjs';
 import { prefetchRunning, prefetchDoneFor, requestsSig, shouldPrefetch, startPrefetch } from './asset-prefetch.mjs';
 import { autonomyTick } from './autonomy.mjs';
+import { isAutoBrief } from './autonomy-core.mjs';
+import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback } from './sustain-core.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -100,9 +102,17 @@ function assetGate(job, design, designPath) {
   const sig = inboxSignature(ROOT, runKeyOf(job));
   const files = used.map((u) => u.file);
   let prev = readHold(holdFile);
+  const holdFallback = (missing, sinceMs) => {
+    const d = holdFallbackDecision({ auto: isAutoBrief(job?.brief), sinceMs, nowMs: Date.now(), rounds: job?.holdFallbacks ?? 0 });
+    if (!d.fallback) return null;
+    job.holdFallbacks = (job.holdFallbacks ?? 0) + 1;
+    try { writeHold(holdFile, null); } catch { /* kosmetik */ }
+    log(job.identifier + ' gambar asli tak kunjung tersedia: kembali ke Designer untuk desain tanpa gambar itu (putaran ' + job.holdFallbacks + ')');
+    return { ok: false, errors: [fallbackFeedback(missing, (Date.now() - sinceMs) / 60_000)] };
+  };
   // Aset yang sudah lengkap di manifest (mis. owner menyelesaikan CAPTCHA lalu capture dijalankan manual) membatalkan hold basi.
   if (prev) { try { if (manifestVerdict(JSON.parse(readFileSync(manFile, 'utf8')), files).complete) { writeHold(holdFile, null); prev = null; } } catch { /* manifest belum ada */ } }
-  if (prev && !shouldRetryCapture(prev, sig, Date.now())) return { ok: false, hold: true, missing: prev.missing, errors: [holdMessage(runKeyOf(job), prev.missing)] };
+  if (prev && !shouldRetryCapture(prev, sig, Date.now())) return holdFallback(prev.missing, prev.since ?? prev.at) ?? { ok: false, hold: true, missing: prev.missing, errors: [holdMessage(runKeyOf(job), prev.missing)] };
   let pfSig = ''; try { pfSig = requestsSig(readFileSync(reqFile, 'utf8'), sig); } catch { /* tanpa tanda tangan: capture biasa */ }
   if (!prefetchDoneFor(runKeyOf(job), pfSig)) {
     markBusy('ambil-aset', 430_000);
@@ -119,7 +129,9 @@ function assetGate(job, design, designPath) {
     const strict = checkAssets({ design, templates: TEMPLATES, manifest, identifier: runKeyOf(job), carousel, rootDir: ROOT });
     return strict.length ? { ok: false, errors: strict } : null;
   }
-  writeHold(holdFile, { at: Date.now(), sig, missing: verdict.missing });
+  const sinceMs = prev?.since ?? Date.now();
+  writeHold(holdFile, { at: Date.now(), since: sinceMs, sig, missing: verdict.missing });
+  const fbk = holdFallback(verdict.missing, sinceMs); if (fbk) return fbk;
   return { ok: false, hold: true, missing: verdict.missing, errors: [holdMessage(runKeyOf(job), verdict.missing)] };
 }
 
@@ -676,7 +688,7 @@ async function applyActions(job, actions, facts) {
       notifyOwner('AI Agent Office: butuh gambar asli', 'Produksi ' + job.identifier + ' ditahan; lihat komentar atau TV.');
       log(job.identifier + ' DITAHAN menunggu aset gambar asli');
     }
-    else if (act.type === 'block') { await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
+    else if (act.type === 'block') { job.blockReason = String(act.reason ?? '').slice(0, 200); await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
   }
 }
 
@@ -781,6 +793,38 @@ async function advanceJob(job, net, occupied, state) {
 }
 
 const SLEEP_GAP_MS = 4 * 60_000;
+let lastHealMs = 0;
+async function sustainTick(state, net) {
+  const now = Date.now();
+  const cfg = readJsonLoose(SETTINGS_FILE) ?? {};
+  if (cfg.paused === true || cfg.sustain === false) return;
+  // 1) agen berstatus error yang tidak dipegang tahap aktif: resume (error menetap di Paperclip sampai dibersihkan dan membuat agen tampak di Pojok Bug)
+  if (net?.hold !== true && now - lastHealMs >= 3 * 60_000) {
+    lastHealMs = now;
+    const list = await j('/companies/' + company.id + '/agents');
+    const activeName = state.job && state.job.stageIndex >= 0 ? STAGE_AGENT[STAGES[state.job.stageIndex]] : null;
+    for (const ag of agentsToHeal({ agents: Array.isArray(list) ? list : [], activeAgentName: activeName, nowMs: now })) {
+      await j('/agents/' + ag.id + '/resume', jb('POST', {}));
+      log('pemulihan mandiri: agen ' + ag.name + ' berstatus error dibersihkan');
+    }
+  }
+  // 2) tahap terblokir karena infrastruktur (Process lost, fetch failed, plugin, dst.): ulangi dari tahap itu, maks 2x per job
+  if (!state.job && (state.followers ?? []).length === 0) {
+    const cand = [...(state.history ?? [])].filter((x) => x.phase === 'blocked').sort((x, y) => (y.endedMs ?? 0) - (x.endedMs ?? 0))[0];
+    const d = decideAutoRetry({ job: cand, nowMs: now, paperclipOk: net?.hold !== true, anotherActive: false });
+    if (d.retry) {
+      state.history = state.history.filter((x) => x.masterIssueId !== cand.masterIssueId);
+      delete cand.endedMs; delete cand.abandoned;
+      const stageName = STAGES[cand.stageIndex];
+      cand.phase = 'running'; cand.stageStartedMs = now; cand.stageRetries = 0; cand.autoRetries = d.attempt;
+      cand.stageIssueId = await createStage(cand, stageName);
+      await parkMaster(cand);
+      state.job = cand;
+      log('pemulihan mandiri: ' + cand.identifier + ' terblokir karena gangguan infrastruktur (' + String(cand.blockReason ?? '').slice(0, 80) + '); tahap ' + STAGE_AGENT[stageName] + ' diulang otomatis (ke-' + d.attempt + ')');
+    }
+  }
+}
+
 async function once() {
   const state = readState();
   state.pending ??= []; state.followers ??= [];
@@ -847,6 +891,8 @@ async function once() {
     const made = await ingest(false, review);
     if (made) state.job = { ...newJob({ masterIssueId: made.id, identifier: made.identifier, nowMs: Date.now() }), brief: made.brief.slice(0, 3000), ...(made.jobPatch ?? {}) };
   }
+  // Pemulihan mandiri (tanpa dipantau): bersihkan status error basi pada agen, coba ulang tahap yang terblokir karena gangguan infrastruktur.
+  if (!DRY) { try { await sustainTick(state, net); } catch (e) { log('pemulihan mandiri galat: ' + String(e?.message ?? e).slice(0, 160)); } }
   // Kantor otonom (ADR-0005 P3): bila benar-benar menganggur, Manager mengambil inisiatif menulis brief baru ke inbox (diproses tick berikutnya).
   if (!DRY) { try { autonomyTick({ state, paused: false, offline: net.hold === true, log }); } catch (e) { log('otonomi galat: ' + String(e?.message ?? e).slice(0, 160)); } }
   if (!DRY) writeState(state);

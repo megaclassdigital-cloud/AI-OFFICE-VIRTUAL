@@ -2,6 +2,7 @@
 // Berkas (workspace/agent/autonomy/): settings.json (milik owner), status.json (untuk UI), log.json (brief otomatis yang dibuat), insights.json (analitik akun).
 // Tidak memanggil LLM sendiri: hanya menulis brief ke inbox, lalu orkestrator + Manager memprosesnya seperti brief owner.
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -65,7 +66,7 @@ export function autonomyTick({ state, nowMs = Date.now(), paused = false, offlin
   const breaker = readJsonSafe(F.breaker, {}) ?? {};
   const inbox = existsSync(INBOX) ? readdirSync(INBOX).filter((n) => /\.(md|txt|json)$/i.test(n)).length : 0;
   const decision = decideAutoBrief({
-    settings, nowMs, paused, offline,
+    settings, nowMs, paused, offline, lowMemory: os.freemem() < 700 * 1024 * 1024,
     idle: { job: !!state.job, followers: (state.followers ?? []).length, pending: (state.pending ?? []).length, inbox },
     awaitingOwner: awaitingOwnerCount(nowMs), briefLog,
     recentAutoOutcomes: autoOutcomes(state.history, breaker.resetAfterMs ?? 0), // hasil sebelum pemutus terakhir tidak dihitung lagi
