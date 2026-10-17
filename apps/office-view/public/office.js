@@ -371,12 +371,26 @@ function frame(now) {
 }
 
 // ───────── init ─────────
+// Monitor kedua (Vercel): data adalah salinan yang didorong laptop dengan jeda. Bilah ini menyatakan usia data dan memberi tahu bila laptop/publisher berhenti.
+function startMirrorBar() {
+  const bar = document.createElement('div'); bar.id = 'mirrorbar'; bar.setAttribute('role', 'status'); document.getElementById('stage')?.append(bar);
+  const fmt = (s) => (s < 90 ? `${s} dtk` : s < 5400 ? `${Math.round(s / 60)} menit` : `${Math.round(s / 3600)} jam`);
+  const tick = async () => {
+    try {
+      const m = await jget('/api/mirror/meta'); const age = Math.max(0, Math.round((Date.now() - m.publishedAt) / 1000));
+      bar.className = age > 120 ? 'stale' : ''; bar.textContent = age > 120 ? `⚠ Laptop tidak mengirim data sejak ${fmt(age)} lalu (mati/offline/publisher berhenti). Tampilan = keadaan terakhir.` : `Monitor kedua · salinan dari laptop, diperbarui ${fmt(age)} lalu · hanya-baca`;
+    } catch { bar.className = 'stale'; bar.textContent = 'Monitor kedua · belum ada data dari laptop'; }
+  };
+  tick(); setInterval(tick, 10_000);
+}
+
 async function init() {
   // Peran dari server (gerbang akses): review = hanya-baca untuk klien; UI menyembunyikan panel yang tak berlaku, server tetap yang menegakkan.
   try {
     const who = await jget('/api/access/whoami');
     document.documentElement.dataset.role = who.role === 'review' ? 'review' : 'owner';
-    if (who.role === 'review') { const sub = document.querySelector('.brandline span'); if (sub) sub.textContent += ' · Mode review (hanya-baca)'; }
+    if (who.role === 'review') { const sub = document.querySelector('.brandline span'); if (sub) sub.textContent += who.mirror ? ' · Monitor kedua (hanya-baca)' : ' · Mode review (hanya-baca)'; }
+    if (who.mirror) startMirrorBar();
   } catch { document.documentElement.dataset.role = 'owner'; }
   app.layout = await jget('/api/layout');
   app.sprites = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => new Promise((res) => {

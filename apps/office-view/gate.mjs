@@ -5,10 +5,11 @@
 //   owner  : BELUM dihidupkan (tanpa AAO_OWNER_HASH). Mode owner untuk perangkat lain dibuat setelah read-only terbukti.
 // Rahasia di .env (bukan repo): AAO_SESSION_SECRET, AAO_REVIEW_KEY. Dibuat oleh scripts/setup-review-access.mjs.
 import { createAccess, reviewMayGet, sanitizeForReview } from './access.mjs';
+import { scrubDeep } from '../../scripts/mirror/scrub.mjs';
 
 const MIN = 60_000;
 /** Rute tambahan untuk klien (di luar daftar bawaan access.mjs): status posting dan kantor otonom (sudah disaring di bawah). */
-const EXTRA_REVIEW_GET = [/^\/api\/inspect\/autopost$/, /^\/api\/inspect\/autonomy$/, /^\/api\/snapshot$/, /^\/api\/events$/, /^\/api\/replay$/, /^\/api\/status$/, /^\/api\/talk\/info$/, /^\/api\/owner\/info$/];
+const EXTRA_REVIEW_GET = [/^\/api\/inspect\/agent$/, /^\/api\/inspect\/approvals$/, /^\/api\/inspect\/autopost$/, /^\/api\/inspect\/autonomy$/, /^\/api\/snapshot$/, /^\/api\/events$/, /^\/api\/replay$/, /^\/api\/status$/, /^\/api\/talk\/info$/, /^\/api\/owner\/info$/];
 const IMAGE_OK = /^runs\/[A-Za-z0-9_-]+(?:\/revision-[0-9]+)?\/render\/[A-Za-z0-9._-]+\.png$/;
 
 export const reviewMayGetAny = (p) => reviewMayGet(p) || EXTRA_REVIEW_GET.some((re) => re.test(p));
@@ -46,6 +47,9 @@ export function sanitizeBody(pathname, body) {
   if (pathname === '/api/talk/info' || pathname === '/api/owner/info') return { enabled: false };
   return body;
 }
+
+/** Kebijakan data keluar (mode review DAN monitor kedua di Vercel): saring per rute lalu bersihkan jalur lokal, id internal, dan rahasia. */
+export const sanitizeForMirror = (pathname, body) => scrubDeep(sanitizeBody(pathname, body));
 
 /** Pembatas laju percobaan kunci review yang salah (per alamat): 10 per menit, lalu ditolak sampai jendela lewat. */
 export function createLimiter({ max = 10, windowMs = MIN, now = Date.now } = {}) {
@@ -93,7 +97,7 @@ export function createGate({ port, publicMode = false, env = () => process.env, 
     if (req.method !== 'GET') { json(res, 405, { error: 'mode review hanya-baca' }); return { handled: true, role }; }
     if (!reviewMayGetAny(p)) { json(res, 403, { error: 'tidak tersedia di mode review' }); return { handled: true, role }; }
     if (p === '/api/inspect/image' && !reviewMayImage(u.searchParams.get('path'))) { json(res, 403, { error: 'gambar tidak tersedia di mode review' }); return { handled: true, role }; }
-    const filtered = (r, code, body) => json(r, code, sanitizeBody(p, body));
+    const filtered = (r, code, body) => json(r, code, sanitizeForMirror(p, body));
     return { handled: false, role, json: filtered };
   };
 }

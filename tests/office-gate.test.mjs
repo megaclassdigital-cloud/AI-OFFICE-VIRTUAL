@@ -44,8 +44,8 @@ describe('gerbang akses', () => {
     const cookie = reviewCookie();
     const rv = (url, method = 'GET') => call(gate, tunnel({ cookie }), url, method);
     const withM = (method, url) => { const res = mkRes(); const out = gate(mkReq({ method, headers: { cookie, 'x-forwarded-for': '1.2.3.4', host: 'demo.example.com' } }), res, new URL(url, 'http://x'), json); return { out, res }; };
-    for (const ok of ['/', '/office.js', '/api/layout', '/api/snapshot', '/api/events?since=3', '/api/inspect/board?limit=3', '/api/inspect/production?prod=EDU-97', '/api/inspect/autopost', '/api/inspect/autonomy']) expect(rv(ok).out.handled, ok).toBe(false);
-    for (const bad of ['/api/inspect/agent?name=QA', '/api/inspect/approvals', '/api/inspect/file?path=x', '/api/inspect/files?prod=EDU-97', '/api/inspect/issue?id=1', '/api/talk/thread?issue=1', '/api/owner/decide']) { const r = rv(bad); expect([r.out.handled, r.res.code], bad).toEqual([true, 403]); }
+    for (const ok of ['/', '/office.js', '/api/layout', '/api/snapshot', '/api/events?since=3', '/api/inspect/board?limit=3', '/api/inspect/production?prod=EDU-97', '/api/inspect/autopost', '/api/inspect/autonomy', '/api/inspect/agent?name=QA', '/api/inspect/approvals']) expect(rv(ok).out.handled, ok).toBe(false);
+    for (const bad of ['/api/inspect/file?path=x', '/api/inspect/files?prod=EDU-97', '/api/inspect/issue?id=1', '/api/talk/thread?issue=1', '/api/owner/decide']) { const r = rv(bad); expect([r.out.handled, r.res.code], bad).toEqual([true, 403]); }
     for (const m of ['POST', 'PUT', 'DELETE', 'PATCH']) { const r = withM(m, '/api/talk'); expect([r.out.handled, r.res.code], m).toEqual([true, 405]); }
   });
   it('whoami: lokal = owner, review = review (hanya-baca), anonim = null', () => {
@@ -89,7 +89,7 @@ describe('penyaringan badan untuk klien', () => {
     expect(sanitizeBody('/api/talk/info', { enabled: true })).toEqual({ enabled: false });
   });
   it('daftar rute klien tidak memuat jalur internal', () => {
-    for (const p of ['/api/inspect/agent', '/api/inspect/approvals', '/api/inspect/file', '/api/inspect/files', '/api/inspect/issue', '/api/talk', '/api/owner/decide']) expect(reviewMayGetAny(p), p).toBe(false);
+    for (const p of ['/api/inspect/file', '/api/inspect/files', '/api/inspect/issue', '/api/talk', '/api/owner/decide']) expect(reviewMayGetAny(p), p).toBe(false);
   });
   it('pembatas laju: jendela bergeser', () => {
     let t = 0; const lim = createLimiter({ max: 2, windowMs: 1000, now: () => t });

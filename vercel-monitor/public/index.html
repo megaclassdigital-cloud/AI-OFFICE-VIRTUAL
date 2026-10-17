@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Agent Office · Office View</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" width="1920" height="1080" aria-label="Denah kantor virtual EdukasiAI"></canvas>
+
+  <header id="bar">
+    <div class="brandline"><b>AI Agent Office</b><span>EdukasiAI · Office View</span></div>
+    <div id="mode" class="mode live" role="status" aria-live="polite">MODE: LIVE</div>
+    <div class="ctl" role="toolbar" aria-label="Kontrol presenter">
+      <div class="seg" role="group" aria-label="Sumber data">
+        <button id="bLive" class="on" type="button">Live</button><button id="bSim" type="button">Simulasi</button>
+      </div>
+      <button id="bPlay" type="button" title="Play/Pause (spasi)" disabled>⏸</button>
+      <div class="seg" id="speed" role="group" aria-label="Kecepatan simulasi">
+        <button data-s="1" class="on" type="button" disabled>1x</button><button data-s="2" type="button" disabled>2x</button><button data-s="4" type="button" disabled>4x</button>
+      </div>
+      <div class="seg" id="zoom" role="group" aria-label="Zoom denah"><button id="zOut" type="button" title="Perkecil (-)">−</button><button id="zFit" type="button" title="Pas layar (0)"><span id="zPct">100%</span></button><button id="zIn" type="button" title="Perbesar (+)">+</button></div>
+      <button id="bLegend" type="button">Legenda</button>
+      <button id="bLog" type="button" class="on">Log</button>
+      <button id="bFull" type="button" title="Layar penuh (F)">⛶</button>
+    </div>
+  </header>
+
+  <div id="banner" hidden>Paperclip tidak terhubung · mencoba lagi otomatis…</div>
+  <div id="simnote" hidden>SIMULASI · data contoh, bukan keadaan sungguhan</div>
+
+  <aside id="legend" hidden aria-label="Legenda emoji">
+    <h3>Legenda</h3>
+    <ul>
+      <li><span>⌨️</span> Run berjalan, bekerja di meja</li>
+      <li><span>💬</span> Komentar baru</li>
+      <li><span>📄</span> Dokumen diserahkan ke agent berikutnya</li>
+      <li><span>❌</span> QA mengembalikan untuk revisi</li>
+      <li><span>✋</span> Paket menunggu keputusan owner</li>
+      <li><span>🎉</span> Disetujui → Papan Tayang <em>(simulasi)</em></li>
+      <li><span>☕</span> Run selesai, istirahat di Lounge</li>
+      <li><span>🐞</span> Run gagal → Pojok Bug</li>
+      <li><span>⚠️</span> Butuh manusia → Pojok Bug</li>
+      <li><span>😴</span> Agent dijeda (guard/budget)</li>
+    </ul>
+    <p>Ruang <b>redup</b> = belum punya sumber data nyata ("segera aktif"). Di mode Live tidak ada yang dipalsukan.</p>
+  </aside>
+
+
+  <section id="log" aria-label="Log kejadian" aria-live="polite"></section>
+</div>
+<script src="/office.js" type="module"></script>
+<script src="/dock.js" type="module"></script>
+<script src="/tv.js" type="module"></script>
+</body>
+</html>

@@ -111,7 +111,7 @@ details.card summary { cursor: pointer; font-weight: 700; } .row2 { margin-top: 
 /* ───────── TV dashboard (Papan Tayang) ───────── */
 #tv { position: fixed; inset: 0; z-index: 60; background: rgba(2, 4, 9, .78); display: grid; place-items: center; }
 #tv[hidden] { display: none; }
-html[data-role="review"] #dock, html[data-role="review"] #dockOpen, html[data-role="review"] #bSim, html[data-role="review"] #netbanner { display: none !important; }
+html[data-role="review"] #netbanner { display: none !important; } /* monitor kedua: dock, simulasi, dan semua tab TV tetap ada; hanya perintah (chat, tombol keputusan) yang tidak aktif */
 .tv-bezel { width: min(1240px, 96vw); height: min(780px, 94vh); display: grid; grid-template-rows: auto auto 1fr auto; background: #0a0e17; border: 10px solid #1b1f2b; border-radius: 22px; box-shadow: 0 0 0 2px #4b5568, 0 20px 80px #000c; overflow: hidden; }
 .tv-bezel header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #0f1524; border-bottom: 1px solid var(--line); }
 .tv-title { font-weight: 800; letter-spacing: .08em; color: #9fb0cc; }
@@ -172,3 +172,6 @@ html[data-role="review"] #dock, html[data-role="review"] #dockOpen, html[data-ro
 .owner-form{display:grid;gap:8px;margin-top:10px}.owner-form label{margin:0}
 
 .fulltext { white-space: pre-wrap; word-break: break-word; }
+
+#mirrorbar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); z-index: 5; background: #0f1524e6; color: #9fb0cc; border: 1px solid #334155; font: 600 12px "Segoe UI", sans-serif; padding: 5px 14px; border-radius: 999px; pointer-events: none; }
+#mirrorbar.stale { background: #7c2d12; color: #fff; border-color: #ea580c; }

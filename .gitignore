@@ -20,3 +20,7 @@ loop/journal/run-*.log
 
 # salinan alat nyata (npm global + browser Playwright); disalin dari penyimpanan virtual aplikasi Claude
 tools/
+
+# Monitor kedua (Vercel): berkas rahasia untuk ditempel ke pengaturan env Vercel; jangan commit
+vercel-monitor/ENV-UNTUK-VERCEL.txt
+workspace/mirror/
