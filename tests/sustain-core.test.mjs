@@ -60,3 +60,11 @@ describe('kantor otonom menahan diri saat RAM menipis', () => {
     expect(decideAutoBrief({ ...ctx, lowMemory: true })).toMatchObject({ act: false, code: 'ram-menipis' });
   });
 });
+
+import { needsSessionReset } from '../scripts/sustain-core.mjs';
+describe('sesi lama yang tak bisa dilanjutkan', () => {
+  it('dikenali sebagai perlu reset sesi dan tetap tergolong gangguan infrastruktur (layak dicoba ulang)', () => {
+    for (const r of ['Requests ending with a model turn are not supported.', 'cannot resume session', 'Session not found']) { expect(needsSessionReset(r), r).toBe(true); expect(isInfraBlock(r), r).toBe(true); }
+    expect(needsSessionReset('QA menolak: font salah')).toBe(false);
+  });
+});

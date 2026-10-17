@@ -27,7 +27,7 @@ import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelF
 import { prefetchRunning, prefetchDoneFor, requestsSig, shouldPrefetch, startPrefetch } from './asset-prefetch.mjs';
 import { autonomyTick } from './autonomy.mjs';
 import { isAutoBrief } from './autonomy-core.mjs';
-import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback, parseFinalizeReturn, pruneToSchema } from './sustain-core.mjs';
+import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback, parseFinalizeReturn, pruneToSchema, needsSessionReset } from './sustain-core.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -653,6 +653,7 @@ async function applyActions(job, actions, facts) {
       const ag = agentByName(STAGE_AGENT[act.stage]);
       const cur = await j('/agents/' + ag.id);
       if (['error', 'paused'].includes(cur.status)) await j('/agents/' + ag.id + '/resume', jb('POST', {}));
+      if (needsSessionReset(act.reason)) { await j('/agents/' + ag.id + '/runtime-state/reset-session', jb('POST', {})).catch(() => {}); log(job.identifier + ' sesi ' + STAGE_AGENT[act.stage] + ' direset (sesi lama tidak bisa dilanjutkan)'); }
       // Tutup issue tahap lama (milik orkestrator) agar percobaan ulang bawaan Paperclip tidak berjalan bersamaan dengan yang baru.
       if (act.oldIssueId) await j('/issues/' + act.oldIssueId, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {});
       await new Promise((r) => setTimeout(r, 45_000));
@@ -833,6 +834,7 @@ async function sustainTick(state, net) {
       delete cand.endedMs; delete cand.abandoned;
       const stageName = STAGES[cand.stageIndex];
       cand.phase = 'running'; cand.stageStartedMs = now; cand.stageRetries = 0; cand.autoRetries = d.attempt;
+      if (needsSessionReset(cand.blockReason)) { const ag = agentByName(STAGE_AGENT[stageName]); if (ag) await j('/agents/' + ag.id + '/runtime-state/reset-session', jb('POST', {})).catch(() => {}); }
       cand.stageIssueId = await createStage(cand, stageName);
       await parkMaster(cand);
       state.job = cand;

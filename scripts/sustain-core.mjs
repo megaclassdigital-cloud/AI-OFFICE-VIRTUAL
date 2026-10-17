@@ -5,7 +5,10 @@ const MIN = 60_000; const HOUR = 60 * MIN;
 
 /** Penyebab gangguan infrastruktur (layak dicoba ulang). Penolakan mutu/QA/validasi TIDAK termasuk. */
 export const INFRA_RE = /Process lost|fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|socket hang up|timed out|timeout|Adapter failed|adapter_failed|claude_auth_required|rate.?limit|\b(?:429|502|503|504)\b|overloaded|plugin|tool tidak terdaftar|jaringan|network|child pid/i;
-export const isInfraBlock = (reason) => INFRA_RE.test(String(reason ?? ''));
+export const isInfraBlock = (reason) => INFRA_RE.test(String(reason ?? '')) || SESSION_RESET_RE.test(String(reason ?? ''));
+/** Sesi model lama tidak bisa dilanjutkan (mis. opencode: "Requests ending with a model turn are not supported"): ulang TANPA reset sesi akan gagal terus. */
+export const SESSION_RESET_RE = /ending with a model turn|cannot resume|session (?:not found|expired|invalid)|invalid session/i;
+export const needsSessionReset = (reason) => SESSION_RESET_RE.test(String(reason ?? ''));
 
 export const SUSTAIN_DEFAULTS = Object.freeze({
   autoRetryMax: 2,              // percobaan ulang otomatis per job
