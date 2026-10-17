@@ -36,12 +36,16 @@ async function waitFinish(id, maxMs) {
 
 for (const id of ids) {
   const s0 = state(); const h0 = latest(s0, id);
-  if (!h0 || h0.phase !== 'blocked') { say(`LEWAT ${id}: tidak terblokir (${h0 ? h0.phase : 'tidak ada di riwayat'})`); continue; }
-  if (!(await waitIdle(6 * 3_600_000))) { say(`BERHENTI ${id}: pipeline tidak kosong dalam 6 jam`); break; }
-  await sleep(20_000);
-  const stageName = STAGE_NAMES[h0.stageIndex] ?? '?';
-  say(`MULAI ${id}: terblokir di ${stageName} (${String(h0.blockReason ?? '').slice(0, 90)}); menilai ulang keluaran`);
-  say(`  ${orch('--recheck', id)}`);
+  const following = s0?.job?.identifier === id; // sudah berjalan (mis. dilanjutkan sebelumnya): cukup diikuti sampai selesai
+  if (!following && (!h0 || h0.phase !== 'blocked')) { say(`LEWAT ${id}: tidak terblokir (${h0 ? h0.phase : 'tidak ada di riwayat'})`); continue; }
+  if (following) say(`IKUTI ${id}: sedang berjalan; menunggu selesai`);
+  else {
+    if (!(await waitIdle(6 * 3_600_000))) { say(`BERHENTI ${id}: pipeline tidak kosong dalam 6 jam`); break; }
+    await sleep(20_000);
+    const stageName = STAGE_NAMES[h0.stageIndex] ?? '?';
+    say(`MULAI ${id}: terblokir di ${stageName} (${String(h0.blockReason ?? '').slice(0, 90)}); menilai ulang keluaran`);
+    say(`  ${orch('--recheck', id)}`);
+  }
   let h = await waitFinish(id, 90 * 60_000);
   if (!h) { say(`MACET ${id}: tidak selesai dalam 90 menit; periksa manual`); continue; }
   // berhenti di QA karena jatah revisi habis / needs_human: serahkan ke antrean approval owner (owner tetap memutuskan)

@@ -28,7 +28,12 @@ export const BLOCK_RE = /unusual traffic|lalu lintas yang tidak biasa|not a robo
 /** Query yang dikirim ke pencarian: merek/produk asli diperkuat agar hasil teratas adalah logo/produk resmi. */
 export function buildQuery(req) {
   const q = req.query.trim();
-  if (req.kind === 'brand' && !/logo/i.test(q)) return `${q} logo official`;
+  if (req.kind === 'brand') {
+    // Kueri merek yang tidak menyebut nama merek yang dideklarasikan ('AI model logos developer' untuk brand Anthropic) tidak menemukan logo resmi: awali dengan nama merek.
+    const b = String(req.brand ?? '').trim();
+    const qb = b && !q.toLowerCase().includes(b.toLowerCase()) ? `${b} ${q}` : q;
+    return /logo/i.test(qb) ? qb : `${qb} logo official`;
+  }
   if (req.kind === 'product' && !/official|resmi|screenshot/i.test(q)) return `${q} official`;
   return q;
 }

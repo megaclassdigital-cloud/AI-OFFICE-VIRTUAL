@@ -106,3 +106,12 @@ describe('sumber stok/watermark ditolak untuk semua jenis aset', () => {
     expect(STOCK_RE.test('The secret meaning behind the OpenAI logo')).toBe(false);
   });
 });
+
+describe('buildQuery merek: nama merek yang dideklarasikan selalu ada di kueri', () => {
+  it('kueri generik diawali nama merek; kueri yang sudah memuat merek/logo tidak digandakan', () => {
+    expect(buildQuery({ kind: 'brand', brand: 'Anthropic', query: 'AI model logos developer' })).toBe('Anthropic AI model logos developer');
+    expect(buildQuery({ kind: 'brand', brand: 'Anthropic', query: 'Anthropic AI security' })).toBe('Anthropic AI security logo official');
+    expect(buildQuery({ kind: 'brand', brand: 'Replit', query: 'Replit OpenAI logo brand' })).toBe('Replit OpenAI logo brand');
+    expect(buildQuery({ kind: 'brand', query: 'Anthropic Claude' })).toBe('Anthropic Claude logo official');
+  });
+});
