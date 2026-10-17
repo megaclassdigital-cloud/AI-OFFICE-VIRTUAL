@@ -184,8 +184,8 @@ function checkOutput(job, stageName) {
     const held = assetGate(job, data, p);
     if (held) return held;
     const outDir = path.join(path.dirname(p), 'render');
-    markBusy('render', 190_000);
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'render.mjs'), '--design', p, '--out', outDir], { encoding: 'utf8', timeout: 180_000 });
+    markBusy('render', 500_000); // render di laptop ini ±140 dtk saat beban normal, bisa >180 dtk saat berat
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'render.mjs'), '--design', p, '--out', outDir], { encoding: 'utf8', timeout: 480_000 });
     let qa = null;
     try { qa = JSON.parse(readFileSync(path.join(outDir, 'visual-qa.json'), 'utf8')); } catch { /* handled below */ }
     if (r.status !== 0 || !qa?.passed) return { ok: false, errors: [`render gagal: ${String(r.stderr || r.stdout || 'tanpa keluaran').trim().split(/\r?\n/).slice(-6).join(' | ').slice(0, 600)}`] };
