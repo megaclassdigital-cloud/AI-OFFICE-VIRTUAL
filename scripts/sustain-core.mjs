@@ -24,7 +24,7 @@ export const SUSTAIN_DEFAULTS = Object.freeze({
  * Apakah job terblokir ini dicoba ulang sekarang?
  * ctx: { job (entri riwayat), nowMs, paperclipOk, anotherActive:boolean, settings }
  */
-export function decideAutoRetry({ job, nowMs, paperclipOk, anotherActive, settings = {} }) {
+export function decideAutoRetry({ job, nowMs, paperclipOk, anotherActive, settings = {}, agentEntryNow = null }) {
   const s = { ...SUSTAIN_DEFAULTS, ...settings };
   if (!job || job.phase !== 'blocked') return { retry: false, code: 'bukan-terblokir' };
   if (!paperclipOk) return { retry: false, code: 'paperclip-belum-sehat' };
@@ -32,6 +32,11 @@ export function decideAutoRetry({ job, nowMs, paperclipOk, anotherActive, settin
   if (!(job.stageIndex >= 0)) return { retry: false, code: 'belum-ada-tahap' };
   if (!isInfraBlock(job.blockReason)) return { retry: false, code: 'bukan-infrastruktur', reason: job.blockReason ?? null };
   if ((job.autoRetries ?? 0) >= s.autoRetryMax) return { retry: false, code: 'jatah-habis' };
+  // Kuota model habis: mengulang SEBELUM failover memindah model hanya membuang run dan membuat agen 'sibuk' sehingga failover tidak bisa berpindah. Tunggu model berganti.
+  if (/quota|exceeded your current/i.test(String(job.blockReason ?? ''))) {
+    if (job.blockAgentEntry && agentEntryNow && agentEntryNow === job.blockAgentEntry) return { retry: false, code: 'tunggu-failover' };
+    if (!job.blockAgentEntry && nowMs - (job.endedMs ?? 0) < 20 * MIN) return { retry: false, code: 'tunggu-failover' };
+  }
   const ended = job.endedMs ?? 0;
   if (!ended || nowMs - ended > s.autoRetryWindowHours * HOUR) return { retry: false, code: 'terlalu-lama' };
   if (nowMs - ended < s.autoRetryAfterMinutes * MIN) return { retry: false, code: 'tunggu-pulih', waitMs: s.autoRetryAfterMinutes * MIN - (nowMs - ended) };

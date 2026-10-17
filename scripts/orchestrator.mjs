@@ -706,7 +706,7 @@ async function applyActions(job, actions, facts) {
       notifyOwner('AI Agent Office: butuh gambar asli', 'Produksi ' + job.identifier + ' ditahan; lihat komentar atau TV.');
       log(job.identifier + ' DITAHAN menunggu aset gambar asli');
     }
-    else if (act.type === 'block') { job.blockReason = String(act.reason ?? '').slice(0, 200); await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
+    else if (act.type === 'block') { job.blockReason = String(act.reason ?? '').slice(0, 200); try { job.blockAgentEntry = readJsonLoose(path.join(ROOT, 'workspace', 'failover-state.json'))?.[STAGE_AGENT[STAGES[job.stageIndex]]]?.entry ?? null; } catch { /* tanpa catatan model */ } await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
   }
 }
 
@@ -829,7 +829,7 @@ async function sustainTick(state, net) {
   // 2) tahap terblokir karena infrastruktur (Process lost, fetch failed, plugin, dst.): ulangi dari tahap itu, maks 2x per job
   if (!state.job && (state.followers ?? []).length === 0) {
     const cand = [...(state.history ?? [])].filter((x) => x.phase === 'blocked').sort((x, y) => (y.endedMs ?? 0) - (x.endedMs ?? 0))[0];
-    const d = decideAutoRetry({ job: cand, nowMs: now, paperclipOk: net?.hold !== true, anotherActive: false });
+    const d = decideAutoRetry({ job: cand, nowMs: now, paperclipOk: net?.hold !== true, anotherActive: false, agentEntryNow: (() => { try { return readJsonLoose(path.join(ROOT, 'workspace', 'failover-state.json'))?.[STAGE_AGENT[STAGES[cand.stageIndex]]]?.entry ?? null; } catch { return null; } })() });
     if (d.retry) {
       state.history = state.history.filter((x) => x.masterIssueId !== cand.masterIssueId);
       delete cand.endedMs; delete cand.abandoned;

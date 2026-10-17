@@ -48,7 +48,20 @@ for (const id of ids) {
       const c = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'capture-asset.mjs'), '--issue', id], { cwd: ROOT, encoding: 'utf8', timeout: 460_000 });
       say(`  aset: ${String(c.stdout ?? '').trim().split(/\r?\n/).filter((l) => /^(captured|missing|owner-supplied|BELUM|kept)/i.test(l)).map((l) => l.slice(0, 70)).join(' | ') || 'tanpa keluaran'}`);
     }
-    say(`  ${orch('--recheck', id)}`);
+    const infra = /quota|Process lost|fetch failed|timed out|timeout|model turn|ECONN/i.test(String(h0.blockReason ?? ''));
+    if (infra && /quota/i.test(String(h0.blockReason ?? ''))) { // kuota habis: biarkan failover memindah model dulu (saat agen menganggur), baru ulangi tahap
+      const agent = ['Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA'][Math.max(0, (h0.stageIndex ?? 1) - 0)] ?? 'Copywriter';
+      const fo = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'manager-failover.mjs'), '--once', '--agent', ['Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA'][h0.stageIndex] ?? agent], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 });
+      say(`  failover: ${String(fo.stdout ?? '').trim().split(/\r?\n/).pop() || 'tidak ada perubahan'}`); await sleep(20_000);
+    }
+    let started = false;
+    for (let attempt = 1; attempt <= 3 && !started; attempt++) {
+      say(`  ${orch(infra ? '--retry' : '--recheck', id)}`);
+      await sleep(15_000); // orkestrator yang berjalan bisa menimpa state yang baru ditulis CLI: pastikan benar-benar menjadi job aktif
+      started = state()?.job?.identifier === id;
+      if (!started && attempt < 3) { say(`  percobaan ${attempt}: belum menjadi job aktif (state tertimpa); diulang`); await waitIdle(10 * 60_000); }
+    }
+    if (!started) { say(`GAGAL MEMULAI ${id}: state terus tertimpa; ulangi manual`); continue; }
   }
   let h = await waitFinish(id, 90 * 60_000);
   if (!h) { say(`MACET ${id}: tidak selesai dalam 90 menit; periksa manual`); continue; }
