@@ -844,6 +844,30 @@ async function sustainTick(state, net) {
   }
 }
 
+const CMD_DIR = path.join(ROOT, 'workspace', 'commands');
+/** Perintah --recheck/--retry yang diantrekan CLI saat orkestrator hidup (CLI menulis state langsung sering TERTIMPA putaran orkestrator). Diterapkan di sini, dalam proses yang memegang state. */
+async function applyCommands(state) {
+  if (!existsSync(CMD_DIR)) return;
+  for (const n of readdirSync(CMD_DIR).filter((x) => x.endsWith('.json')).sort()) {
+    const f = path.join(CMD_DIR, n); const c = readJsonLoose(f);
+    try { unlinkSync(f); } catch { /* sudah hilang */ }
+    if (!c || !/^EDU-[0-9]+$/.test(c.id ?? '') || !['recheck', 'retry'].includes(c.type)) continue;
+    if (state.job && !isFinished(state.job)) { try { writeFileSync(f, JSON.stringify(c)); } catch { /* dicoba lagi putaran berikutnya */ } continue; } // masih ada job aktif: tunda
+    const blocked = [...(state.history ?? [])].filter((x) => x.identifier === c.id && x.phase === 'blocked').sort((x, y) => (y.endedMs ?? 0) - (x.endedMs ?? 0))[0];
+    if (!blocked || blocked.stageIndex < 0) { log('perintah ' + c.type + ' ' + c.id + ': tidak ada job terblokir pada suatu tahap'); continue; }
+    state.history = state.history.filter((x) => x.masterIssueId !== blocked.masterIssueId);
+    delete blocked.endedMs; delete blocked.abandoned;
+    blocked.phase = 'running';
+    if (c.type === 'retry') {
+      blocked.stageStartedMs = Date.now(); blocked.stageRetries = 0;
+      blocked.stageIssueId = await createStage(blocked, STAGES[blocked.stageIndex]);
+      await parkMaster(blocked);
+    }
+    state.job = blocked;
+    log('perintah ' + c.type + ' ' + c.id + ' diterapkan pada tahap ' + STAGE_AGENT[STAGES[blocked.stageIndex]]);
+  }
+}
+
 async function once() {
   const state = readState();
   state.pending ??= []; state.followers ??= [];
@@ -872,6 +896,7 @@ async function once() {
     return;
   }
   if (state.pausedLogged) { delete state.pausedLogged; log('jeda dicabut: pekerjaan dilanjutkan'); }
+  try { await applyCommands(state); } catch (e) { log('perintah antrean galat: ' + String(e?.message ?? e).slice(0, 160)); }
   const net = await checkNetwork(state.job);
   try { await tidyBlocked(state); } catch { /* pembersihan hanya kosmetik; jangan pernah mengganggu alur */ }
   try { tidyFiling(state); } catch { /* perapian berkas hanya kosmetik */ }
@@ -917,6 +942,19 @@ async function once() {
   if (!DRY) writeState(state);
 }
 
+{
+  // --recheck/--retry saat orkestrator --watch HIDUP: antrekan (workspace/commands/*.json) supaya diterapkan oleh proses yang memegang state.
+  const which = ['--recheck', '--retry'].find((x) => a.includes(x));
+  const want = a.find((x) => /^EDU-[0-9]+$/.test(x));
+  const lockPid = (() => { try { return Number(readFileSync(path.join(ROOT, 'workspace', 'orchestrator.lock'), 'utf8').trim()); } catch { return 0; } })();
+  const live = lockPid > 0 && lockPid !== process.pid && (() => { try { process.kill(lockPid, 0); return true; } catch { return false; } })();
+  if (which && want && live && !a.includes('--direct')) {
+    mkdirSync(path.join(ROOT, 'workspace', 'commands'), { recursive: true });
+    writeFileSync(path.join(ROOT, 'workspace', 'commands', Date.now() + '-' + which.slice(2) + '-' + want + '.json'), JSON.stringify({ type: which.slice(2), id: want, at: Date.now() }));
+    console.log('perintah ' + which.slice(2) + ' ' + want + ' diantrekan; diterapkan orkestrator pada putaran berikutnya');
+    process.exit(0);
+  }
+}
 if (a.includes('--tidy')) {
   const s = readState();
   await tidyStageIssues(null, s.job);
