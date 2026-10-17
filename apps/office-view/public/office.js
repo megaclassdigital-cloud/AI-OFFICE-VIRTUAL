@@ -1,6 +1,6 @@
 // Office View: renderer Canvas + kontroler. Semua gerakan datang dari applyEvent() (world.js) —
 // event LIVE (bridge) dan event SIMULASI (replay) memakai jalur yang sama. Tidak ada aksi tulis, tidak ada LLM.
-import { createWorld, applyEvent, stepWorld, describeEvent, addOwner, roomAt, thoughtOf, publisherEvent } from './world.js';
+import { createWorld, applyEvent, stepWorld, describeEvent, addOwner, roomAt, thoughtOf, publisherEvent, autonomyThought } from './world.js';
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -331,6 +331,16 @@ async function pollPublisher() {
   } catch { /* status tidak terbaca: keadaan terakhir dipertahankan */ }
 }
 
+// Manager aktif: teks pikirannya dari status kantor otonom (read-only). Dipasang ulang tiap poll karena karakter dibuat ulang saat resync.
+async function pollAutonomy() {
+  if (app.mode !== 'live' || !app.world) return;
+  try {
+    const d = await jget('/api/inspect/autonomy');
+    const text = autonomyThought(d.status, Date.now());
+    for (const c of app.world.chars.values()) if (c.deskKey === 'manager') c.autoThought = text;
+  } catch { /* status tidak terbaca: teks bawaan */ }
+}
+
 async function startSim() {
   app.mode = 'sim'; app.paused = false; $('log').replaceChildren(); setModeUi();
   freshWorld('sim');
@@ -373,6 +383,7 @@ async function init() {
   await startLive();
   setInterval(pollLive, 1000);
   pollPublisher(); setInterval(pollPublisher, 5000);
+  pollAutonomy(); setInterval(pollAutonomy, 8000);
   const pollBoard = async () => { try { app.boardItems = (await jget('/api/inspect/board?limit=3')).items ?? []; } catch { /* TV tetap menampilkan data terakhir */ } };
   pollBoard(); setInterval(pollBoard, 10000);
   requestAnimationFrame(frame);

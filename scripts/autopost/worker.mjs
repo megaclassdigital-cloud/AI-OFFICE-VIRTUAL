@@ -17,6 +17,7 @@ import { approvedCandidates, nextToPost, buildStatus, currentContentHash } from 
 import { openSocialChrome, sessionState } from './social-login.mjs';
 import { postInstagram, StepError } from './instagram.mjs';
 import { postTikTok } from './tiktok.mjs';
+import { acquireBrowser, releaseBrowser, browserHolder } from './browser-lock.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = path.join(ROOT, 'workspace', 'agent');
@@ -104,8 +105,10 @@ export async function tick({ plan = false, nowMs = Date.now() } = {}) {
   const { candidates, ignored } = approvedCandidates({ outputs: OUT, approvalsDir: APPROVALS, sinceMs });
   const { pick, blocked } = settings.paused ? { pick: null, blocked: [] } : nextToPost({ candidates, ledger, settings, nowMs, platforms: Object.keys(LIVE_FLOWS) });
   let did = null;
-  if (pick && !plan) {
-    const entry = await postOne(pick);
+  if (pick && !plan && !acquireBrowser('worker')) { log(`Chrome sosial dipakai ${browserHolder()}; posting ${pick.candidate.content} -> ${pick.platform} ditunda ke siklus berikutnya`); }
+  else if (pick && !plan) {
+    let entry;
+    try { entry = await postOne(pick); } finally { releaseBrowser('worker'); }
     ledger = settleLedger(loadLedger(), entry); saveLedger(ledger);
     log(`${entry.status === 'diposting' ? 'TERPOSTING' : entry.status === 'tidak_pasti' ? 'TIDAK PASTI (periksa akun, tidak diulang)' : 'GAGAL sebelum terkirim'}: ${entry.content} -> ${entry.platform}${entry.error ? ` (${entry.error})` : ''}`);
     if (entry.status === 'diposting' || entry.status === 'tidak_pasti') { try { fileAsPosted({ outputs: OUT, runKey: pick.candidate.runKey, platform: pick.platform, entry }); } catch (e) { log(`peringatan: gagal merapikan ${entry.content} (${String(e.message).slice(0, 80)})`); } }

@@ -110,6 +110,16 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     return { status: 200, body: { status, recent } };
   }
 
+  /** Papan Kantor Otonom (baca-saja): status keputusan, brief otomatis terakhir, dan profil audiens dari analitik akun. */
+  async function autonomyView() {
+    const dir = path.join(outputRoot, 'autonomy');
+    const status = await readJsonSafe(path.join(dir, 'status.json'));
+    const log = (await readJsonSafe(path.join(dir, 'log.json'))) ?? [];
+    const ins = await readJsonSafe(path.join(dir, 'insights.json'));
+    const settings = await readJsonSafe(path.join(dir, 'settings.json'));
+    return { status: 200, body: { status, settings, recent: log.slice(-8).reverse(), insights: ins ? { at: ins.at, source: ins.source, posts: (ins.posts ?? []).length, analysis: ins.analysis ?? null } : null } };
+  }
+
   async function issueView(id) {
     const { names } = await ctx();
     const issue = await api(`/issues/${encodeURIComponent(id)}`);
@@ -272,6 +282,7 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
       if (p === '/api/inspect/agent') r = await agentView(q('name'));
       else if (p === '/api/inspect/approvals') r = await approvalsView();
       else if (p === '/api/inspect/autopost') r = await autopostView();
+      else if (p === '/api/inspect/autonomy') r = await autonomyView();
       else if (p === '/api/inspect/issue') r = await issueView(q('id'));
       else if (p === '/api/inspect/files') r = await filesView(q('prod'), q('rev'));
       else if (p === '/api/inspect/board') r = await boardView(Math.min(50, Math.max(0, parseInt(q('limit'), 10) || 0)));

@@ -117,7 +117,7 @@ export function thoughtOf(c, t) {
   const ref = c.issue?.identifier ? ` (${c.issue.identifier})` : '';
   const el = c.since !== undefined ? ` · ${fmtElapsed(t - c.since)}` : '';
   if (c.carry) return `Membawa dokumen${ref} ke rekan`;
-  if (c.deskKey === 'manager' && !c.moving && c.state === 'idle') return 'Mengelola produksi dan memantau approval';
+  if (c.deskKey === 'manager' && !c.moving && c.state === 'idle') return c.autoThought || 'Mengelola produksi dan memantau approval';
   if (c.state === 'working') {
     if (c.moving) return `Menuju meja${ref}…`;
     return `${VERB[c.deskKey] ?? VERB[String(c.role ?? '').toLowerCase()] ?? 'Mengerjakan tugas'}${ref}${el}`;
@@ -265,6 +265,25 @@ export function stepWorld(world, dt) {
         c.slot = freeSlot(world, c);
       } else c.facing = 'down';
     } else c.facing = 'down';
+  }
+}
+
+/** Teks pikiran Manager dari status kantor otonom (status.json). Murni: tanpa DOM, tanpa LLM. */
+export function autonomyThought(status, nowMs) {
+  const hm = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+  if (!status || !(nowMs - status.at < 10 * 60_000)) return '';
+  if (status.enabled === false) return 'Mode otonom mati: menunggu brief dari owner';
+  switch (status.code) {
+    case 'brief-dibuat': return 'Inisiatif sendiri: brief konten baru dibuat dari tren dan profil audiens';
+    case 'menunggu-analitik': return 'Membaca performa akun untuk profil audiens sebelum menulis brief…';
+    case 'antrean-owner': return `Menunggu keputusanmu: ${status.awaitingOwner} konten belum di-approve (tidak menambah antrean)`;
+    case 'jeda': case 'batas-harian': return status.retryAtMs ? `Jeda antar brief; brief berikutnya sekitar ${hm(status.retryAtMs)}` : 'Batas brief otomatis hari ini tercapai';
+    case 'jam-tenang': return 'Jam tenang: brief baru dilanjutkan pagi';
+    case 'pemutus': return 'Berhenti sementara: brief otomatis gagal berturut-turut, butuh dicek';
+    case 'sibuk': return 'Produksi berjalan; saya menjaga alur dan approval';
+    case 'dijeda': return 'Produksi dijeda owner';
+    case 'offline': return 'Internet putus: menunggu tersambung';
+    default: return status.reason ?? '';
   }
 }
 

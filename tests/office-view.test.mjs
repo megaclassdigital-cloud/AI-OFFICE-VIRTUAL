@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import { createWorld, applyEvent, stepWorld, planPath, roomAt, addOwner, homeOf, describeEvent, publisherEvent, thoughtOf } from '../apps/office-view/public/world.js';
+import { createWorld, applyEvent, stepWorld, planPath, roomAt, addOwner, homeOf, describeEvent, publisherEvent, thoughtOf, autonomyThought } from '../apps/office-view/public/world.js';
 import { createBridge } from '../apps/office-view/bridge.mjs';
 import { repoRoot } from './helpers.mjs';
 
@@ -463,5 +463,29 @@ describe('Admin Publikasi (karyawan kode di Ruang Publikasi)', () => {
     const w = mkWorld();
     expect(describeEvent(w, publisherEvent(st(), NOW), 't')).toBeNull();
     expect(describeEvent(w, publisherEvent({ ...st(), recent: [{ content: 'EDU-97', platform: 'instagram', status: 'sedang_diposting' }] }, NOW), 't')).toMatch(/memposting EDU-97/);
+  });
+});
+
+describe('Manager aktif: teks pikiran dari status kantor otonom', () => {
+  const NOW = Date.parse('2026-10-17T10:00:00Z');
+  const s = (over) => ({ at: NOW - 60_000, enabled: true, code: 'sibuk', awaitingOwner: 0, ...over });
+  it('status basi atau kosong => teks bawaan (kosong)', () => {
+    expect(autonomyThought(null, NOW)).toBe('');
+    expect(autonomyThought(s({ at: NOW - 11 * 60_000 }), NOW)).toBe('');
+  });
+  it('tiap kode punya teks yang jujur dan memuat angka dari data', () => {
+    expect(autonomyThought(s({ enabled: false }), NOW)).toMatch(/otonom mati/);
+    expect(autonomyThought(s({ code: 'antrean-owner', awaitingOwner: 2 }), NOW)).toMatch(/2 konten belum di-approve/);
+    expect(autonomyThought(s({ code: 'brief-dibuat' }), NOW)).toMatch(/Inisiatif sendiri/);
+    expect(autonomyThought(s({ code: 'menunggu-analitik' }), NOW)).toMatch(/performa akun/);
+    expect(autonomyThought(s({ code: 'pemutus' }), NOW)).toMatch(/Berhenti sementara/);
+    expect(autonomyThought(s({ code: 'jam-tenang' }), NOW)).toMatch(/Jam tenang/);
+  });
+  it('Manager idle memakai autoThought; tanpa itu teks lama', () => {
+    const w = mkWorld(); const mg = { id: 'm', name: 'Manager', role: 'pm' };
+    applyEvent(w, { type: 'agent.state', agentId: 'm', name: 'Manager', role: 'pm', state: 'idle' }, { instant: true });
+    const c = char(w, 'm');
+    expect(thoughtOf(c, 0)).toMatch(/Mengelola produksi/);
+    c.autoThought = 'Inisiatif sendiri: uji'; expect(thoughtOf(c, 0)).toBe('Inisiatif sendiri: uji'); void mg;
   });
 });

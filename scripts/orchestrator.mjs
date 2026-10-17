@@ -25,6 +25,7 @@ import { buildManagerInstruction } from './manager-instruction.mjs';
 import { writeJsonAtomic, readJsonSafe } from './safe-json.mjs';
 import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelFile, doneFile } from './revision-router.mjs';
 import { prefetchRunning, prefetchDoneFor, requestsSig, shouldPrefetch, startPrefetch } from './asset-prefetch.mjs';
+import { autonomyTick } from './autonomy.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -802,6 +803,7 @@ async function once() {
     if (state.job && !isFinished(state.job)) state.job = freeze(state.job);
     state.followers = state.followers.map((j) => (isFinished(j) ? j : freeze(j)));
     state.pending = state.pending.map((p) => (p.ready || p.hold ? p : freeze(p)));
+    if (!DRY) { try { autonomyTick({ state, paused: true, log }); } catch { /* status otonom hanya informasi */ } }
     if (!state.pausedLogged) { state.pausedLogged = true; log('DIJEDA owner: tidak ada pekerjaan baru; agent yang sedang berjalan menyelesaikan run-nya, jam tahap dibekukan'); }
     if (!DRY) writeState(state);
     return;
@@ -845,6 +847,8 @@ async function once() {
     const made = await ingest(false, review);
     if (made) state.job = { ...newJob({ masterIssueId: made.id, identifier: made.identifier, nowMs: Date.now() }), brief: made.brief.slice(0, 3000), ...(made.jobPatch ?? {}) };
   }
+  // Kantor otonom (ADR-0005 P3): bila benar-benar menganggur, Manager mengambil inisiatif menulis brief baru ke inbox (diproses tick berikutnya).
+  if (!DRY) { try { autonomyTick({ state, paused: false, offline: net.hold === true, log }); } catch (e) { log('otonomi galat: ' + String(e?.message ?? e).slice(0, 160)); } }
   if (!DRY) writeState(state);
 }
 

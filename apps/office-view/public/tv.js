@@ -18,7 +18,7 @@ const img = (p) => `/api/inspect/image?path=${encodeURIComponent(p)}`;
 const dlUrl = (p) => `${img(p)}&download=1`;
 // Unduh SATU gambar per slide (bukan gabungan): tiap berkas diunduh terpisah dengan jeda singkat agar browser tidak memblokir.
 async function downloadAll(slides) { for (const s of slides) { const a = document.createElement('a'); a.href = dlUrl(s.image); a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((r) => setTimeout(r, 450)); } }
-const TABS = [['all', '📚 Semua Konten'], ['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA'], ['publikasi', '📣 Publikasi']];
+const TABS = [['all', '📚 Semua Konten'], ['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA'], ['publikasi', '📣 Publikasi'], ['otonom', '🤖 Otonom']];
 
 const st = { prod: null, rev: '', tab: 'all', data: null, slide: 0, sig: '', board: [] };
 const sel = h('select', { id: 'tvProd', 'aria-label': 'Pilih produksi', onchange: () => { st.prod = sel.value; st.rev = ''; st.slide = 0; load(true); } });
@@ -74,7 +74,7 @@ async function load(force) {
   render();
 }
 
-const tgl = (iso) => { const t = Date.parse(iso ?? ''); return Number.isFinite(t) ? new Date(t).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace('.', ':') : 'tanggal tidak diketahui'; };
+const tgl = (iso) => { const t = typeof iso === 'number' ? iso : Date.parse(iso ?? ''); return Number.isFinite(t) ? new Date(t).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace('.', ':') : 'tanggal tidak diketahui'; };
 const hhmm = (ms) => new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
 const card = (...k) => h('div', { class: 'tv-card' }, ...k);
 const empty = (t = 'Belum ada hasil dari divisi ini untuk produksi ini.') => h('p', { class: 'tv-empty' }, t);
@@ -90,6 +90,7 @@ function render() {
   setKids(stages, ...(d?.stages ?? []).map((s) => h('div', { class: `stg ${s.state}`, title: s.label }, h('span', { class: 'dot' }), h('b', {}, s.agent), h('small', {}, s.state === 'done' && s.doneAt ? `selesai ${hhmm(s.doneAt)}` : s.state === 'running' ? 'sedang bekerja' : s.state === 'hold' ? 'menunggu gambar asli' : s.state === 'blocked' ? 'terblokir' : s.label))));
   if (st.tab === 'all') { setKids(main, allContents()); return; }
   if (st.tab === 'publikasi') { setKids(main, publikasi()); loadPub(); return; }
+  if (st.tab === 'otonom') { setKids(main, otonom()); loadAuto(); return; }
   if (!d) { setKids(main, empty(st.prod ? 'Memuat…' : 'Belum ada produksi yang bisa ditayangkan.')); return; }
   const view = { show, manager, researcher, verifier, copywriter, designer, qa }[st.tab];
   // replaceChildren(null) menulis teks "null": susun daftar anak tanpa nilai kosong.
@@ -137,6 +138,37 @@ function publikasi() {
     card(h('h4', {}, 'Riwayat terakhir'), rows.length ? h('ul', {}, rows) : h('p', { class: 'sub' }, 'Belum ada catatan.')));
 }
 setInterval(() => { if (!overlay.hidden && st.tab === 'publikasi') { st.pubAt = 0; loadPub(); } }, 15000);
+
+// Tab Otonom: Manager mengambil inisiatif membuat brief saat kantor menganggur (status dari kode, bukan LLM). Baca-saja; pengaturan lewat settings.json.
+async function loadAuto() {
+  if (st.autoAt && Date.now() - st.autoAt < 4000) return;
+  st.autoAt = Date.now();
+  try { st.auto = await jget('/api/inspect/autonomy'); } catch { st.auto = { error: true }; }
+  if (st.tab === 'otonom' && !overlay.hidden) setKids(main, otonom());
+}
+const AUTO_LABEL = { aktif: 'Bertindak', 'brief-dibuat': 'Brief dibuat', 'menunggu-analitik': 'Membaca analitik akun', sibuk: 'Produksi berjalan', 'antrean-owner': 'Menunggu approval owner', 'batas-harian': 'Batas harian tercapai', jeda: 'Jeda antar brief', 'jam-tenang': 'Jam tenang', pemutus: 'Berhenti sementara (gagal berturut-turut)', dijeda: 'Dijeda owner', offline: 'Offline', nonaktif: 'Dimatikan' };
+function otonom() {
+  const d = st.auto; if (!d) return empty('Memuat…');
+  if (d.error) return empty('Tidak bisa memuat status kantor otonom.');
+  const s = d.status;
+  if (!s) return empty('Kantor otonom belum menulis status. Pastikan orkestrator berjalan.');
+  const chip = (t, tone) => h('span', { class: `tv-chip ${tone}` }, t);
+  const tone = s.code === 'brief-dibuat' || s.code === 'sibuk' ? 'ok' : ['pemutus', 'offline'].includes(s.code) ? 'bad' : 'warn';
+  const a = d.insights?.analysis;
+  return h('div', {},
+    lead('Saat semua pekerjaan selesai dan antrean approval tipis, Manager menulis brief baru sendiri: riset tren + profil audiens dari performa akun. Owner tetap memutuskan approval akhir.'),
+    h('div', { class: 'tv-grid' },
+      card(h('h4', {}, 'Status sekarang'), chip(s.enabled ? (AUTO_LABEL[s.code] ?? s.code) : 'DIMATIKAN', s.enabled ? tone : 'bad'), h('p', {}, s.reason ?? ''),
+        s.retryAtMs ? h('p', { class: 'sub' }, `Dicek lagi setelah ${tgl(s.retryAtMs)}`) : null,
+        h('p', { class: 'sub' }, `Brief otomatis 24 jam terakhir: ${s.briefsToday} · menunggu approval owner: ${s.awaitingOwner}`)),
+      card(h('h4', {}, 'Pagar'), h('p', {}, `Maks ${s.settings?.maxPerDay} brief/hari · jeda ${s.settings?.minGapMinutes} menit · maks ${s.settings?.maxAwaitingOwner} menunggu approval`),
+        h('p', { class: 'sub' }, `Jam tenang (WIB): ${(s.settings?.quietHours ?? []).join(', ') || '-'}. Ubah di workspace/agent/autonomy/settings.json (enabled: false untuk mematikan).`))),
+    card(h('h4', {}, 'Profil audiens (dari performa akun)'),
+      a?.n ? h('div', {}, h('ul', {}, a.notes.map((n) => h('li', {}, n))), a.best?.length ? h('p', { class: 'sub' }, 'Terbaik: ' + a.best.map((b) => `"${b.title}" (${b.views} views)`).join(' · ')) : null, h('p', { class: 'sub' }, `Sumber: ${d.insights.source} · dibaca ${tgl(d.insights.at)}`))
+        : h('p', { class: 'sub' }, 'Belum ada data analitik. Dibaca otomatis sebelum brief pertama.')),
+    card(h('h4', {}, 'Brief otomatis terakhir'), (d.recent ?? []).length ? h('ul', {}, d.recent.map((e) => h('li', {}, `${tgl(e.atMs)} · ${e.file}${e.withInsights ? '' : ' (tanpa profil audiens)'}`))) : h('p', { class: 'sub' }, 'Belum ada.')));
+}
+setInterval(() => { if (!overlay.hidden && st.tab === 'otonom') { st.autoAt = 0; loadAuto(); } }, 15000);
 
 // Daftar SEMUA konten (tidak ada yang disembunyikan), terbaru dibuat di atas, lengkap dengan tanggal dibuat dan status.
 function allContents() {
