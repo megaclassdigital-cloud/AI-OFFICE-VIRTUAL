@@ -81,10 +81,12 @@ const empty = (t = 'Belum ada hasil dari divisi ini untuk produksi ini.') => h('
 const lead = (t) => h('p', { class: 'tv-lead' }, t);
 const go = (d) => { const n = st.data?.slides?.length ?? 0; if (!n) return; st.slide = (st.slide + d + n) % n; render(); };
 
+// LIVE: titik berdenyut lewat CSS; daftar platform dari posted.json (ditulis Admin Publikasi), bukan dikarang.
+const statusText = (s) => (s?.key === 'live' ? `● LIVE · ${(s.platforms ?? []).join(' + ')}` : s?.key === 'tidak_pasti' ? `⚠ POSTING TIDAK PASTI · ${(s.unsure ?? []).join(' + ')}` : (s?.label ?? ''));
 function render() {
   for (const b of tabs.children) b.classList.toggle('on', b.dataset.tab === st.tab);
   const d = st.data;
-  chip.textContent = d?.status?.label ?? ''; chip.className = `tv-chip ${d?.status?.tone ?? ''}`;
+  chip.textContent = statusText(d?.status); chip.className = `tv-chip ${d?.status?.tone ?? ''}`;
   setKids(stages, ...(d?.stages ?? []).map((s) => h('div', { class: `stg ${s.state}`, title: s.label }, h('span', { class: 'dot' }), h('b', {}, s.agent), h('small', {}, s.state === 'done' && s.doneAt ? `selesai ${hhmm(s.doneAt)}` : s.state === 'running' ? 'sedang bekerja' : s.state === 'hold' ? 'menunggu gambar asli' : s.state === 'blocked' ? 'terblokir' : s.label))));
   if (st.tab === 'all') { setKids(main, allContents()); return; }
   if (st.tab === 'publikasi') { setKids(main, publikasi()); loadPub(); return; }
@@ -144,7 +146,7 @@ function allContents() {
     h('div', { class: 'tv-all' }, items.map((i) => h('button', { type: 'button', class: 'tv-item', onclick: () => { st.prod = i.prod; st.rev = ''; st.slide = 0; st.tab = 'show'; sel.value = i.prod; load(true); }, title: i.title },
       i.cover ? h('div', { class: 'cv' }, h('img', { src: img(i.cover), alt: '', loading: 'lazy' }), i.coverFrom ? h('span', { class: 'cvnote' }, `gambar ${i.coverFrom}`) : null) : h('div', { class: 'ph' }, 'belum ada gambar'),
       h('div', { class: 'meta' },
-        h('div', { class: 'row' }, h('b', {}, i.label ?? i.prod), h('span', { class: `tv-chip ${i.status?.tone ?? ''}` }, i.status?.label ?? '')),
+        h('div', { class: 'row' }, h('b', {}, i.label ?? i.prod), h('span', { class: `tv-chip ${i.status?.tone ?? ''}` }, statusText(i.status))),
         h('div', { class: 'ttl' }, i.title),
         h('div', { class: 'sub' }, `📅 Dibuat ${tgl(i.createdAt)}`),
         h('div', { class: 'sub' }, i.slides ? `${i.slides} slide` : 'belum ada slide'))))));

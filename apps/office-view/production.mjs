@@ -25,7 +25,21 @@ const STATUS = {
   tidak_diketahui: { label: 'STATUS TIDAK DIKETAHUI', tone: 'mut' },
 };
 
-/** "Produksi: Carousel ..." -> "Carousel ..." (awalan teknis tidak berguna di layar). */
+const PLATFORM_LABEL = { instagram: 'Instagram', tiktok: 'TikTok' };
+/**
+ * Pure: tumpuk status LIVE di atas status produksi bila posted.json (ditulis Admin Publikasi) mencatat konten ini sudah diposting.
+ * diposting => LIVE (+ daftar platform); hanya tidak_pasti => peringatan (owner periksa akun); selain itu status produksi tidak berubah.
+ */
+export function applyLive(status, posted) {
+  const entries = Object.entries(posted ?? {});
+  const live = entries.filter(([, v]) => v?.status === 'diposting').map(([k]) => k);
+  const unsure = entries.filter(([, v]) => v?.status === 'tidak_pasti').map(([k]) => k);
+  if (live.length) return { ...status, key: 'live', label: 'LIVE', tone: 'live', platforms: live.map((k) => PLATFORM_LABEL[k] ?? k), unsure: unsure.map((k) => PLATFORM_LABEL[k] ?? k), prior: status?.key ?? null };
+  if (unsure.length) return { ...status, key: 'tidak_pasti', label: 'POSTING TIDAK PASTI', tone: 'bad', platforms: [], unsure: unsure.map((k) => PLATFORM_LABEL[k] ?? k), prior: status?.key ?? null };
+  return status;
+}
+
+/** "Produksi: Carousel ..." ->"Carousel ..." (awalan teknis tidak berguna di layar). */
 export const cleanTitle = (t) => String(t ?? '').replace(/^Produksi:\s*/i, '').replace(/^(Revisi\s+)+/i, 'Revisi ').replace(/\s*\([0-9]{2}-[0-9]{2} [0-9:]{4,5}\)\s*$/, '').trim();
 
 /** Pure: production status from the master issue, the handoff document and the orchestrator job. */

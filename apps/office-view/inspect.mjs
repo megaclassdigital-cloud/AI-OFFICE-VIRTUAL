@@ -3,7 +3,7 @@
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { activityTimeline } from './status.mjs';
-import { summarizeProduction, productionStatus, cleanTitle } from './production.mjs';
+import { summarizeProduction, productionStatus, cleanTitle, applyLive } from './production.mjs';
 import { CONTENT_RE, RUN_KEY_RE, runDirOf, runKeyFor, latestRunKey, listRevisions, masterIdentifierOf, labelOf, revisionOf } from '../../scripts/run-registry.mjs';
 
 const TEXT_EXT = new Set(['.json', '.md', '.txt']);
@@ -199,7 +199,8 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     const aj = await activeJobFor(masterIdentifier);
     const job = aj ? { ...aj, identifier: run.contentId } : null; // summarizeProduction mencocokkan job dengan kode konten
     const view = summarizeProduction({ prod: run.contentId, order, research, verification, carousel, design, qa: qaAcc ?? qaMain, visualQa, master, handoff, job, renderFiles: await listRender(runKey), hold, fallbackSlides, qaHistory, mtimes, paperclipOk });
-    return { status: 200, body: { ...view, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
+    const posted = await readJsonSafe(path.join(runDirOf(outputRoot, runKey), 'posted.json'));
+    return { status: 200, body: { ...view, status: applyLive(view.status, posted), posted: posted ?? null, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
   }
   /** Papan Tayang: tiga konten terbaru (versi terbaru tiap konten) dengan sampul dan status. */
   async function boardView(limit = 0) {
@@ -226,7 +227,7 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
       const createdMs = Date.parse(master?.createdAt ?? '') || orderStat?.birthtimeMs || orderStat?.mtimeMs || runStat?.birthtimeMs || runStat?.mtimeMs || 0;
       const holdB = await readHold(runDirOf(outputRoot, runKey));
       const fbB = slides.length ? null : await prevSlidesFor(prod, runKey);
-      items.push({ createdAt: createdMs ? new Date(createdMs).toISOString() : null,  prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? fbB?.files?.[0] ?? null, coverFrom: slides.length ? null : (fbB?.label ?? null), slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown, holdCount: holdB?.missing?.length ?? 0 }) });
+      items.push({ createdAt: createdMs ? new Date(createdMs).toISOString() : null,  prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? fbB?.files?.[0] ?? null, coverFrom: slides.length ? null : (fbB?.label ?? null), slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: applyLive(productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown, holdCount: holdB?.missing?.length ?? 0 }), await readJsonSafe(path.join(runDirOf(outputRoot, runKey), 'posted.json'))) });
     }
     if (!limit) items.sort((a, b) => Date.parse(b.createdAt ?? 0) - Date.parse(a.createdAt ?? 0));
     // Riwayat tidak boleh hilang dari TV: simpan snapshot terakhir yang baik. Saat Paperclip error, status per konten memakai snapshot (bukan "tidak diketahui");

@@ -4,7 +4,7 @@ import { createWorld, applyEvent, stepWorld, describeEvent, addOwner, roomAt, th
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
-const W = 1920, H = 1080, SC = 3, FW = 16, FH = 32;
+const W = 1920, H = 1080, SC = 3, FW = 16, FH = 32, UP = 4, ZMIN = 1, ZMAX = 5;
 const $ = (id) => document.getElementById(id);
 
 const app = { layout: null, world: null, mode: 'live', paused: false, speed: 1, epoch: 0, seq: 0, connected: true, simClock: 0, simEvents: [], simIdx: 0, simEndAt: 0, bgCache: new Map(), sprites: [], metrics: [], boardItems: [], boardImgs: new Map() };
@@ -22,9 +22,10 @@ function drawDesk(c, d, desk) {
   c.fillStyle = '#3a2f24'; c.fillRect(d.x + 6, d.y + d.h, 10, 18); c.fillRect(d.x + d.w - 16, d.y + d.h, 10, 18);
 }
 
-function drawStatic(layout, mode) {
-  const off = document.createElement('canvas'); off.width = W; off.height = H;
+function drawStatic(layout, mode, S = 1) {
+  const off = document.createElement('canvas'); off.width = W * S; off.height = H * S;
   const c = off.getContext('2d');
+  c.scale(S, S);
   c.fillStyle = '#10141d'; c.fillRect(0, 0, W, H);
   // koridor
   c.fillStyle = '#2b3140'; c.fillRect(0, layout.corridorY - 36, W, 72);
@@ -79,6 +80,7 @@ const trunc = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 function drawChar(c, ch, w) {
   const img = app.sprites[ch.sprite % app.sprites.length];
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   const row = ch.facing === 'down' ? 0 : ch.facing === 'up' ? 1 : 2;
   let frame = 1;
   const atDesk = !ch.moving && (ch.state === 'working') && ch.deskKey;
@@ -86,10 +88,10 @@ function drawChar(c, ch, w) {
   else if (atDesk || (ch.isOwner && w.ownerCount > 0 && false)) frame = 3 + (Math.floor(ch.clock * 4) % 2);
   const bob = ch.state === 'paused' && !ch.moving ? Math.sin(ch.clock * 2) * 2 : ch.moving ? Math.abs(Math.sin(ch.clock * 8)) * -3 : 0;
   c.fillStyle = '#00000055'; c.beginPath(); c.ellipse(ch.x, ch.y + 2, 20, 7, 0, 0, 7); c.fill();
-  if (img?.complete) {
+  if (img) {
     c.save();
-    if (ch.facing === 'left') { c.translate(ch.x, 0); c.scale(-1, 1); c.drawImage(img, frame * FW, row * FH, FW, FH, -FW * SC / 2, ch.y - FH * SC + bob, FW * SC, FH * SC); }
-    else c.drawImage(img, frame * FW, row * FH, FW, FH, ch.x - FW * SC / 2, ch.y - FH * SC + bob, FW * SC, FH * SC);
+    if (ch.facing === 'left') { c.translate(ch.x, 0); c.scale(-1, 1); c.drawImage(img, frame * FW * UP, row * FH * UP, FW * UP, FH * UP, -FW * SC / 2, ch.y - FH * SC + bob, FW * SC, FH * SC); }
+    else c.drawImage(img, frame * FW * UP, row * FH * UP, FW * UP, FH * UP, ch.x - FW * SC / 2, ch.y - FH * SC + bob, FW * SC, FH * SC);
     c.restore();
   }
   if (ch.carry) { c.font = '28px "Segoe UI Emoji", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.fillText('📄', ch.x + (ch.facing === 'left' ? -26 : 26), ch.y - 30 + bob); c.textAlign = 'left'; }
@@ -132,7 +134,7 @@ function drawThought(c, ch, placed = []) {
   lines.forEach((l, i) => c.fillText(l, x + 11, y - h + 6 + lh * i + lh / 2));
   c.restore();
 }
-const BOARD_LABEL = { menunggu_approval: ['MENUNGGU', '#f59e0b'], disetujui: ['DISETUJUI', '#22c55e'], perlu_revisi: ['REVISI', '#ef4444'], berjalan: ['PRODUKSI', '#3b82f6'], terblokir: ['TERBLOKIR', '#ef4444'], draf: ['DRAF', '#64748b'] };
+const BOARD_LABEL = { menunggu_approval: ['MENUNGGU', '#f59e0b'], disetujui: ['DISETUJUI', '#22c55e'], perlu_revisi: ['REVISI', '#ef4444'], live: ['● LIVE', '#16a34a'], berjalan: ['PRODUKSI', '#3b82f6'], terblokir: ['TERBLOKIR', '#ef4444'], draf: ['DRAF', '#64748b'] };
 function boardImg(path) {
   let e = app.boardImgs.get(path);
   if (!e) { const im = new Image(); e = { im, ok: false }; im.onload = () => { e.ok = true; }; im.src = '/api/inspect/image?path=' + encodeURIComponent(path); app.boardImgs.set(path, e); }
@@ -161,8 +163,9 @@ function drawBoardLive(c, bo) {
   rows.slice(0, 4).forEach((r, i) => c.fillText(i === 3 && rows.length > 4 ? r.slice(0, Math.max(4, r.length - 3)) + '…' : r, tx, y0 + 12 + i * 18));
   const [label, col] = lab(m);
   c.fillStyle = col; rr(c, tx, y0 + 92, Math.min(tw, 130), 24, 7); c.fill();
-  c.fillStyle = '#0b0e14'; c.font = '800 12px "Segoe UI", sans-serif'; c.fillText(label, tx + 8, y0 + 104);
-  c.fillStyle = '#9fb0cc'; c.font = '600 12px "Segoe UI", sans-serif'; c.fillText(m.prod + (m.slides ? ' · ' + m.slides + ' slide' : ''), tx, y0 + 130);
+  c.fillStyle = m.status?.key === 'live' ? '#fff' : '#0b0e14'; c.font = '800 12px "Segoe UI", sans-serif'; c.fillText(label, tx + 8, y0 + 104);
+  if (m.status?.key === 'live') { const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300); c.strokeStyle = `rgba(34,197,94,${0.25 + 0.5 * pulse})`; c.lineWidth = 3 + 5 * pulse; c.strokeRect(x0 - 5, y0 - 5, cw + 10, chh + 10); }
+  c.fillStyle = '#9fb0cc'; c.font = '600 12px "Segoe UI", sans-serif'; c.fillText(m.prod + (m.slides ? ' · ' + m.slides + ' slide' : '') + (m.status?.key === 'live' ? ' · ' + (m.status.platforms ?? []).join('+') : ''), tx, y0 + 130);
   // tayangan sebelumnya: kartu kecil
   items.slice(1, 3).forEach((it, i) => {
     const sx = tx + i * 56, sy = y0 + 146, sw = 48, sh = 60; const sm = it.cover ? boardImg(it.cover) : null;
@@ -194,13 +197,45 @@ function drawSpeech(c, ch) {
   lines.forEach((l, i) => c.fillText(l, x + 46, y - h + 14 + lh * i + lh / 2 - 3));
 }
 
+// ───────── kamera: zoom (roda/tombol/pinch) dan geser (seret). Latar statis dirender ulang per tingkat skala agar tetap tajam. ─────────
+const cam = { zoom: 1, cx: W / 2, cy: H / 2, k0: 1, k: 1, tx: 0, ty: 0 };
+function applyCam(zoom = cam.zoom, cx = cam.cx, cy = cam.cy) {
+  cam.zoom = Math.min(ZMAX, Math.max(ZMIN, zoom));
+  const hw = W / (2 * cam.zoom), hh = H / (2 * cam.zoom);
+  cam.cx = Math.min(W - hw, Math.max(hw, cx)); cam.cy = Math.min(H - hh, Math.max(hh, cy));
+  cam.k = cam.k0 * cam.zoom; cam.tx = cv.width / 2 - cam.cx * cam.k; cam.ty = cv.height / 2 - cam.cy * cam.k;
+  const pct = $('zPct'); if (pct) pct.textContent = Math.round(cam.zoom * 100) + '%';
+}
+function fitCanvas() {
+  const r = cv.getBoundingClientRect(); const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const w = Math.max(320, Math.round(r.width * dpr)), h = Math.max(180, Math.round(r.height * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  cam.k0 = cv.width / W; applyCam();
+}
+/** Titik layar (clientX/Y) -> koordinat dunia 1920x1080. */
+function toWorld(clientX, clientY) {
+  const r = cv.getBoundingClientRect();
+  return { x: ((clientX - r.left) * (cv.width / r.width) - cam.tx) / cam.k, y: ((clientY - r.top) * (cv.height / r.height) - cam.ty) / cam.k };
+}
+function zoomAt(clientX, clientY, factor) {
+  const before = toWorld(clientX, clientY); const z = Math.min(ZMAX, Math.max(ZMIN, cam.zoom * factor));
+  // pertahankan titik di bawah kursor: cx = titik dunia - (offset layar dari tengah) / skala baru
+  const r = cv.getBoundingClientRect(); const nx = ((clientX - r.left) / r.width - 0.5) * W / z, ny = ((clientY - r.top) / r.height - 0.5) * H / z;
+  applyCam(z, before.x - nx, before.y - ny);
+}
+const zoomCenter = (factor) => { const r = cv.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, factor); };
+
 function render() {
   const w = app.world; const L = app.layout;
   if (!w || !L) return;
-  const key = app.mode;
-  if (!app.bgCache.has(key)) app.bgCache.set(key, drawStatic(L, key));
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(app.bgCache.get(key), 0, 0);
+  const S = Math.min(3, Math.max(1, Math.ceil(cam.k - 0.01)));
+  const key = app.mode + '@' + S;
+  if (!app.bgCache.has(key)) { for (const k of [...app.bgCache.keys()]) if (!k.endsWith('@' + S) || !k.startsWith(app.mode)) app.bgCache.delete(k); app.bgCache.set(key, drawStatic(L, app.mode, S)); }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#141824'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(cam.k, 0, 0, cam.k, cam.tx, cam.ty);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  const vx = Math.max(0, -cam.tx / cam.k), vy = Math.max(0, -cam.ty / cam.k), vw = Math.min(W - vx, cv.width / cam.k), vh = Math.min(H - vy, cv.height / cam.k);
+  ctx.drawImage(app.bgCache.get(key), vx * S, vy * S, vw * S, vh * S, vx, vy, vw, vh);
   // monitor menyala bila agent bekerja di mejanya
   for (const d of L.desks) {
     const working = [...w.chars.values()].some((ch) => ch.deskKey === d.key && ch.state === 'working');
@@ -328,7 +363,13 @@ function frame(now) {
 // ───────── init ─────────
 async function init() {
   app.layout = await jget('/api/layout');
-  app.sprites = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(im); im.src = `/assets/characters/char_${i}.png`; })));
+  app.sprites = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => new Promise((res) => {
+    const im = new Image();
+    // perbesar UPx tanpa smoothing (piksel tetap tegas); diperkecil saat digambar dengan smoothing tinggi
+    const up = () => { try { const c = document.createElement('canvas'); c.width = im.naturalWidth * UP; c.height = im.naturalHeight * UP; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(im, 0, 0, c.width, c.height); res(c); } catch { res(null); } };
+    im.onload = up; im.onerror = () => res(null); im.src = `/assets/characters/char_${i}.png`;
+  })));
+  fitCanvas(); new ResizeObserver(fitCanvas).observe(cv);
   await startLive();
   setInterval(pollLive, 1000);
   pollPublisher(); setInterval(pollPublisher, 5000);
@@ -353,7 +394,7 @@ addEventListener('keydown', (e) => {
 });
 
 // ───────── interaksi: klik karakter / kotak approval ─────────
-const worldPoint = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) }; };
+const worldPoint = (e) => toWorld(e.clientX, e.clientY);
 function hitTest(p) {
   if (!app.world || !app.layout) return null;
   let best = null;
@@ -368,7 +409,35 @@ function hitTest(p) {
   return null;
 }
 cv.addEventListener('mousemove', (e) => { cv.style.cursor = hitTest(worldPoint(e)) ? 'pointer' : 'default'; });
+// zoom: roda mouse (di bawah kursor), tombol, papan ketik; geser: seret; pinch: dua jari; dobel klik ruang kosong: zoom 2x / kembali
+cv.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))); }, { passive: false });
+const ptrs = new Map(); let drag = null; let pinch0 = 0; let moved = false;
+cv.addEventListener('pointerdown', (e) => {
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); cv.setPointerCapture?.(e.pointerId); moved = false;
+  if (ptrs.size === 1) drag = { x: e.clientX, y: e.clientY, cx: cam.cx, cy: cam.cy };
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); drag = null; }
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0 > 0) { zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinch0); moved = true; } pinch0 = d; return; }
+  if (drag && cam.zoom > 1) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!moved && Math.hypot(dx, dy) < 5) return;
+    moved = true; const r = cv.getBoundingClientRect();
+    applyCam(cam.zoom, drag.cx - (dx / r.width) * W / cam.zoom, drag.cy - (dy / r.height) * H / cam.zoom); cv.style.cursor = 'grabbing';
+  }
+});
+const endPtr = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = 0; if (!ptrs.size) drag = null; };
+cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('dblclick', (e) => { if (hitTest(worldPoint(e))) return; if (cam.zoom > 1.05) applyCam(1, W / 2, H / 2); else zoomAt(e.clientX, e.clientY, 2); });
+$('zIn').onclick = () => zoomCenter(1.4); $('zOut').onclick = () => zoomCenter(1 / 1.4); $('zFit').onclick = () => applyCam(1, W / 2, H / 2);
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.ctrlKey || e.metaKey) return;
+  if (e.key === '+' || e.key === '=') zoomCenter(1.4); else if (e.key === '-' || e.key === '_') zoomCenter(1 / 1.4); else if (e.key === '0') applyCam(1, W / 2, H / 2);
+});
 cv.addEventListener('click', (e) => {
+  if (moved) { moved = false; return; } // seretan bukan klik
   const h = hitTest(worldPoint(e));
   app.selectedId = h?.type === 'agent' ? h.id : null;
   dispatchEvent(new CustomEvent('office:select', { detail: h ?? { type: 'none' } }));
@@ -376,6 +445,8 @@ cv.addEventListener('click', (e) => {
 
 // Untuk bukti/otomasi (read-only): keadaan karakter dan metrik jeda event→render
 window.__office = {
+  cam: () => ({ zoom: cam.zoom, cx: cam.cx, cy: cam.cy, k: cam.k, canvas: [cv.width, cv.height] }),
+  zoomTo: (z, cx = W / 2, cy = H / 2) => applyCam(z, cx, cy),
   select: (name) => { const c = [...app.world.chars.values()].find((x) => x.name.toLowerCase() === String(name).toLowerCase()); app.selectedId = c ? c.id : null; return !!c; },
   clickAt: (x, y) => { const h = hitTest({ x, y }); app.selectedId = h?.type === 'agent' ? h.id : null; dispatchEvent(new CustomEvent('office:select', { detail: h ?? { type: 'none' } })); return h; },
   mode: () => app.mode,

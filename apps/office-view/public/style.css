@@ -2,7 +2,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.4 "Segoe UI", system-ui, sans-serif; overflow: hidden; }
 #stage { position: fixed; inset: 0; display: grid; place-items: center; }
-#cv { width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16)); image-rendering: pixelated; background: #141824; }
+#cv { width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16)); background: #141824; touch-action: none; cursor: default; }
 #bar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 18px; padding: 10px 18px; background: linear-gradient(#0b0e14ee, #0b0e1400); }
 .brandline { display: flex; flex-direction: column; line-height: 1.15; min-width: 190px; } .brandline b { font-size: 17px; } .brandline span { color: var(--muted); font-size: 12px; }
 .mode { flex: 1; text-align: center; font-weight: 800; letter-spacing: .06em; font-size: clamp(20px, 2.6vw, 38px); padding: 2px 18px; border-radius: 12px; }
@@ -115,7 +115,7 @@ details.card summary { cursor: pointer; font-weight: 700; } .row2 { margin-top: 
 .tv-bezel header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #0f1524; border-bottom: 1px solid var(--line); }
 .tv-title { font-weight: 800; letter-spacing: .08em; color: #9fb0cc; }
 #tvProd { flex: 1; max-width: 520px; background: #0b1220; color: inherit; border: 1px solid #334155; border-radius: 8px; padding: 6px 8px; font: inherit; }
-.tv-chip { padding: 3px 12px; border-radius: 999px; font-weight: 800; font-size: 12px; background: #334155; } .tv-chip.warn { background: #f59e0b; color: #1f1300; } .tv-chip.ok { background: #22c55e; color: #052e16; } .tv-chip.bad { background: #ef4444; } .tv-chip.run { background: #3b82f6; }
+.tv-chip { padding: 3px 12px; border-radius: 999px; font-weight: 800; font-size: 12px; background: #334155; } .tv-chip.warn { background: #f59e0b; color: #1f1300; } .tv-chip.ok { background: #22c55e; color: #052e16; } .tv-chip.bad { background: #ef4444; } .tv-chip.run { background: #3b82f6; } .tv-chip.live { background: #16a34a; color: #fff; animation: livepulse 1.8s ease-in-out infinite; } @keyframes livepulse { 0%, 100% { box-shadow: 0 0 0 0 #22c55e88; } 50% { box-shadow: 0 0 0 7px #22c55e00; } } @media (prefers-reduced-motion: reduce) { .tv-chip.live { animation: none; } }
 .tv-x { margin-left: auto; font-size: 18px; padding: 2px 12px; }
 .tv-tabs { display: flex; gap: 4px; padding: 8px 12px 0; background: #0b101c; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tv-tabs button { border: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); padding: 8px 14px; font-weight: 700; white-space: nowrap; }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeProduction, productionStatus, stageStates } from '../apps/office-view/production.mjs';
+import { summarizeProduction, productionStatus, stageStates, applyLive } from '../apps/office-view/production.mjs';
 
 const research = { windowDays: 7, candidates: [{ id: 'c01', title: 'Anthropic Cyber Mission', source_name: 'Anthropic', published_at: '2026-10-08', summary: 'Ringkasan satu', url: 'https://a.test/1' }, { id: 'c02', title: 'Gemini agen', source_name: 'TechCrunch', published_at: '2026-10-07', summary: 'Ringkasan dua', url: 'https://a.test/2', non_whitelist: true }] };
 const verification = { results: [{ candidateId: 'c01', url: 'https://a.test/1', status: 'verified', checks: { urlReachable: { ok: true }, dateWithinWindow: { ok: true, publishedAt: '2026-10-08' }, claimFound: { ok: true } } }, { candidateId: 'c02', url: 'https://a.test/2', status: 'rejected', reason: 'URL 403', checks: { urlReachable: { ok: false } } }] };
@@ -76,5 +76,22 @@ describe('penyempurnaan TV', () => {
     expect(s.stages.find((x) => x.key === 'researcher')).toMatchObject({ state: 'done', doneAt: 1000 });
     expect(s.stages.find((x) => x.key === 'designer').doneAt).toBeNull();
     expect(s.paperclipOk).toBe(true); expect(summarizeProduction({ prod: 'EDU-9', paperclipOk: false }).status.key).toBe('tidak_diketahui');
+  });
+});
+
+describe('status LIVE dari posted.json (Admin Publikasi)', () => {
+  const base = { key: 'disetujui', label: 'DISETUJUI', tone: 'ok' };
+  it('diposting di platform mana pun => LIVE dengan daftar platform; status lama dicatat di prior', () => {
+    const s = applyLive(base, { instagram: { status: 'diposting' }, tiktok: { status: 'diposting' } });
+    expect([s.key, s.label, s.tone, s.platforms, s.prior]).toEqual(['live', 'LIVE', 'live', ['Instagram', 'TikTok'], 'disetujui']);
+  });
+  it('hanya satu platform diposting, satu tidak pasti => tetap LIVE dan menandai yang tidak pasti', () => {
+    const s = applyLive(base, { instagram: { status: 'diposting' }, tiktok: { status: 'tidak_pasti' } });
+    expect([s.key, s.platforms, s.unsure]).toEqual(['live', ['Instagram'], ['TikTok']]);
+  });
+  it('hanya tidak pasti => peringatan; tanpa catatan atau gagal => status produksi tidak berubah', () => {
+    expect(applyLive(base, { tiktok: { status: 'tidak_pasti' } }).key).toBe('tidak_pasti');
+    expect(applyLive(base, null)).toBe(base);
+    expect(applyLive(base, { tiktok: { status: 'gagal' } })).toBe(base);
   });
 });
