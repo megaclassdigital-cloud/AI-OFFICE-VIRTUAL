@@ -93,7 +93,14 @@ async function main() {
       // Plugin tidak mendukung pembaruan dokumen: bila isinya sama lewati (idempoten), bila beda hentikan dengan pesan jelas.
       let same = false; try { same = JSON.stringify(JSON.parse(have.body ?? have.latestBody ?? 'null')) === JSON.stringify(body); } catch { same = false; }
       if (same) { log(`attach ${key}: sudah ada (sama), dilewati`); continue; }
-      throw new Error(`dokumen ${key} sudah ada di issue produksi dan berbeda; buat produksi baru, bukan menimpa`);
+      // Dokumen sudah ada tetapi BERBEDA. Bila produksi BELUM diserahkan ke owner (tidak ada dokumen "handoff"), ini hanya putaran revisi QA di dalam produksi yang sama
+      // (percobaan finalisasi sebelumnya sempat melampirkan versi lama): perbarui sebagai REVISI BARU lewat API dokumen (riwayat revisi tetap tersimpan, tidak ada yang hilang).
+      // Setelah handoff ke owner dokumen dikunci: hentikan seperti semula (buat produksi baru, jangan menimpa konten yang sudah diajukan).
+      if (docList.some((d) => d.key === 'handoff')) throw new Error(`dokumen ${key} sudah ada di issue produksi dan berbeda; buat produksi baru, bukan menimpa`);
+      const put = await fetch(`${API}/issues/${id}/documents/${key}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ title: have.title ?? key, format: have.format ?? 'markdown', body: JSON.stringify(body), baseRevisionId: have.latestRevisionId }), 'utf8') });
+      if (!put.ok) throw new Error(`dokumen ${key} berbeda dan pembaruan revisi gagal (HTTP ${put.status}); buat produksi baru`);
+      log(`attach ${key}: diperbarui sebagai revisi baru (belum diserahkan ke owner)`);
+      continue;
     }
     const r = await tool('attach_file', { issueId: id, key, body: JSON.stringify(body) }, 'Researcher');
     log(`attach ${key}: ${r.ok === true ? 'ok' : JSON.stringify(r).slice(0, 160)}`);
