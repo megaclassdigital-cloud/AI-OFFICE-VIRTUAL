@@ -124,15 +124,9 @@ describe('kegagalan sebelum terkirim: coba ulang berjeda dan berbatas', () => {
   });
 });
 
-import { deriveTitle, pickSoundIndex } from '../scripts/autopost/package.mjs';
+import { deriveTitle } from '../scripts/autopost/package.mjs';
 import { SENT_RE, SENT_URL_RE } from '../scripts/autopost/tiktok.mjs';
 describe('TikTok: judul dan bukti terkirim', () => {
-  it('pickSoundIndex: bergiliran mod jumlah favorit; 0 bila kosong; tahan input aneh', () => {
-    expect([0, 1, 2, 3, 4].map((n) => pickSoundIndex(n, 3))).toEqual([0, 1, 2, 0, 1]);
-    expect(pickSoundIndex(5, 0)).toBe(0);
-    expect(pickSoundIndex(undefined, 4)).toBe(0);
-    expect(pickSoundIndex(-1, 3)).toBe(2);
-  });
   it('deriveTitle: kalimat pertama, maksimal 90, dipotong di batas kata', () => {
     expect(deriveTitle('Rangkuman AI terbaru! Mulai dari Meta.', 90)).toBe('Rangkuman AI terbaru');
     expect(deriveTitle('satu\ndua', 90)).toBe('satu');
