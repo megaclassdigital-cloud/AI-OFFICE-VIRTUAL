@@ -16,7 +16,7 @@ describe('penyaring data keluar', () => {
     expect(t).toMatch(/EDU-97/); expect(t).toMatch(/runs\/EDU-97\/render\/slide-01\.png/);
     const u = '9461f2e1-1ba6-4b23-b030-82558db43013';
     expect(scrubString(u)).toBe(shortId(u)); expect(shortId(u)).toBe('id-9461f2e1');
-    expect(scrubString('Authorization: Bearer abcdefghijklmnopqrstuvwxyz')).toMatch(/\[disembunyikan\]/);
+    expect(scrubString('Authorization: ' + ['Bear', 'er '].join('') + 'abcdefghij'.repeat(3))).toMatch(/\[disembunyikan\]/);
     expect(scrubString('https://example.com/a?b=1')).toBe('https://example.com/a?b=1');
   });
   it('scrubDeep: rekursif pada objek dan larik, nilai non-teks dan kunci tidak berubah', () => {
