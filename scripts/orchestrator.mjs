@@ -27,7 +27,9 @@ import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelF
 import { prefetchRunning, prefetchDoneFor, requestsSig, shouldPrefetch, startPrefetch } from './asset-prefetch.mjs';
 import { autonomyTick } from './autonomy.mjs';
 import { isAutoBrief } from './autonomy-core.mjs';
-import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback, parseFinalizeReturn, pruneToSchema, needsSessionReset } from './sustain-core.mjs';
+import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback, parseFinalizeReturn, pruneToSchema, needsSessionReset, decideAutoRecheck, decideAutoHandoff } from './sustain-core.mjs';
+import { staleFiles } from './recapture-stale-assets.mjs';
+import { normalizeSlots } from './normalize-design-slots.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -102,6 +104,9 @@ function assetGate(job, design, designPath) {
   const sig = inboxSignature(ROOT, runKeyOf(job));
   const files = used.map((u) => u.file);
   let prev = readHold(holdFile);
+  let staleFixed = false;
+  try { const mf0 = JSON.parse(readFileSync(manFile, 'utf8').replace(/^\uFEFF/, '')); const st0 = staleFiles(doc, mf0); if (st0.length) { mf0.assets = mf0.assets.filter((x) => !st0.includes(x.file)); mf0.complete = false; writeFileSync(manFile, JSON.stringify(mf0, null, 2) + '\n'); staleFixed = true; log(job.identifier + ' catatan aset basi dibuang (diambil ulang): ' + st0.join(', ')); } } catch { /* manifest belum ada */ }
+  if (staleFixed) { try { writeHold(holdFile, null); } catch { /* kosmetik */ } prev = null; }
   const holdFallback = (missing, sinceMs) => {
     const d = holdFallbackDecision({ auto: isAutoBrief(job?.brief), sinceMs, nowMs: Date.now(), rounds: job?.holdFallbacks ?? 0 });
     if (!d.fallback) return null;
@@ -114,7 +119,7 @@ function assetGate(job, design, designPath) {
   if (prev) { try { if (manifestVerdict(JSON.parse(readFileSync(manFile, 'utf8')), files).complete) { writeHold(holdFile, null); prev = null; } } catch { /* manifest belum ada */ } }
   if (prev && !shouldRetryCapture(prev, sig, Date.now())) return holdFallback(prev.missing, prev.since ?? prev.at) ?? { ok: false, hold: true, missing: prev.missing, errors: [holdMessage(runKeyOf(job), prev.missing)] };
   let pfSig = ''; try { pfSig = requestsSig(readFileSync(reqFile, 'utf8'), sig); } catch { /* tanpa tanda tangan: capture biasa */ }
-  if (!prefetchDoneFor(runKeyOf(job), pfSig)) {
+  if (staleFixed || !prefetchDoneFor(runKeyOf(job), pfSig)) {
     markBusy('ambil-aset', 430_000);
     spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'capture-asset.mjs'), '--issue', runKeyOf(job)], { encoding: 'utf8', timeout: 420_000 });
   }
@@ -175,6 +180,8 @@ function checkOutput(job, stageName) {
     if (!r.ok) return { ok: false, errors: r.errors.slice(0, 8).map((e) => `${e.path || '(root)'}: ${e.message}`) };
   }
   if (stageName === 'designer') {
+    // Salah ketik nama slot yang MIRIP ("sources" untuk "source") dirapikan mekanis (nilai tidak diubah) sebelum gerbang: hemat satu putaran Designer penuh.
+    try { const nr = normalizeSlots(data, TEMPLATES); if (nr.renames.length) { data = nr.design; writeFileSync(p, JSON.stringify(data, null, 2) + '\n', 'utf8'); log(job.identifier + ' desain dirapikan otomatis: ' + nr.renames.map((x) => 'slide ' + x.slide + ' ' + x.from + '->' + x.to).join('; ')); } } catch { /* gerbang validasi tetap berjalan */ }
     // PATOKAN DESAIN: penyimpangan dari acuan tunggal ditolak di gerbang Designer (lebih murah daripada baru ketahuan di QA).
     try {
       const car = JSON.parse(readFileSync(artifactPathFor(runKeyOf(job), 'copywriter'), 'utf8').replace(/^\uFEFF/, ''));
@@ -826,20 +833,39 @@ async function sustainTick(state, net) {
       log('pemulihan mandiri: agen ' + ag.name + ' berstatus error dibersihkan');
     }
   }
-  // 2) tahap terblokir karena infrastruktur (Process lost, fetch failed, plugin, dst.): ulangi dari tahap itu, maks 2x per job
+  // 2) pemulihan mandiri untuk job TERBLOKIR (tanpa sesi Claude): semua yang layak ditinjau, terbaru dulu, satu tindakan per putaran.
   if (!state.job && (state.followers ?? []).length === 0) {
-    const cand = [...(state.history ?? [])].filter((x) => x.phase === 'blocked').sort((x, y) => (y.endedMs ?? 0) - (x.endedMs ?? 0))[0];
-    const d = decideAutoRetry({ job: cand, nowMs: now, paperclipOk: net?.hold !== true, anotherActive: false, agentEntryNow: (() => { try { return readJsonLoose(path.join(ROOT, 'workspace', 'failover-state.json'))?.[STAGE_AGENT[STAGES[cand.stageIndex]]]?.entry ?? null; } catch { return null; } })() });
-    if (d.retry) {
-      state.history = state.history.filter((x) => x.masterIssueId !== cand.masterIssueId);
-      delete cand.endedMs; delete cand.abandoned;
+    const blockedList = [...(state.history ?? [])].filter((x) => x.phase === 'blocked').sort((x, y) => (y.endedMs ?? 0) - (x.endedMs ?? 0));
+    const entryNow = (c) => { try { return readJsonLoose(path.join(ROOT, 'workspace', 'failover-state.json'))?.[STAGE_AGENT[STAGES[c.stageIndex]]]?.entry ?? null; } catch { return null; } };
+    const revive = (c) => { state.history = state.history.filter((x) => x.masterIssueId !== c.masterIssueId); delete c.endedMs; delete c.abandoned; c.phase = 'running'; c.stageStartedMs = now; c.stageRetries = 0; state.job = c; };
+    // a) gangguan infrastruktur (Process lost, fetch failed, kuota setelah failover berpindah, sesi lama, dst.): ulangi tahap itu, maks 2x per job
+    for (const cand of blockedList) {
+      const d = decideAutoRetry({ job: cand, nowMs: now, paperclipOk: net?.hold !== true, anotherActive: false, agentEntryNow: entryNow(cand) });
+      if (!d.retry) continue;
       const stageName = STAGES[cand.stageIndex];
-      cand.phase = 'running'; cand.stageStartedMs = now; cand.stageRetries = 0; cand.autoRetries = d.attempt;
+      revive(cand); cand.autoRetries = d.attempt;
       if (needsSessionReset(cand.blockReason)) { const ag = agentByName(STAGE_AGENT[stageName]); if (ag) await j('/agents/' + ag.id + '/runtime-state/reset-session', jb('POST', {})).catch(() => {}); }
       cand.stageIssueId = await createStage(cand, stageName);
       await parkMaster(cand);
-      state.job = cand;
       log('pemulihan mandiri: ' + cand.identifier + ' terblokir karena gangguan infrastruktur (' + String(cand.blockReason ?? '').slice(0, 80) + '); tahap ' + STAGE_AGENT[stageName] + ' diulang otomatis (ke-' + d.attempt + ')');
+      break;
+    }
+    // b) blokir GERBANG keluaran: perbaikan mekanis di kode (nama slot, catatan aset basi, kolom cek Verifier) kini ada di gerbang, jadi menilai ulang keluaran yang ada (tanpa mengulang agen)
+    if (!state.job) for (const cand of blockedList) {
+      const d = decideAutoRecheck({ job: cand, nowMs: now, anotherActive: false });
+      if (!d.recheck) continue;
+      revive(cand); cand.autoRechecks = d.attempt;
+      log('pemulihan mandiri: ' + cand.identifier + ' terblokir di gerbang (' + String(cand.blockReason ?? '').slice(0, 80) + '); keluaran dinilai ulang tanpa mengulang agen (ke-' + d.attempt + ')');
+      break;
+    }
+    // c) konten OTOMATIS berhenti di QA karena jatah revisi habis: serahkan ke antrean approval owner (owner tetap memutuskan)
+    if (!state.job) for (const cand of blockedList) {
+      const d = decideAutoHandoff({ job: cand, auto: isAutoBrief(cand.brief), nowMs: now, anotherActive: false, settings: cfg });
+      if (!d.handoff) continue;
+      try { writeOverride(runDirOf(OUTPUTS, runKeyOf(cand)), { note: 'Kantor otonom: QA menolak setelah jatah revisi habis; diserahkan ke antrean approval, owner yang memutuskan' }); } catch (e) { log('serah ke owner gagal: ' + String(e?.message ?? e).slice(0, 100)); continue; }
+      revive(cand); cand.autoHandoff = true;
+      log('pemulihan mandiri: ' + cand.identifier + ' berhenti di QA (jatah revisi habis); diserahkan ke antrean approval owner');
+      break;
     }
   }
 }

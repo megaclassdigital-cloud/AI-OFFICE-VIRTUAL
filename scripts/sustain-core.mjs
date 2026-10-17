@@ -100,6 +100,39 @@ export function pruneToSchema(data, schema, path = '', root = schema, changes = 
   return { data, changes };
 }
 
+/** Penyebab blokir yang berasal dari GERBANG keluaran (bukan infrastruktur): sesudah perbaikan mekanis di kode, menilai ulang keluaran yang ada layak dicoba. */
+export const GATE_BLOCK_RE = /tetap tidak lolos|render gagal|belum lolos gerbang|Validasi desain/i;
+
+/** Nilai ulang otomatis (tanpa mengulang agen) untuk blokir gerbang, maks 2x per job, hanya yang baru. */
+export function decideAutoRecheck({ job, nowMs, anotherActive, settings = {} }) {
+  const s = { ...SUSTAIN_DEFAULTS, autoRecheckMax: 2, ...settings };
+  if (!job || job.phase !== 'blocked' || !(job.stageIndex >= 0)) return { recheck: false, code: 'bukan-terblokir' };
+  if (anotherActive) return { recheck: false, code: 'ada-job-aktif' };
+  if (!GATE_BLOCK_RE.test(String(job.blockReason ?? ''))) return { recheck: false, code: 'bukan-gerbang' };
+  if ((job.autoRechecks ?? 0) >= s.autoRecheckMax) return { recheck: false, code: 'jatah-habis' };
+  const ended = job.endedMs ?? 0;
+  if (!ended || nowMs - ended > 6 * HOUR) return { recheck: false, code: 'terlalu-lama' };
+  if (nowMs - ended < 2 * MIN) return { recheck: false, code: 'tunggu' };
+  return { recheck: true, code: 'nilai-ulang', attempt: (job.autoRechecks ?? 0) + 1 };
+}
+
+/**
+ * Konten OTOMATIS yang berhenti di QA (jatah revisi habis / needs_human): serahkan ke antrean approval owner (owner tetap memutuskan; keputusan owner 17 Okt 2026),
+ * sekali per job. Brief owner tidak pernah diserahkan otomatis. Dikendalikan settings.autoHandoffToOwner (bawaan true).
+ */
+export function decideAutoHandoff({ job, auto, nowMs, anotherActive, settings = {} }) {
+  if (settings.autoHandoffToOwner === false) return { handoff: false, code: 'dimatikan' };
+  if (!job || job.phase !== 'blocked' || job.stageIndex !== 4) return { handoff: false, code: 'bukan-qa' };
+  if (!auto) return { handoff: false, code: 'bukan-otomatis' };
+  if (job.autoHandoff) return { handoff: false, code: 'sudah' };
+  if (anotherActive) return { handoff: false, code: 'ada-job-aktif' };
+  if (!/QA masih menolak|needs_human|putaran|jatah/i.test(String(job.blockReason ?? ''))) return { handoff: false, code: 'bukan-jatah-qa' };
+  const ended = job.endedMs ?? 0;
+  if (!ended || nowMs - ended > 12 * HOUR) return { handoff: false, code: 'terlalu-lama' };
+  if (nowMs - ended < 1 * MIN) return { handoff: false, code: 'tunggu' };
+  return { handoff: true, code: 'serahkan-ke-owner' };
+}
+
 /** Umpan balik untuk Designer saat gambar tak tersedia. */
 export function fallbackFeedback(missing, minutes) {
   const list = (missing ?? []).map((m) => `- ${m.file}${m.reason ? ` (${String(m.reason).slice(0, 100)})` : ''}`).join('\n');

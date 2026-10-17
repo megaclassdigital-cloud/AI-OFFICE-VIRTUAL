@@ -68,3 +68,27 @@ describe('sesi lama yang tak bisa dilanjutkan', () => {
     expect(needsSessionReset('QA menolak: font salah')).toBe(false);
   });
 });
+
+import { decideAutoRecheck, decideAutoHandoff } from '../scripts/sustain-core.mjs';
+describe('pemulihan mandiri: nilai ulang blokir gerbang dan serah ke owner', () => {
+  const gate = (over = {}) => ({ phase: 'blocked', stageIndex: 3, blockReason: 'keluaran tahap Designer tetap tidak lolos: render gagal: tanpa keluaran', endedMs: NOW - 5 * MIN, ...over });
+  it('blokir gerbang dinilai ulang otomatis maks 2x; infrastruktur/lama/ada job aktif tidak', () => {
+    expect(decideAutoRecheck({ job: gate(), nowMs: NOW })).toMatchObject({ recheck: true, attempt: 1 });
+    expect(decideAutoRecheck({ job: gate({ autoRechecks: 1 }), nowMs: NOW })).toMatchObject({ recheck: true, attempt: 2 });
+    expect(decideAutoRecheck({ job: gate({ autoRechecks: 2 }), nowMs: NOW }).code).toBe('jatah-habis');
+    expect(decideAutoRecheck({ job: gate({ blockReason: 'tahap Copywriter gagal: quota' }), nowMs: NOW }).code).toBe('bukan-gerbang');
+    expect(decideAutoRecheck({ job: gate(), nowMs: NOW, anotherActive: true }).code).toBe('ada-job-aktif');
+    expect(decideAutoRecheck({ job: gate({ endedMs: NOW - 7 * 3_600_000 }), nowMs: NOW }).code).toBe('terlalu-lama');
+    expect(decideAutoRecheck({ job: gate({ endedMs: NOW - 30_000 }), nowMs: NOW }).code).toBe('tunggu');
+  });
+  const qa = (over = {}) => ({ phase: 'blocked', stageIndex: 4, blockReason: 'QA masih menolak setelah 2 putaran revisi (x); butuh keputusan owner', endedMs: NOW - 5 * MIN, ...over });
+  it('serah ke owner: hanya konten OTOMATIS yang berhenti di QA (jatah habis), sekali, dan dapat dimatikan', () => {
+    expect(decideAutoHandoff({ job: qa(), auto: true, nowMs: NOW })).toMatchObject({ handoff: true });
+    expect(decideAutoHandoff({ job: qa(), auto: false, nowMs: NOW }).code).toBe('bukan-otomatis'); // brief owner: owner yang memutuskan
+    expect(decideAutoHandoff({ job: qa({ autoHandoff: true }), auto: true, nowMs: NOW }).code).toBe('sudah');
+    expect(decideAutoHandoff({ job: qa({ stageIndex: 3 }), auto: true, nowMs: NOW }).code).toBe('bukan-qa');
+    expect(decideAutoHandoff({ job: qa({ blockReason: 'tahap QA gagal: fetch failed' }), auto: true, nowMs: NOW }).code).toBe('bukan-jatah-qa');
+    expect(decideAutoHandoff({ job: qa(), auto: true, nowMs: NOW, settings: { autoHandoffToOwner: false } }).code).toBe('dimatikan');
+    expect(decideAutoHandoff({ job: qa(), auto: true, nowMs: NOW, anotherActive: true }).code).toBe('ada-job-aktif');
+  });
+});

@@ -60,6 +60,14 @@ const lock = acquireLock(ROOT, 'launcher');
 if (!lock.ok) { console.error(`Pengawas lain sudah berjalan (pid ${lock.pid}).`); process.exit(3); }
 process.on('exit', () => releaseLock(lock.file));
 
+/** Monitor kedua dipasang hanya bila sudah dikonfigurasi di .env (nilai rahasia tidak dibaca di sini, hanya keberadaannya). */
+function mirrorConfigured() {
+  try {
+    const t = readFileSync(path.join(ROOT, '.env'), 'utf8');
+    return /^MIRROR_URL=\S+/m.test(t) && /^MIRROR_INGEST_SECRET=\S+/m.test(t);
+  } catch { return false; }
+}
+
 /** Definisi komponen. needsPaperclip: baru dinyalakan setelah Paperclip terbukti sehat (menghindari kegagalan awal). */
 const DEFS = [
   { key: 'office-view', label: 'Office View', needsPaperclip: false, match: 'apps/office-view/server.mjs', args: ['apps/office-view/server.mjs', '--port', String(PORT), '--paperclip', API, '--enable-talk', '--enable-owner', ...(PUBLIC ? ['--public'] : [])] },
@@ -67,6 +75,8 @@ const DEFS = [
   { key: 'failover', label: 'Failover model', needsPaperclip: true, match: 'scripts/manager-failover.mjs', args: ['scripts/manager-failover.mjs', '--watch'] },
   // Admin Publikasi (ADR-0005): kode tanpa LLM; hanya membaca berkas approval, jadi tidak butuh Paperclip. Mode dry-run/live diatur di workspace/agent/autopost/settings.json.
   { key: 'autopost', label: 'Admin Publikasi', needsPaperclip: false, match: 'scripts/autopost/worker.mjs', args: ['scripts/autopost/worker.mjs', '--watch'] },
+  // Monitor kedua (Vercel): hanya dipasang bila MIRROR_URL dan MIRROR_INGEST_SECRET ada di .env. Hanya membaca, berprioritas rendah, dan menunda diri saat RAM menipis.
+  ...(mirrorConfigured() ? [{ key: 'mirror', label: 'Monitor Vercel', needsPaperclip: false, match: 'scripts/mirror-publisher.mjs', args: ['scripts/mirror-publisher.mjs', '--watch'] }] : []),
 ];
 const comp = new Map(DEFS.map((d) => [d.key, { def: d, child: null, pid: null, adopted: false, restarts: [], nextStartAt: 0, badSince: null, failed: false }]));
 let pcMisses = 0; let lastGoodPaperclip = null;
@@ -267,7 +277,7 @@ async function cycle() {
   } else pluginBadSince = null;
   const procsOnce = { list: null };
   for (const c of comp.values()) {
-    const h = health.components.find((x) => x.key === c.def.key);
+    const h = health.components.find((x) => x.key === c.def.key) ?? { state: 'ok' }; // komponen tanpa penilaian kesehatan (mis. mirror): cukup dijaga agar hidup
     const alive = isAlive(c);
     if (h.state === 'ok' || h.state === 'mulai') c.badSince = null; else c.badSince ??= nowMs;
     if (stopping) continue;
