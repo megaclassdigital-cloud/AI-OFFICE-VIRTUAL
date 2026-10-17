@@ -20,7 +20,7 @@ const jget = (u) => fetch(u, { cache: 'no-store' }).then((r) => r.json());
 const hhmm = (ms) => (ms ? new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':') : '');
 const hhmmss = (ms) => (ms ? new Date(ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replaceAll('.', ':') : '');
 const ago = (ms) => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 90 ? `${s} dtk lalu` : s < 5400 ? `${Math.round(s / 60)} mnt lalu` : `${Math.round(s / 3600)} jam lalu`; };
-const AGENT_ICON = { Manager: '🧭', Researcher: '🔎', Verifier: '🛡️', Copywriter: '✍️', Designer: '🎨', QA: '✅', Owner: '👤' };
+const AGENT_ICON = { 'Admin Publikasi': '📮', Manager: '🧭', Researcher: '🔎', Verifier: '🛡️', Copywriter: '✍️', Designer: '🎨', QA: '✅', Owner: '👤' };
 const RUN_COLOR = { running: 'run', succeeded: 'ok', failed: 'bad', timed_out: 'bad', error: 'bad', cancelled: 'mut' };
 
 // ───────── internet banner (read-only, always on) ─────────
@@ -151,12 +151,34 @@ pollOutbox(); setInterval(pollOutbox, 4000);
 
 // ───────── Agent "memory" inspector ─────────
 const agentTab = $('tab-agent');
-const agentNames = ['Manager', 'Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA'];
+const agentNames = ['Manager', 'Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA', 'Admin Publikasi'];
 function pickAgent(name) { state.agent = name; ls.set('dock.agent', name); window.__office?.select?.(name); loadAgent(); }
+// Admin Publikasi = pekerja kode tanpa LLM, bukan agen Paperclip: kartunya dari /api/inspect/autopost (baca-saja).
+const sisaTxt = (ms) => { if (ms <= 0) return 'siap'; const m = Math.ceil(ms / 60000); const j = Math.floor(m / 60); return j ? `${j} jam${m % 60 ? ` ${m % 60} menit` : ''}` : `${m} menit`; };
+const PUB_STATUS = { diposting: '✔ diposting', sedang_diposting: '⏳ sedang diposting', tidak_pasti: '⚠ tidak pasti', gagal: '✖ gagal sebelum terkirim', dry_run_ok: '🧪 dry-run lolos', dry_run_gagal: '🧪 dry-run gagal' };
+async function loadPublisher(chips) {
+  let d; try { d = await jget('/api/inspect/autopost'); } catch { d = null; }
+  if (state.tab !== 'agent' || state.agent !== 'Admin Publikasi') return;
+  const s = d?.status;
+  if (!s) { setKids(agentTab, chips, h('p', { class: 'hint' }, 'Admin Publikasi belum menulis status. Pastikan komponennya berjalan.')); return; }
+  const now = Date.now();
+  const head = h('div', { class: 'card head' }, h('div', { class: 'avatar' }, '📮'),
+    h('div', {}, h('div', { class: 'title' }, 'Admin Publikasi', h('span', { class: `pill ${s.paused ? 'bad' : 'ok'}` }, s.paused ? 'dijeda' : 'bertugas')),
+      h('div', { class: 'sub' }, `Kode dan log, tanpa AI · jeda ${s.cooldownHours} jam dari posting terakhir`)));
+  const plat = h('div', { class: 'card' }, h('h4', {}, 'Platform'), Object.entries(s.platforms ?? {}).map(([n, p]) => {
+    const remain = p.nextAllowedAt ? Math.max(0, Date.parse(p.nextAllowedAt) - now) : 0;
+    return h('div', { class: 'cm' }, h('b', {}, n === 'instagram' ? '📷 Instagram' : n === 'tiktok' ? '🎵 TikTok' : n), ` · ${p.live ? 'LIVE' : 'dry-run'}`, h('div', { class: 'sub' }, `boleh posting lagi: ${sisaTxt(remain)} · total diposting: ${p.postedTotal}`));
+  }));
+  const queue = h('div', { class: 'card' }, h('h4', {}, 'Antrean'), h('div', { class: 'sub' }, `${s.approvedWaiting} konten approved menunggu giliran. Riwayat lengkap di TV, tab Publikasi.`),
+    (s.blocked ?? []).slice(0, 3).map((b) => h('div', { class: 'sub' }, `Ditahan ${b.content}/${b.platform}: ${b.reasons.join('; ')}`)));
+  const rec = h('div', { class: 'card' }, h('h4', {}, 'Riwayat terakhir'), (d.recent ?? []).length ? h('ul', { class: 'runs' }, d.recent.slice(0, 6).map((e) => h('li', {}, `${hhmm(Date.parse(e.at))} · ${e.content} → ${e.platform}: ${PUB_STATUS[e.status] ?? e.status}`, e.error ? h('div', { class: 'sub bad' }, e.error) : null))) : h('div', { class: 'sub' }, 'Belum ada.'));
+  setKids(agentTab, chips, head, plat, queue, rec);
+}
 async function loadAgent() {
   const chips = h('div', { class: 'chips' }, agentNames.map((n) => h('button', { type: 'button', class: 'chip' + (n === state.agent ? ' on' : ''), onclick: () => pickAgent(n) }, `${AGENT_ICON[n]} ${n}`)));
   if (!state.agent) { setKids(agentTab, chips, h('p', { class: 'hint' }, 'Klik karakter di peta, atau pilih agen di atas, untuk melihat sedang apa dia dan jejak kerjanya.')); return; }
   if (!agentTab.querySelector('.card')) setKids(agentTab, chips, h('p', { class: 'hint' }, `Memuat ${state.agent}…`)); // kerangka seketika, data menyusul
+  if (state.agent === 'Admin Publikasi') { await loadPublisher(chips); return; }
   let d; try { d = await jget(`/api/inspect/agent?name=${encodeURIComponent(state.agent)}`); } catch { d = { error: 'tidak terhubung' }; }
   if (state.tab !== 'agent') return;
   if (d.error) { setKids(agentTab, chips, h('p', { class: 'hint' }, `Gagal memuat: ${d.error}`)); return; }

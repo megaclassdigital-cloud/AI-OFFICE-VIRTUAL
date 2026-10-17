@@ -53,8 +53,8 @@
       "live": true
     },
     {
-      "id": "rapat",
-      "name": "Ruang Rapat",
+      "id": "publikasi",
+      "name": "Ruang Publikasi",
       "x": 1540,
       "y": 100,
       "w": 340,
@@ -66,8 +66,7 @@
       "aisleY": 430,
       "floor": "#42525e",
       "glass": true,
-      "live": false,
-      "dimLabel": "segera aktif"
+      "live": true
     },
     {
       "id": "owner",
@@ -239,6 +238,24 @@
         "x": 430,
         "y": 885
       }
+    },
+    {
+      "key": "publikasi",
+      "room": "publikasi",
+      "desk": {
+        "x": 1620,
+        "y": 230,
+        "w": 170,
+        "h": 66
+      },
+      "seat": {
+        "x": 1705,
+        "y": 322
+      },
+      "stand": {
+        "x": 1820,
+        "y": 322
+      }
     }
   ],
   "roleToDeskKey": {
@@ -246,7 +263,8 @@
     "designer": "designer",
     "qa": "qa",
     "general": "copywriter",
-    "pm": "manager"
+    "pm": "manager",
+    "publikasi": "publikasi"
   },
   "ownerSeat": {
     "x": 150,
@@ -347,12 +365,6 @@
     "y": 700,
     "w": 160,
     "h": 56
-  },
-  "meetingTable": {
-    "x": 1590,
-    "y": 250,
-    "w": 240,
-    "h": 100
   },
   "plants": [
     {

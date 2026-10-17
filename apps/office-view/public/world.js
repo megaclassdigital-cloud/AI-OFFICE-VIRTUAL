@@ -51,6 +51,7 @@ export function homeOf(world, c) {
   const slot = (arr) => arr[c.slot % arr.length];
   if (c.state === 'failed' || c.state === 'alert') return slot(L.bugSlots);
   const desk = deskOf(world, c);
+  if (c.duty && desk) return desk.seat; // karyawan jaga (kode, bukan agen Paperclip): selalu di mejanya, termasuk saat siaga
   if ((c.state === 'working' || c.state === 'paused') && desk) return desk.seat;
   return slot(L.loungeSlots);
 }
@@ -112,6 +113,7 @@ const fmtElapsed = (sec) => (sec < 60 ? `${Math.max(1, Math.floor(sec))}d` : `${
 /** Teks "berbicara dalam hati" dari data log (tanpa LLM, tanpa token). Kosong untuk Owner. */
 export function thoughtOf(c, t) {
   if (c.isOwner) return '';
+  if (c.duty && c.thought && !c.moving) return c.thought;
   const ref = c.issue?.identifier ? ` (${c.issue.identifier})` : '';
   const el = c.since !== undefined ? ` · ${fmtElapsed(t - c.since)}` : '';
   if (c.carry) return `Membawa dokumen${ref} ke rekan`;
@@ -154,6 +156,13 @@ export function applyEvent(world, ev, { instant = false } = {}) {
       else if (ev.state === 'alert') say(world, c, '⚠️', ev.reason ?? 'butuh manusia', 8);
       else if (ev.state === 'paused') say(world, c, '😴', ev.reason ?? 'dijeda', 8);
       else if (ev.state === 'idle' && prev !== 'idle' && !instant) say(world, c, '☕', '', 3);
+      break;
+    }
+    case 'publisher.state': {
+      // Admin Publikasi bukan agen Paperclip: keadaannya dari status.json pekerja (publisherEvent), tetapi geraknya lewat jalur agent.state yang sama.
+      const c = ensureChar(world, ev);
+      c.duty = true; c.thought = ev.thought ?? '';
+      applyEvent(world, { ...ev, type: 'agent.state' }, { instant });
       break;
     }
     case 'handoff': {
@@ -248,7 +257,7 @@ export function stepWorld(world, dt) {
     // Tidak ada tugas: pastikan berada di tempatnya; pose menurut state
     const h = homeOf(world, c);
     if (dist(c, h) > 3) { c.path = planPath(world.layout, c, h); continue; }
-    if (c.state === 'working' || c.state === 'paused' || c.isOwner) c.facing = 'up';
+    if (c.state === 'working' || c.state === 'paused' || c.isOwner || (c.duty && c.state === 'idle')) c.facing = 'up';
     else if (c.state === 'idle') {
       c.wander -= dt;
       if (c.wander <= 0) {
@@ -257,6 +266,32 @@ export function stepWorld(world, dt) {
       } else c.facing = 'down';
     } else c.facing = 'down';
   }
+}
+
+export const PUBLISHER_ID = 'admin-publikasi';
+const STALE_MS = 3 * 60_000;
+const fmtRemain = (ms) => { const m = Math.ceil(ms / 60000); const j = Math.floor(m / 60); return j ? `${j} jam${m % 60 ? ` ${m % 60} menit` : ''}` : `${m} menit`; };
+
+/** Keadaan Admin Publikasi dari /api/inspect/autopost ({status, recent}). Murni: tanpa DOM, tanpa LLM. */
+export function publisherEvent(view, nowMs) {
+  const base = { type: 'publisher.state', agentId: PUBLISHER_ID, name: 'Admin Publikasi', role: 'publikasi', issue: null };
+  const s = view?.status;
+  const age = s?.at ? nowMs - Date.parse(s.at) : Infinity;
+  if (!s || !(age <= STALE_MS)) return { ...base, state: 'failed', reason: 'tidak aktif', thought: 'Tidak menulis status — menunggu dipulihkan pengawas' };
+  const last = view.recent?.[0];
+  if (last?.status === 'sedang_diposting') return { ...base, state: 'working', issue: { identifier: last.content, title: `→ ${last.platform}` }, thought: `Memposting ${last.content} ke ${last.platform}` };
+  if (last?.status === 'tidak_pasti') return { ...base, state: 'alert', reason: 'hasil posting tidak pasti', issue: { identifier: last.content, title: last.platform }, thought: `Hasil ${last.content} di ${last.platform} tidak pasti — owner perlu memeriksa akun` };
+  if (s.paused) return { ...base, state: 'paused', reason: 'dijeda owner', thought: 'Dijeda owner — tidak memposting apa pun' };
+  const live = Object.entries(s.platforms ?? {}).filter(([, p]) => p.live);
+  const waits = live.map(([, p]) => (p.nextAllowedAt ? Date.parse(p.nextAllowedAt) - nowMs : 0)).filter((ms) => ms > 0);
+  const soonest = waits.length ? Math.min(...waits) : 0;
+  const n = s.approvedWaiting ?? 0;
+  let thought;
+  if (!live.length) thought = 'Siaga: belum ada platform yang live (hanya dry-run)';
+  else if (n > 0 && soonest > 0) thought = `${n} konten antre; posting berikutnya dalam ${fmtRemain(soonest)}`;
+  else if (n > 0) thought = `Menyiapkan posting berikutnya (${n} konten antre)`;
+  else thought = soonest > 0 ? `Tidak ada antrean; jeda posting tersisa ${fmtRemain(soonest)}` : 'Siaga: menunggu konten yang di-approve owner';
+  return { ...base, state: 'idle', thought };
 }
 
 /** Kalimat log berbahasa Indonesia untuk satu event (null = tidak dicatat). */
@@ -270,6 +305,10 @@ export function describeEvent(world, ev, stamp) {
       if (ev.state === 'failed') return `${hh} ${ev.name ?? nm(ev.agentId)} gagal${ev.reason ? `: ${ev.reason}` : ''} → Pojok Bug`;
       if (ev.state === 'alert') return `${hh} ${ev.name ?? nm(ev.agentId)} butuh manusia → Pojok Bug`;
       if (ev.state === 'paused') return `${hh} ${ev.name ?? nm(ev.agentId)} dijeda${ev.reason ? ` (${ev.reason})` : ''}`;
+      return null;
+    case 'publisher.state':
+      if (ev.state === 'working') return `${hh} Admin Publikasi ${ev.thought.charAt(0).toLowerCase()}${ev.thought.slice(1)}`;
+      if (ev.state === 'alert' || ev.state === 'failed' || ev.state === 'paused') return `${hh} Admin Publikasi: ${ev.thought}`;
       return null;
     case 'handoff':
       return ev.emoji === '❌' ? `${hh} ${nm(ev.from)} mengembalikan ${ev.issue?.identifier ?? ''} ke ${nm(ev.to)} (revisi)` : `${hh} ${nm(ev.from)} menyerahkan ${ev.issue?.identifier ?? 'dokumen'} ke ${nm(ev.to)}`;

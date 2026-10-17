@@ -17,7 +17,7 @@ Referensi visual: `referensi-office-view.png`. Keputusan teknis: `docs/decisions
 | Studio Konten | Meja Copywriter, meja Designer | Menulis dan mendesain carousel |
 | Meja QA | Meja QA | Pemeriksaan kualitas |
 | Meja Owner | Meja owner + "kotak approval" | Paket yang menunggu approval |
-| Ruang Rapat (kaca) | Meja rapat | Review gate dan revisi |
+| Ruang Publikasi (kaca) | Meja Admin Publikasi | Pekerja kode tanpa LLM: memposting konten yang di-approve (status dari status.json pekerja) |
 | Papan Tayang | Papan di dinding | Paket yang sudah approved dan siap posting |
 | Lounge | Sofa, mesin kopi | Agent idle |
 | Pojok Bug | Meja kecil dengan tanda ⚠ | Run error atau `needs_human` |

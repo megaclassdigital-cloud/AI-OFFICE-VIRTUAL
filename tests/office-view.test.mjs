@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import { createWorld, applyEvent, stepWorld, planPath, roomAt, addOwner, homeOf, describeEvent } from '../apps/office-view/public/world.js';
+import { createWorld, applyEvent, stepWorld, planPath, roomAt, addOwner, homeOf, describeEvent, publisherEvent, thoughtOf } from '../apps/office-view/public/world.js';
 import { createBridge } from '../apps/office-view/bridge.mjs';
 import { repoRoot } from './helpers.mjs';
 
@@ -24,7 +24,7 @@ const issue = { id: 'i1', identifier: 'EDU-3', title: 'Uji' };
 
 describe('denah (layout.json)', () => {
   it('8 ruang sesuai OFFICE-VIEW.md', () => {
-    expect(layout.rooms.map((r) => r.id).sort()).toEqual(['bug', 'lounge', 'owner', 'papan', 'qa', 'rapat', 'riset', 'studio']);
+    expect(layout.rooms.map((r) => r.id).sort()).toEqual(['bug', 'lounge', 'owner', 'papan', 'publikasi', 'qa', 'riset', 'studio']);
   });
   it('semua meja, kursi, pintu, dan slot berada di dalam kanvas dan di dalam ruang yang benar', () => {
     const inside = (p) => p.x >= 0 && p.x <= layout.canvas.width && p.y >= 0 && p.y <= layout.canvas.height;
@@ -38,8 +38,8 @@ describe('denah (layout.json)', () => {
     expect(roomAt(layout, layout.ownerSeat)?.id).toBe('owner');
     expect(roomAt(layout, layout.ownerDrop)?.id).toBe('owner');
   });
-  it('ruang tanpa sumber data nyata ditandai tidak live (segera aktif)', () => {
-    expect(layout.rooms.filter((r) => !r.live).map((r) => r.id).sort()).toEqual(['rapat']);
+  it('semua ruang live (Ruang Publikasi dipakai Admin Publikasi)', () => {
+    expect(layout.rooms.filter((r) => !r.live).map((r) => r.id)).toEqual([]);
   });
 });
 
@@ -425,5 +425,43 @@ describe('TV: judul revisi, penahanan gambar', () => {
     const job = { phase: 'running', stageIndex: 3 };
     expect(stageStates({ have, job, holdCount: 3 }).find((s) => s.key === 'designer').state).toBe('hold');
     expect(stageStates({ have, job, holdCount: 0 }).find((s) => s.key === 'designer').state).toBe('running');
+  });
+});
+
+describe('Admin Publikasi (karyawan kode di Ruang Publikasi)', () => {
+  const NOW = Date.parse('2026-10-17T10:00:00Z');
+  const fresh = '2026-10-17T09:59:30Z';
+  const st = (over = {}) => ({ status: { paused: false, cooldownHours: 3, approvedWaiting: 0, platforms: { instagram: { live: true, nextAllowedAt: null }, tiktok: { live: false } }, at: fresh, ...over }, recent: [] });
+  it('status tak terbaca atau basi => failed (Pojok Bug); sedang diposting => working; tidak pasti => alert; dijeda => paused', () => {
+    expect(publisherEvent(null, NOW).state).toBe('failed');
+    expect(publisherEvent(st({ at: '2026-10-17T09:50:00Z' }), NOW).state).toBe('failed');
+    const work = publisherEvent({ ...st(), recent: [{ content: 'EDU-97', platform: 'instagram', status: 'sedang_diposting' }] }, NOW);
+    expect([work.state, work.issue.identifier]).toEqual(['working', 'EDU-97']);
+    expect(publisherEvent({ ...st(), recent: [{ content: 'EDU-97', platform: 'tiktok', status: 'tidak_pasti' }] }, NOW).state).toBe('alert');
+    expect(publisherEvent(st({ paused: true }), NOW).state).toBe('paused');
+  });
+  it('siaga: teks hitung mundur jeda dan antrean', () => {
+    const e = publisherEvent(st({ approvedWaiting: 2, platforms: { instagram: { live: true, nextAllowedAt: '2026-10-17T12:05:00Z' } } }), NOW);
+    expect(e.state).toBe('idle');
+    expect(e.thought).toBe('2 konten antre; posting berikutnya dalam 2 jam 5 menit');
+    expect(publisherEvent(st(), NOW).thought).toMatch(/menunggu konten/);
+  });
+  it('duduk di mejanya (idle maupun working), pindah ke Pojok Bug saat alert, dan kembali', () => {
+    const w = mkWorld();
+    applyEvent(w, publisherEvent(st(), NOW), { instant: true });
+    const c = char(w, 'admin-publikasi');
+    const desk = layout.desks.find((d) => d.key === 'publikasi');
+    expect({ x: c.x, y: c.y }).toEqual(desk.seat);
+    expect(thoughtOf(c, w.t)).toMatch(/Siaga/);
+    applyEvent(w, publisherEvent({ ...st(), recent: [{ content: 'EDU-97', platform: 'tiktok', status: 'tidak_pasti' }] }, NOW));
+    expect(until(w, () => roomAt(layout, c)?.id === 'bug')).toBe(true);
+    applyEvent(w, publisherEvent(st(), NOW));
+    expect(until(w, () => Math.hypot(c.x - desk.seat.x, c.y - desk.seat.y) < 3)).toBe(true);
+    expect(roomAt(layout, desk.seat)?.id).toBe('publikasi');
+  });
+  it('log: hanya kejadian bermakna yang dicatat', () => {
+    const w = mkWorld();
+    expect(describeEvent(w, publisherEvent(st(), NOW), 't')).toBeNull();
+    expect(describeEvent(w, publisherEvent({ ...st(), recent: [{ content: 'EDU-97', platform: 'instagram', status: 'sedang_diposting' }] }, NOW), 't')).toMatch(/memposting EDU-97/);
   });
 });

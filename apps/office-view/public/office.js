@@ -1,6 +1,6 @@
 // Office View: renderer Canvas + kontroler. Semua gerakan datang dari applyEvent() (world.js) —
 // event LIVE (bridge) dan event SIMULASI (replay) memakai jalur yang sama. Tidak ada aksi tulis, tidak ada LLM.
-import { createWorld, applyEvent, stepWorld, describeEvent, addOwner, roomAt, thoughtOf } from './world.js';
+import { createWorld, applyEvent, stepWorld, describeEvent, addOwner, roomAt, thoughtOf, publisherEvent } from './world.js';
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -45,9 +45,8 @@ function drawStatic(layout, mode) {
   // meja owner + kotak approval
   drawDesk(c, layout.ownerDesk, null); label(c, 'OWNER', layout.ownerDesk.x + 12, layout.ownerDesk.y + 12, 16, '#2c1d10');
   const md = layout.desks.find((d) => d.key === 'manager'); if (md) label(c, 'MANAGER', md.desk.x + 12, md.desk.y + 12, 16, '#2c1d10');
+  const pd = layout.desks.find((d) => d.key === 'publikasi'); if (pd) label(c, 'PUBLIKASI', pd.desk.x + 12, pd.desk.y + 12, 16, '#2c1d10');
   const b = layout.ownerBox; c.fillStyle = '#d6c7a1'; rr(c, b.x, b.y, b.w, b.h, 6); c.fill(); c.fillStyle = '#b8a673'; c.fillRect(b.x + 8, b.y + 8, b.w - 16, 12); label(c, 'approval · Manager', b.x - 30, b.y + b.h + 4, 13, '#ffe9b0');
-  // rapat (kaca)
-  const m = layout.meetingTable; c.fillStyle = '#7e8da0'; rr(c, m.x, m.y, m.w, m.h, 18); c.fill(); c.fillStyle = '#93a3b8'; rr(c, m.x + 8, m.y + 8, m.w - 16, 14, 8); c.fill();
   // lounge
   const s = layout.sofa; c.fillStyle = '#7a3f56'; rr(c, s.x, s.y, s.w, s.h, 14); c.fill(); c.fillStyle = '#93506b'; for (let i = 0; i < 3; i++) { rr(c, s.x + 10 + i * 96, s.y + 10, 88, s.h - 20, 10); c.fill(); }
   const cf = layout.coffee; c.fillStyle = '#2b2f3a'; rr(c, cf.x, cf.y, cf.w, cf.h, 8); c.fill(); c.fillStyle = '#e45858'; c.fillRect(cf.x + 12, cf.y + 12, 36, 14); c.fillStyle = '#fff'; c.fillRect(cf.x + 18, cf.y + 44, 24, 24); label(c, '☕', cf.x + 14, cf.y - 28, 24);
@@ -251,7 +250,7 @@ function setModeUi() {
 
 async function jget(url) { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(`${url} ${r.status}`); return r.json(); }
 
-function freshWorld(mode) { app.world = createWorld(app.layout); app.world.mode = mode; addOwner(app.world); }
+function freshWorld(mode) { app.world = createWorld(app.layout); app.world.mode = mode; addOwner(app.world); app.pubKey = ''; }
 
 async function startLive() {
   app.mode = 'live'; app.speed = 1; app.paused = false; $('log').replaceChildren(); setModeUi();
@@ -263,6 +262,7 @@ async function startLive() {
     addLog(`${stamp()} keadaan terkini dibaca: ${[...app.world.chars.values()].filter((c) => !c.isOwner).length} agent`);
   } catch { app.connected = false; }
   setBanner();
+  pollPublisher();
 }
 
 async function pollLive() {
@@ -281,6 +281,19 @@ async function pollLive() {
     }
   } catch { app.connected = false; }
   setBanner();
+}
+
+// Admin Publikasi: keadaannya dari status pekerja kode (bukan Paperclip), lewat jalur applyEvent yang sama. Hanya mode live.
+async function pollPublisher() {
+  if (app.mode !== 'live' || !app.world) return;
+  try {
+    const ev = publisherEvent(await jget('/api/inspect/autopost'), Date.now());
+    const key = JSON.stringify([ev.state, ev.reason, ev.thought, ev.issue?.identifier]);
+    if (key === app.pubKey) return;
+    const first = !app.pubKey; app.pubKey = key;
+    applyEvent(app.world, ev, { instant: first });
+    if (!first) addLog(describeEvent(app.world, ev, stamp()));
+  } catch { /* status tidak terbaca: keadaan terakhir dipertahankan */ }
 }
 
 async function startSim() {
@@ -318,6 +331,7 @@ async function init() {
   app.sprites = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(im); im.src = `/assets/characters/char_${i}.png`; })));
   await startLive();
   setInterval(pollLive, 1000);
+  pollPublisher(); setInterval(pollPublisher, 5000);
   const pollBoard = async () => { try { app.boardItems = (await jget('/api/inspect/board?limit=3')).items ?? []; } catch { /* TV tetap menampilkan data terakhir */ } };
   pollBoard(); setInterval(pollBoard, 10000);
   requestAnimationFrame(frame);
