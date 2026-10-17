@@ -489,3 +489,23 @@ describe('Manager aktif: teks pikiran dari status kantor otonom', () => {
     c.autoThought = 'Inisiatif sendiri: uji'; expect(thoughtOf(c, 0)).toBe('Inisiatif sendiri: uji'); void mg;
   });
 });
+
+describe('run selesai lalu dihentikan (SIGTERM) bukan kegagalan kerja', () => {
+  const finished = { id: 'rt', agentId: 'a-c', status: 'failed', errorCode: 'adapter_failed', signal: 'SIGTERM', resultJson: { summary: 'sudah selesai' }, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString() };
+  it('status agen error + run terakhir selesai-lalu-SIGTERM => tidak failed (tidak masuk Pojok Bug)', async () => {
+    const { S, fetchImpl } = fakePaperclip();
+    const b = createBridge({ fetchImpl }); await b.poll();
+    S.agents[1] = { ...S.agents[1], status: 'error' }; S.runs = [finished];
+    await b.poll();
+    const st = Object.fromEntries(b.eventsSince(0).events.filter((e) => e.type === 'agent.state').map((e) => [e.agentId, e.state]));
+    expect(st['a-c']).toBeUndefined(); // tidak ada perubahan ke failed
+    expect(b.snapshot().events.find((e) => e.agentId === 'a-c').state).toBe('idle');
+  });
+  it('kegagalan sungguhan (tanpa hasil, atau bukan SIGTERM) tetap failed', async () => {
+    for (const bad of [{ ...finished, resultJson: null }, { ...finished, signal: null }, { ...finished, errorCode: 'claude_auth_required' }]) {
+      const { S, fetchImpl } = fakePaperclip(); const b = createBridge({ fetchImpl }); await b.poll();
+      S.runs = [bad]; await b.poll();
+      expect(b.snapshot().events.find((e) => e.agentId === 'a-c').state, JSON.stringify(bad).slice(0, 60)).toBe('failed');
+    }
+  });
+});

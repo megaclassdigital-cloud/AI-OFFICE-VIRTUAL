@@ -119,7 +119,7 @@ describe('brief otomatis', () => {
     const b = buildAutoBrief({ nowMs: NOW, insights: analysis, insightsAtMs: NOW - HOUR, recentTitles: ['Topik lama A', 'Topik lama B'], freshHours: 48 });
     expect(isAutoBrief(b)).toBe(true);
     expect(b).toMatch(/2026-10-17 10:00 WIB/);
-    expect(b).toMatch(/48 jam terakhir/);
+    expect(b).toMatch(/tidak lebih tua dari 48 jam/); // batas seleksi internal, disebut sebagai bukan bahan tulisan
     expect(b).toMatch(/Rata-rata \d+ views/);
     expect(b).toMatch(/- Topik lama A/);
     expect(b).toMatch(/Jangan mengarang angka/);
@@ -132,5 +132,30 @@ describe('brief otomatis', () => {
   });
   it('bukan brief revisi (tidak salah dikenali parser revisi orkestrator)', () => {
     expect(parseRevisionBrief(buildAutoBrief({ nowMs: NOW }))).toBeNull();
+  });
+});
+
+describe('brief otomatis: pembawaan topik tidak kaku terhadap info waktu', () => {
+  const analysis = analyzeInsights(parseTikTokContent(SAMPLE));
+  const b = buildAutoBrief({ nowMs: NOW, insights: analysis, insightsAtMs: NOW - HOUR, recentTitles: ['Topik lama A'], freshHours: 48 });
+  const heading = b.split('\n').find((l) => l.startsWith('# '));
+  it('judul brief (yang disalin Manager jadi judul kerja) bebas kata waktu', () => {
+    expect(heading).not.toMatch(/terbaru|terkini|terhangat|48 jam|minggu ini|hari ini/i);
+    expect(b).toMatch(/JANGAN memakai kata waktu/);
+  });
+  it('meminta SATU cerita spesifik, bukan rangkuman/daftar tren; jendela waktu hanya batas seleksi internal', () => {
+    expect(b).toMatch(/SATU carousel/); expect(b).toMatch(/satu cerita AI yang spesifik/);
+    expect(b).toMatch(/Bukan rangkuman umum/);
+    expect(b).toMatch(/batas SELEKSI internal, bukan bahan tulisan/);
+    expect(b).toMatch(/jangan menyebut jendela waktu itu di judul, hook, atau isi/);
+  });
+  it('melarang frasa kaku dan menyertakan contoh pembawaan (kalimat pembuka posting terbaik akun, tanpa hashtag)', () => {
+    expect(b).toMatch(/Hindari frasa kaku/);
+    expect(b).toMatch(/Contoh pembawaan yang sudah terbukti/);
+    expect(b).toMatch(/"Anthropic memperkuat keamanan AI"/);
+    expect(b).not.toMatch(/#Anthropic/);
+  });
+  it('tanpa data analitik: tidak ada bagian contoh pembawaan (tidak mengarang)', () => {
+    expect(buildAutoBrief({ nowMs: NOW, insights: null })).not.toMatch(/Contoh pembawaan/);
   });
 });

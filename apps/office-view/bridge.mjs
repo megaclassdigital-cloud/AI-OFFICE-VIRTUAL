@@ -5,6 +5,11 @@
 const FAIL = new Set(['failed', 'error', 'timed_out', 'timeout']);
 const RUNNING = new Set(['running', 'queued']);
 const FAIL_WINDOW_MS = 15 * 60_000;
+/**
+ * Run yang SUDAH SELESAI mengerjakan tugasnya (resultJson berisi ringkasan) lalu dihentikan SIGTERM oleh adapter/orkestrator tetap dicatat Paperclip sebagai
+ * failed/adapter_failed. Itu bukan kegagalan kerja: tidak boleh menjadikan agen "bug" di Pojok Bug.
+ */
+export const finishedThenTerminated = (r) => !!r && FAIL.has(r.status) && r.errorCode === 'adapter_failed' && r.signal === 'SIGTERM' && !!(r.resultJson && (r.resultJson.summary || r.resultJson.result));
 const ACTIVE_COMMENT_WINDOW_MS = 15 * 60_000;
 const MAX_TRACKED_ISSUES = 8;
 const RING = 500;
@@ -54,10 +59,10 @@ export function createBridge({ base = 'http://127.0.0.1:3177', fetchImpl = fetch
         state = 'paused'; reason = a.pauseReason ?? undefined;
       } else if (blocked) {
         state = 'alert'; issue = blocked; reason = 'needs_human';
-      } else if (a.status === 'error') {
+      } else if (a.status === 'error' && !finishedThenTerminated(latest)) {
         // Status error di Paperclip menetap sampai dibersihkan: agent tetap di Pojok Bug selama itu benar.
         state = 'failed'; reason = latest?.errorCode ?? a.errorReason ?? 'error';
-      } else if (latest && FAIL.has(latest.status) && nowMs - (Date.parse(latest.finishedAt ?? latest.startedAt ?? 0) || 0) < FAIL_WINDOW_MS) {
+      } else if (latest && FAIL.has(latest.status) && !finishedThenTerminated(latest) && nowMs - (Date.parse(latest.finishedAt ?? latest.startedAt ?? 0) || 0) < FAIL_WINDOW_MS) {
         state = 'failed'; reason = latest.errorCode ?? latest.error ?? latest.status;
       }
       void runById;

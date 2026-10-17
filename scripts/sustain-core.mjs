@@ -57,6 +57,41 @@ export function holdFallbackDecision({ auto, sinceMs, nowMs, rounds = 0, setting
   return { fallback: true, code: 'desain-tanpa-gambar' };
 }
 
+/**
+ * Finalisasi (finalize-production) gagal karena pemeriksaan deterministik QA menolak dan MEMINTA REVISI ke departemen (qa.action = return_to_<tahap>):
+ * itu bukan blokir infrastruktur maupun fatal, melainkan putaran revisi QA yang harus dirutekan (seperti qaReturn dari qa-result.json).
+ * Mengembalikan { to, rounds } atau null bila baris terakhir bukan hasil seperti itu.
+ */
+export function parseFinalizeReturn(line) {
+  let d; try { d = JSON.parse(String(line ?? '')); } catch { return null; }
+  const act = String(d?.qa?.action ?? '');
+  const m = /^return_to_(researcher|copywriter|designer)$/.exec(act);
+  if (!m) return null;
+  const routeTo = [].concat(d.qa.routeTo ?? []).map(String);
+  return { to: routeTo.includes(m[1]) ? m[1] : (routeTo[0] ?? m[1]), reason: String(d.qa.reason ?? '').slice(0, 200), rounds: d.qa.rounds ?? null };
+}
+
+/**
+ * Pangkas properti yang TIDAK ada di skema (hanya pada objek ber-additionalProperties:false), rekursif lewat properties/items/$ref lokal.
+ * Hanya bentuk: nilai yang dikenal tidak diubah, kekurangan properti wajib tidak ditebak (tetap ditolak skema). Mengembalikan { data, changes }.
+ * Model kecil sering menambah properti seperti "title"/"conclusion" pada tiap hasil; satu putaran agen penuh terbuang per penolakan.
+ */
+export function pruneToSchema(data, schema, path = '', root = schema, changes = []) {
+  const resolve = (s) => { let cur = s; for (let i = 0; i < 8 && cur && cur.$ref; i++) { const m = /^#\/\$defs\/(.+)$/.exec(cur.$ref); cur = m ? root.$defs?.[m[1]] : null; } return cur; };
+  const sc = resolve(schema);
+  if (!sc) return { data, changes };
+  if (Array.isArray(data)) { return { data: data.map((x, i) => pruneToSchema(x, sc.items, `${path}/${i}`, root, changes).data), changes }; }
+  if (data && typeof data === 'object' && sc.properties) {
+    const out = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (!(k in sc.properties)) { if (sc.additionalProperties === false) { changes.push(`${path || '(root)'}: properti "${k}" dibuang`); continue; } out[k] = v; continue; }
+      out[k] = pruneToSchema(v, sc.properties[k], `${path}/${k}`, root, changes).data;
+    }
+    return { data: out, changes };
+  }
+  return { data, changes };
+}
+
 /** Umpan balik untuk Designer saat gambar tak tersedia. */
 export function fallbackFeedback(missing, minutes) {
   const list = (missing ?? []).map((m) => `- ${m.file}${m.reason ? ` (${String(m.reason).slice(0, 100)})` : ''}`).join('\n');

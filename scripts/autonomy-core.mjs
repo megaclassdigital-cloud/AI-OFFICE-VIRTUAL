@@ -133,29 +133,43 @@ const wib = (ms, off) => new Date(ms + off * MIN).toISOString().slice(0, 16).rep
  */
 export function buildAutoBrief({ nowMs, utcOffsetMinutes = 420, insights = null, recentTitles = [], freshHours = 48, insightsAtMs = null }) {
   const stamp = wib(nowMs, utcOffsetMinutes);
-  const lines = [AUTO_MARKER, `# Konten otomatis Manager: tren AI terbaru (${stamp} WIB)`, '',
+  // Judul brief = judul kerja yang disalin Manager ke work order: sengaja netral, TANPA kata waktu ("terbaru", "48 jam"), supaya tidak menular ke judul/hook konten.
+  const lines = [AUTO_MARKER, `# Konten otomatis Manager: satu cerita AI pilihan (${stamp} WIB)`, '',
     '> Brief ini dibuat sendiri oleh Manager (mode otonom, tanpa arahan owner). Susun work order seperti biasa. Owner tetap memutuskan approval akhir.', '',
     '## Tujuan', '',
-    'Buat SATU carousel baru (6-8 slide) untuk akun @edukasiai.co.id tentang berita/tren AI yang **paling hangat dan paling relevan untuk audiens kita**.', '',
-    '## Riset tren (Researcher)', '',
-    `- Sapu berita dan tren AI dalam **${freshHours} jam terakhir** (umur dihitung dari sumber TERBARU). Prioritaskan sumber primer di whitelist (rilis resmi, blog riset, dokumentasi).`,
-    '- Kumpulkan 5-8 kandidat, lalu urutkan menurut: kebaruan, dampak nyata bagi pelajar/pekerja/kreator di Indonesia, dan kecocokan dengan profil audiens di bawah.',
+    'Buat SATU carousel (6-8 slide) untuk akun @edukasiai.co.id tentang **satu cerita AI yang spesifik** (satu produk, rilis, keputusan, atau temuan nyata) yang paling relevan dan paling layak dibahas untuk audiens kita.',
+    'Bukan rangkuman umum "tren AI", bukan daftar berita. Satu cerita, satu sudut pandang yang jelas, dibawakan seperti konten-konten kita sebelumnya.', '',
+    '## Judul kerja', '',
+    'Judul kerja di work order harus **netral dan deskriptif** (mis. "Konten otomatis: cerita AI pilihan"). JANGAN memakai kata waktu seperti "terbaru", "terkini", "terhangat", "48 jam", "minggu ini", "hari ini" di judul kerja. Judul akhir ditentukan Copywriter dari cerita yang terpilih.', '',
+    '## Riset (Researcher)', '',
+    `- Cari cerita AI yang **masih segar**: sumber terbarunya tidak lebih tua dari ${freshHours} jam. Ini batas SELEKSI internal, bukan bahan tulisan: jangan menyebut jendela waktu itu di judul, hook, atau isi konten.`,
+    '- Kumpulkan 5-8 kandidat, lalu pilih yang paling kuat menurut: dampak nyata bagi pelajar/pekerja/kreator di Indonesia, kejelasan sudut pandang (ada tokoh/produk spesifik dan sesuatu yang berubah), dan kecocokan dengan profil audiens di bawah. Prioritaskan sumber primer di whitelist (rilis resmi, blog riset, dokumentasi).',
+    '- Kandidat lain yang tidak terpilih boleh dicatat sebagai cadangan, tetapi carousel ini membahas SATU cerita.',
     '- Jangan mengarang angka, nama, atau tanggal. Setiap klaim wajib punya URL sumber yang bisa diverifikasi.', ''];
   lines.push('## Profil audiens (dari performa akun)', '');
   if (insights?.n) {
     for (const n of insights.notes) lines.push(`- ${n}`);
     if (insightsAtMs) lines.push(`- Data dibaca ${wib(insightsAtMs, utcOffsetMinutes)} WIB.`);
     lines.push('- Pakai ini sebagai **kecenderungan**, bukan aturan kaku: kualitas sumber dan ketepatan tetap yang utama.');
-  } else lines.push('- Data performa akun belum tersedia untuk siklus ini. Pilih topik berdasarkan kebaruan dan dampak, dan tulis dengan gaya yang sudah dipakai di konten sebelumnya.');
+  } else lines.push('- Data performa akun belum tersedia untuk siklus ini. Pilih cerita berdasarkan dampak dan kejelasan sudut pandang, dan tulis dengan gaya yang sudah dipakai di konten sebelumnya.');
   lines.push('');
+  // Contoh gaya: pembuka posting terbaik akun sendiri (data nyata), supaya pembawaan topik meniru yang sudah terbukti, bukan gaya "laporan berita".
+  const styleRefs = (insights?.best ?? []).map((b) => String(b.title ?? '').replace(/\s*#\S+/g, '').split(/[.!?]/)[0].trim()).filter((t) => t.length >= 12).slice(0, 3); // kalimat pembuka saja
+  if (styleRefs.length) {
+    lines.push('## Contoh pembawaan yang sudah terbukti di akun ini', '');
+    for (const t of styleRefs) lines.push(`- "${t}"`);
+    lines.push('- Perhatikan: langsung ke satu cerita spesifik (siapa/apa yang berubah), lalu mengapa itu penting. Tidak membuka dengan jendela waktu atau label "tren".', '');
+  }
   if (recentTitles.length) {
     lines.push('## Jangan mengulang topik ini (sudah dibuat atau diposting)', '');
     for (const t of recentTitles.slice(0, 12)) lines.push(`- ${t}`);
     lines.push('');
   }
   lines.push('## Gaya konten', '',
-    '- Bahasa Indonesia santai namun akurat; hook kuat di slide 1; jelaskan **apa artinya bagi audiens** (bukan sekadar ringkasan rilis).',
-    '- Satu angle jelas per carousel. Caption singkat dengan ajakan yang wajar (simpan/bagikan/diskusi).',
+    '- Bahasa Indonesia santai namun akurat. Hook slide 1 = satu klaim/pertanyaan spesifik tentang cerita itu (sebut tokoh atau produknya), bukan label umum.',
+    '- Hindari frasa kaku di judul, hook, dan isi: "berita AI terbaru", "tren AI terkini/terhangat", "48 jam terakhir", "minggu ini". Rujukan waktu hanya bila benar-benar membantu dan terdengar alami (mis. "baru dirilis", tanggal rilis yang sebenarnya).',
+    '- Jelaskan **apa artinya bagi audiens** (bukan sekadar ringkasan rilis). Satu sudut pandang per carousel.',
+    '- Caption singkat dengan ajakan yang wajar (simpan/bagikan/diskusi).',
     '- Ikuti brand kit dan template yang berlaku; Designer hanya mengisi `carousel-design.json`.', '');
   return lines.join('\n');
 }

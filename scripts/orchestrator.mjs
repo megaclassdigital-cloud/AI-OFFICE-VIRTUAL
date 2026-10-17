@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { writeHeartbeat, waitForPaperclip, isConnectionError, acquireLock, releaseLock } from './heartbeat.mjs';
-import { sanitizeVerification, summarizeVerification, laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
+import { qaFeedbackText, sanitizeVerification, summarizeVerification, laneOf, decideAdvance, canPromote, LIMITS, normalizeOrderFileNames, isManagerRetryable, MAX_PENDING_PLANS, checkOrderStructure, extraContentsOf, renderAnalysisComment, runKeyOf, canPlanAhead, nextPlanned, activePending, STAGES, STAGE_AGENT, STAGE_OUTPUT, parseRevisionBrief, validateOrder, newJob, step, stageDescription, outputPath, artifactPath, checkQaResult, forwardSlashPaths, isNetworkError as isNetworkErr } from './orchestrator-core.mjs';
 import { normalizeResearch } from './normalize-research.mjs';
 import { probe, decide, writeNetworkState, readNetworkState } from './netcheck.mjs';
 import { notifyOwner } from './notify.mjs';
@@ -27,7 +27,7 @@ import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelF
 import { prefetchRunning, prefetchDoneFor, requestsSig, shouldPrefetch, startPrefetch } from './asset-prefetch.mjs';
 import { autonomyTick } from './autonomy.mjs';
 import { isAutoBrief } from './autonomy-core.mjs';
-import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback } from './sustain-core.mjs';
+import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback, parseFinalizeReturn, pruneToSchema } from './sustain-core.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -164,6 +164,10 @@ function checkOutput(job, stageName) {
   if (stageName === 'verifier') {
     // Rapikan bentuk (properti tak dikenal, null) sebelum validasi: hemat satu putaran agen penuh per penolakan gerbang.
     const sv = sanitizeVerification(data);
+    try { // pangkas properti lain yang tak dikenal skema (mis. "title" pada tiap hasil); hanya bentuk, fakta tidak diubah
+      const pr = pruneToSchema(sv.data, JSON.parse(readFileSync(path.join(ROOT, 'schemas', 'verification-result.json'), 'utf8').replace(/^﻿/, '')));
+      if (pr.changes.length) { sv.data = pr.data; sv.changes.push(...[...new Set(pr.changes.map((c) => c.replace(/\/[0-9]+\//g, '/*/')))].slice(0, 6)); }
+    } catch { /* skema tak terbaca: gerbang validasi biasa tetap berjalan */ }
     if (sv.changes.length) { data = sv.data; try { writeFileSync(p, JSON.stringify(data, null, 2) + '\n', 'utf8'); } catch { /* gerbang tetap memakai data yang sudah dirapikan */ } log(`${job.identifier} verification-result dirapikan otomatis: ${sv.changes.slice(0, 4).join('; ')}`); }
   }
   if (spec.schema) {
@@ -672,6 +676,18 @@ async function applyActions(job, actions, facts) {
       // Segel render bisa belum selesai ditulis pada laptop lambat/habis tidur: ulangi SEKALI (render sudah ada, cukup menunggu segelnya) sebelum memblokir.
       if (fin.status !== 0 && /belum ada hasil render|segel/i.test(lastOf(fin))) { log(`${job.identifier} segel render belum siap; finalisasi diulang sekali`); fin = runFinalize(); }
       const lastLine = lastOf(fin);
+      // Pemeriksaan deterministik QA menolak dan meminta revisi ke departemen: itu putaran revisi (maks. LIMITS.maxQaLoops), bukan blokir. Sebelumnya job langsung DIBLOKIR.
+      const finRet = fin.status !== 0 ? parseFinalizeReturn(lastLine) : null;
+      if (finRet && (job.qaLoops ?? 0) < LIMITS.maxQaLoops) {
+        const qaFile = path.join(runDirOf(OUTPUTS, runKeyOf(job)), 'qa-result.json');
+        const notes = (() => { try { const q = JSON.parse(readFileSync(qaFile, 'utf8').replace(/^\uFEFF/, '')); return (Array.isArray(q.notes) ? q.notes : [q.notes ?? finRet.reason]).map((n) => (typeof n === 'string' ? n : JSON.stringify(n))); } catch { return [finRet.reason]; } })();
+        job.qaLoops = (job.qaLoops ?? 0) + 1; job.stageRetries = 0; job.stageIndex = STAGES.indexOf(finRet.to); job.stageStartedMs = Date.now(); job.stageAttempts = 1; job.assetHoldNotified = false; job.phase = 'running';
+        await comment(job.masterIssueId, `QA menolak dan meminta revisi ke ${STAGE_AGENT[finRet.to]} (putaran ${job.qaLoops} dari ${LIMITS.maxQaLoops}): ${notes.join('; ').slice(0, 500)}`);
+        archiveRunFiles(runKeyOf(job), STAGES.slice(STAGES.indexOf(finRet.to)), `qa-putaran-${job.qaLoops}-${finRet.to}`, false);
+        job.stageIssueId = await createStage(job, finRet.to, qaFeedbackText(notes, finRet.to, job.qaLoops, false));
+        log(`${job.identifier} finalisasi: QA meminta revisi ke ${STAGE_AGENT[finRet.to]} (putaran ${job.qaLoops}); dirutekan, tidak diblokir`);
+        continue;
+      }
       if (fin.status !== 0) {
         log(`${job.identifier} finalisasi GAGAL: ${lastLine.slice(0, 300)}`);
         await comment(job.masterIssueId, `DIBLOKIR pada finalisasi: ${lastLine.slice(0, 400)}`);
@@ -935,6 +951,28 @@ if (a.includes('--tidy')) {
   s.job = { ...blocked, phase: 'running', stageStartedMs: Date.now() }; delete s.job.endedMs; delete s.job.abandoned;
   writeState(s);
   log('keputusan owner dicatat: ' + labelOf(runKeyOf(blocked)) + ' diterima walau QA menolak (' + rec.qa.notes.length + ' catatan QA diterima)');
+} else if (a.includes('--route')) {
+  // Rutekan job TERBLOKIR (mis. finalisasi QA needs_human) kembali ke satu departemen dengan catatan QA, seperti putaran revisi QA. Pemakaian:
+  //   node scripts/orchestrator.mjs --route copywriter EDU-117     (catatan diambil dari qa-result.json; atau --feedback-file <berkas>)
+  const s = readState();
+  const to = a[a.indexOf('--route') + 1];
+  const blocked = pickBlocked(s, true);
+  if (!['researcher', 'copywriter', 'designer'].includes(to)) { console.log('Pakai: --route researcher|copywriter|designer [EDU-n] [--feedback-file f]'); process.exit(1); }
+  if (!blocked) { console.log('Tidak ada job terblokir pada suatu tahap.'); process.exit(1); }
+  const fbFile = arg('--feedback-file', '');
+  let notes = [];
+  if (fbFile && existsSync(fbFile)) notes = [readFileSync(fbFile, 'utf8').replace(/^﻿/, '').trim()];
+  else { try { const q = JSON.parse(readFileSync(path.join(runDirOf(OUTPUTS, runKeyOf(blocked)), 'qa-result.json'), 'utf8').replace(/^﻿/, '')); notes = (Array.isArray(q.notes) ? q.notes : [q.notes ?? '']).map((n) => (typeof n === 'string' ? n : JSON.stringify(n))); } catch { /* tanpa catatan QA */ } }
+  if (!notes.length || !notes.join('').trim()) { console.log('Tidak ada catatan untuk umpan balik (qa-result.json kosong); beri --feedback-file.'); process.exit(1); }
+  if (s.job !== blocked) { s.history = s.history.filter((x) => x.masterIssueId !== blocked.masterIssueId); s.job = blocked; }
+  delete blocked.endedMs; delete blocked.abandoned;
+  blocked.qaLoops = (blocked.qaLoops ?? 0) + 1; blocked.phase = 'running'; blocked.stageRetries = 0; blocked.stageAttempts = 1; blocked.assetHoldNotified = false;
+  blocked.stageIndex = STAGES.indexOf(to); blocked.stageStartedMs = Date.now();
+  archiveRunFiles(runKeyOf(blocked), STAGES.slice(STAGES.indexOf(to)), 'qa-putaran-' + blocked.qaLoops + '-' + to, false);
+  blocked.stageIssueId = await createStage(blocked, to, qaFeedbackText(notes, to, blocked.qaLoops, false));
+  await parkMaster(blocked);
+  writeState(s);
+  log('job ' + blocked.identifier + ' dirutekan ke ' + STAGE_AGENT[to] + ' dengan catatan QA (putaran ' + blocked.qaLoops + ')');
 } else if (a.includes('--revise')) {
   // Minta tahap yang SEDANG berjalan (mis. ditahan menunggu gambar) direvisi dengan catatan dari owner: buat ulang issue tahap itu dengan umpan balik.
   // Pemakaian: node scripts/orchestrator.mjs --revise --feedback-file <berkas.txt>
