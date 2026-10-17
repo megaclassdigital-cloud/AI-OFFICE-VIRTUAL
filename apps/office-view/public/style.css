@@ -111,6 +111,7 @@ details.card summary { cursor: pointer; font-weight: 700; } .row2 { margin-top: 
 /* ───────── TV dashboard (Papan Tayang) ───────── */
 #tv { position: fixed; inset: 0; z-index: 60; background: rgba(2, 4, 9, .78); display: grid; place-items: center; }
 #tv[hidden] { display: none; }
+html[data-role="review"] #dock, html[data-role="review"] #dockOpen, html[data-role="review"] #bSim, html[data-role="review"] #netbanner { display: none !important; }
 .tv-bezel { width: min(1240px, 96vw); height: min(780px, 94vh); display: grid; grid-template-rows: auto auto 1fr auto; background: #0a0e17; border: 10px solid #1b1f2b; border-radius: 22px; box-shadow: 0 0 0 2px #4b5568, 0 20px 80px #000c; overflow: hidden; }
 .tv-bezel header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #0f1524; border-bottom: 1px solid var(--line); }
 .tv-title { font-weight: 800; letter-spacing: .08em; color: #9fb0cc; }

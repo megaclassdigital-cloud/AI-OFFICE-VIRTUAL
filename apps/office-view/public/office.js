@@ -372,6 +372,12 @@ function frame(now) {
 
 // ───────── init ─────────
 async function init() {
+  // Peran dari server (gerbang akses): review = hanya-baca untuk klien; UI menyembunyikan panel yang tak berlaku, server tetap yang menegakkan.
+  try {
+    const who = await jget('/api/access/whoami');
+    document.documentElement.dataset.role = who.role === 'review' ? 'review' : 'owner';
+    if (who.role === 'review') { const sub = document.querySelector('.brandline span'); if (sub) sub.textContent += ' · Mode review (hanya-baca)'; }
+  } catch { document.documentElement.dataset.role = 'owner'; }
   app.layout = await jget('/api/layout');
   app.sprites = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => new Promise((res) => {
     const im = new Image();

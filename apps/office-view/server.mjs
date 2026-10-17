@@ -5,6 +5,7 @@
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,7 @@ import { createBridge } from './bridge.mjs';
 import { createTalk } from './talk.mjs';
 import { createInspector } from './inspect.mjs';
 import { createOwner } from './owner.mjs';
+import { createGate } from './gate.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..');
@@ -36,6 +38,17 @@ const owner = a.includes('--enable-owner') ? createOwner({ base: PAPERCLIP, port
 const inspector = createInspector({ cacheFile: path.join(repoRoot, 'workspace', 'board-cache.json'), base: PAPERCLIP, outputRoot: path.join(repoRoot, 'workspace', 'agent'), stateFile: path.join(repoRoot, 'workspace', 'orchestrator-state.json') });
 const sendBuffer = (res, code, type, buf, filename) => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', ...(filename ? { 'content-disposition': `attachment; filename="${String(filename).replace(/[^A-Za-z0-9._-]/g, '_')}"` } : {}) }); res.end(buf); };
 
+// Rahasia akses review dibaca dari .env tiap 5 dtk (tanpa restart setelah setup-review-access.mjs); nilai di proses ini menang bila ada.
+let envCache = { at: 0, vals: {} };
+const envNow = () => {
+  if (Date.now() - envCache.at > 5000) {
+    const vals = {};
+    try { for (const l of strip(readFileSync(path.join(repoRoot, '.env'), 'utf8')).split(/\r?\n/)) { const m = /^(AAO_SESSION_SECRET|AAO_REVIEW_KEY)=(.*)$/.exec(l); if (m) vals[m[1]] = m[2].trim(); } } catch { /* belum ada .env */ }
+    envCache = { at: Date.now(), vals };
+  }
+  return { ...envCache.vals, ...Object.fromEntries(['AAO_SESSION_SECRET', 'AAO_REVIEW_KEY'].filter((k) => process.env[k]).map((k) => [k, process.env[k]])) };
+};
+const gate = createGate({ port: PORT, publicMode: a.includes('--public'), env: envNow });
 export const bridge = createBridge({ base: PAPERCLIP, log: (m) => console.error(m) });
 
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': MIME['.json'], 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
@@ -49,30 +62,33 @@ export async function readReplay() {
 export const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, 'http://localhost');
-    if (await inspector(req, res, u, json, sendBuffer)) return;
-    if (owner && (await owner(req, res, u, json))) return;
-    if (u.pathname === '/api/owner/info' && !owner) return json(res, 200, { enabled: false });
-    if (talk && (await talk(req, res, u, json))) return;
-    if (u.pathname === '/api/talk/info') return json(res, 200, { enabled: false });
-    if (req.method !== 'GET') return json(res, 405, { error: 'Office View read-only' });
+    // Gerbang akses PALING DEPAN: lokal = perilaku lama; tautan review = hanya-baca + data disaring; selain itu ditolak.
+    const g = gate(req, res, u, json); if (g.handled) return;
+    const J = g.json;
+    if (await inspector(req, res, u, J, sendBuffer)) return;
+    if (owner && (await owner(req, res, u, J))) return;
+    if (u.pathname === '/api/owner/info' && !owner) return J(res, 200, { enabled: false });
+    if (talk && (await talk(req, res, u, J))) return;
+    if (u.pathname === '/api/talk/info') return J(res, 200, { enabled: false });
+    if (req.method !== 'GET') return J(res, 405, { error: 'Office View read-only' });
     const p = u.pathname;
-    if (p === '/api/layout') return json(res, 200, JSON.parse(strip(await readFile(LAYOUT_FILE, 'utf8'))));
+    if (p === '/api/layout') return J(res, 200, JSON.parse(strip(await readFile(LAYOUT_FILE, 'utf8'))));
     if (p === '/api/network') {
       // Status internet dari sentinel orkestrator (read-only). Berkas basi = tidak dianggap offline.
       let st = null; try { st = JSON.parse(strip(await readFile(path.join(repoRoot, 'workspace', 'network-state.json'), 'utf8'))); } catch { /* belum ada */ }
       const fresh = st && Date.now() - (st.updatedAtMs ?? 0) < 120_000;
-      return json(res, 200, { offline: !!(fresh && st.hold === true), announced: !!(fresh && st.announcedOffline), since: fresh ? st.since : null, known: !!fresh });
+      return J(res, 200, { offline: !!(fresh && st.hold === true), announced: !!(fresh && st.announcedOffline), since: fresh ? st.since : null, known: !!fresh });
     }
-    if (p === '/api/status') return json(res, 200, bridge.status());
-    if (p === '/api/snapshot') return json(res, 200, bridge.snapshot());
-    if (p === '/api/events') return json(res, 200, bridge.eventsSince(Number(u.searchParams.get('since') ?? 0) || 0));
-    if (p === '/api/replay') return json(res, 200, { events: await readReplay() });
-    if (p.startsWith('/api/')) return json(res, 404, { error: 'rute tidak ada' });
+    if (p === '/api/status') return J(res, 200, bridge.status());
+    if (p === '/api/snapshot') return J(res, 200, bridge.snapshot());
+    if (p === '/api/events') return J(res, 200, bridge.eventsSince(Number(u.searchParams.get('since') ?? 0) || 0));
+    if (p === '/api/replay') return J(res, 200, { events: await readReplay() });
+    if (p.startsWith('/api/')) return J(res, 404, { error: 'rute tidak ada' });
     const rel = p === '/' ? '/index.html' : decodeURIComponent(p);
     const file = path.join(pub, rel);
-    if (!file.startsWith(pub + path.sep)) return json(res, 403, { error: 'dilarang' });
+    if (!file.startsWith(pub + path.sep)) return J(res, 403, { error: 'dilarang' });
     const buf = await readFile(file).catch(() => null);
-    if (!buf) return json(res, 404, { error: 'tidak ada' });
+    if (!buf) return J(res, 404, { error: 'tidak ada' });
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-store' });
     res.end(buf);
   } catch (e) {

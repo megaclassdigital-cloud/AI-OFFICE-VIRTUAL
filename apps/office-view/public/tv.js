@@ -83,8 +83,11 @@ const go = (d) => { const n = st.data?.slides?.length ?? 0; if (!n) return; st.s
 
 // LIVE: titik berdenyut lewat CSS; daftar platform dari posted.json (ditulis Admin Publikasi), bukan dikarang.
 const statusText = (s) => (s?.key === 'live' ? `● LIVE · ${(s.platforms ?? []).join(' + ')}` : s?.key === 'tidak_pasti' ? `⚠ POSTING TIDAK PASTI · ${(s.unsure ?? []).join(' + ')}` : (s?.label ?? ''));
+const REVIEW_TABS = new Set(['all', 'show', 'publikasi', 'otonom']); // klien: hasil dan status; tanpa jejak internal agen
+const isReview = () => document.documentElement.dataset.role === 'review';
 function render() {
-  for (const b of tabs.children) b.classList.toggle('on', b.dataset.tab === st.tab);
+  for (const b of tabs.children) { b.classList.toggle('on', b.dataset.tab === st.tab); b.hidden = isReview() && !REVIEW_TABS.has(b.dataset.tab); }
+  if (isReview() && !REVIEW_TABS.has(st.tab)) st.tab = 'show';
   const d = st.data;
   chip.textContent = statusText(d?.status); chip.className = `tv-chip ${d?.status?.tone ?? ''}`;
   setKids(stages, ...(d?.stages ?? []).map((s) => h('div', { class: `stg ${s.state}`, title: s.label }, h('span', { class: 'dot' }), h('b', {}, s.agent), h('small', {}, s.state === 'done' && s.doneAt ? `selesai ${hhmm(s.doneAt)}` : s.state === 'running' ? 'sedang bekerja' : s.state === 'hold' ? 'menunggu gambar asli' : s.state === 'blocked' ? 'terblokir' : s.label))));
