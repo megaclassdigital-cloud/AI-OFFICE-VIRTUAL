@@ -1,0 +1,11 @@
+{
+  "name": "ai-agent-office-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Monitor kedua AI Agent Office (hanya-baca) untuk Vercel: menyajikan data yang didorong laptop. Root Directory proyek Vercel = vercel-monitor.",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@vercel/blob": "2.8.2"
+  }
+}
