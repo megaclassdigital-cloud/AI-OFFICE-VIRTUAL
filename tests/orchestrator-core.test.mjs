@@ -385,3 +385,21 @@ describe('sanitizeVerification (hemat putaran agen)', () => {
     expect(r.changes).toEqual([]); expect(r.data).toEqual(d);
   });
 });
+
+describe('QA menandai issue blocked setelah vonis penolakan', () => {
+  const runningQa = () => ({ ...newJob({ masterIssueId: 'm', identifier: 'EDU-9', nowMs: 1_000 }), phase: 'running', stageIndex: STAGES.indexOf('qa'), stageStartedMs: 1_000, stageAttempts: 1, stageIssueId: 'i' });
+  const qaReturn = { to: 'designer', departments: ['designer'], notes: ['slide 2-7 tanpa visual'], scratch: false };
+  it('dengan qaReturn: dirutekan ke Designer (putaran 1), bukan diblokir', () => {
+    const r = step(runningQa(), { stage: { status: 'blocked' }, output: { ok: false, qaReturn, errors: ['QA menolak'] }, nowMs: 60_000 });
+    expect(r.job.phase).toBe('running'); expect(r.job.qaLoops).toBe(1); expect(r.job.stageIndex).toBe(STAGES.indexOf('designer'));
+    expect(r.actions.find((a) => a.type === 'createStage')).toMatchObject({ stage: 'designer' });
+  });
+  it('tanpa vonis yang bisa dirutekan: tetap diblokir; jatah putaran habis: diblokir', () => {
+    expect(step(runningQa(), { stage: { status: 'blocked' }, output: null, nowMs: 60_000 }).job.phase).toBe('blocked');
+    expect(step({ ...runningQa(), qaLoops: LIMITS.maxQaLoops }, { stage: { status: 'blocked' }, output: { ok: false, qaReturn, errors: ['x'] }, nowMs: 60_000 }).job.phase).toBe('blocked');
+  });
+  it('tahap selain QA yang blocked tidak terpengaruh', () => {
+    const j = { ...runningQa(), stageIndex: STAGES.indexOf('designer') };
+    expect(step(j, { stage: { status: 'blocked' }, output: { ok: false, qaReturn, errors: ['x'] }, nowMs: 60_000 }).job.phase).toBe('blocked');
+  });
+});

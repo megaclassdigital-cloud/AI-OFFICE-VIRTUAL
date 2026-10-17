@@ -572,7 +572,8 @@ async function gatherFacts(job, state) {
     }
     if (waitPrefetch && ['in_review', 'done'].includes(status)) status = 'in_progress'; // tunggu capture dini selesai; tick berikutnya menilai
     stage = { status, failed: failedNow, error: failedNow ? last.error : undefined };
-    if (!output && ['in_review', 'done'].includes(status)) output = checkOutput(job, STAGES[job.stageIndex]);
+    // QA yang menandai issue-nya 'blocked' setelah menulis vonis penolakan (qa-result.json dengan returnTo) tetap harus DIBACA: itu putaran revisi, bukan tahap terhalang.
+    if (!output && (['in_review', 'done'].includes(status) || (status === 'blocked' && STAGES[job.stageIndex] === 'qa'))) output = checkOutput(job, STAGES[job.stageIndex]);
     // Salinan keluaran yang SUDAH diterima gerbang (sidecar .accepted): agen yang masih hidup tidak bisa menimpa keputusan yang sudah diambil.
     if (output?.ok) { try { const p = outPathFor(runKeyOf(job), STAGES[job.stageIndex]); if (!existsSync(p + '.accepted')) writeFileSync(p + '.accepted', readFileSync(p)); } catch { /* kosmetik */ } }
   }

@@ -342,7 +342,9 @@ export function step(job, facts) {
     const st = facts.stage;
     if (!st) return { job: j, actions };
     const stageName = STAGES[j.stageIndex];
-    if (DONE_STATUSES.has(st.status)) {
+    // QA yang menandai issue-nya 'blocked' SETELAH menulis vonis penolakan dengan tujuan revisi (qaReturn) tetap diproses sebagai putaran revisi, bukan 'tahap terhalang'.
+    const qaBlockedWithReturn = st.status === 'blocked' && stageName === 'qa' && !!facts.output?.qaReturn;
+    if (DONE_STATUSES.has(st.status) || qaBlockedWithReturn) {
       // Gerbang keluaran (bila disediakan): berkas harus ada dan lolos validasi sebelum lanjut.
       if (facts.output && !facts.output.ok && facts.output.hold) {
         // Tahan menunggu aset asli (owner/inbox/verifikasi): bukan kegagalan, tanpa percobaan ulang, jam tahap tidak berjalan.
