@@ -451,6 +451,10 @@ export function sanitizeVerification(data) {
   if (JSON.stringify(clean) !== before) changes.push('nilai null dibuang');
   if (Array.isArray(clean.results)) {
     for (const r of clean.results) {
+      // Kandidat yang DITOLAK tanpa kolom cek wajib: lengkapi dengan 'tidak diperiksa' (ok:false). Tetap ditolak, jadi tidak ada klaim palsu; yang berstatus verified TIDAK dilengkapi (wajib hasil tool).
+      if (r && r.status === 'rejected' && r.checks && typeof r.checks === 'object') {
+        for (const k of ['urlReachable', 'dateWithinWindow']) if (!(k in r.checks)) { r.checks[k] = { ok: false, error: 'tidak diperiksa oleh Verifier' }; changes.push(`checks.${k} diisi false (kandidat ditolak ${r.candidateId ?? '?'})`); }
+      }
       const u = r?.checks?.urlReachable;
       if (u && typeof u === 'object' && typeof u.ok !== 'boolean') { u.ok = false; if (!u.error) u.error = 'tidak diperiksa oleh Verifier'; changes.push(`urlReachable.ok diisi false (kandidat ${r.candidateId ?? r.id ?? '?'})`); }
       if (u && typeof u === 'object') { if ('httpStatus' in u && !Number.isInteger(u.httpStatus)) delete u.httpStatus; if ('finalUrl' in u && typeof u.finalUrl !== 'string') delete u.finalUrl; }

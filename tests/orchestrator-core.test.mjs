@@ -403,3 +403,16 @@ describe('QA menandai issue blocked setelah vonis penolakan', () => {
     expect(step(j, { stage: { status: 'blocked' }, output: { ok: false, qaReturn, errors: ['x'] }, nowMs: 60_000 }).job.phase).toBe('blocked');
   });
 });
+
+describe('sanitizeVerification: kandidat ditolak tanpa kolom cek wajib dilengkapi (tidak pernah untuk yang verified)', () => {
+  it('rejected: urlReachable/dateWithinWindow yang hilang diisi ok:false; verified dibiarkan apa adanya', () => {
+    const data = { verifiedAt: '2026-10-17T00:00:00Z', windowDays: 7, results: [
+      { candidateId: 'c01', url: 'https://a.example', status: 'rejected', reason: 'x', checks: { dateWithinWindow: { ok: false } } },
+      { candidateId: 'c02', url: 'https://b.example', status: 'verified', checks: { dateWithinWindow: { ok: true } } },
+    ] };
+    const { data: out, changes } = sanitizeVerification(data);
+    expect(out.results[0].checks.urlReachable).toEqual({ ok: false, error: 'tidak diperiksa oleh Verifier' });
+    expect(out.results[1].checks.urlReachable).toBeUndefined(); // verified wajib hasil tool: tetap ditolak skema
+    expect(changes.join()).toMatch(/kandidat ditolak c01/);
+  });
+});
