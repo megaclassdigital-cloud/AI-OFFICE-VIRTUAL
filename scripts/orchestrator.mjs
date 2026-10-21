@@ -699,6 +699,7 @@ async function applyActions(job, actions, facts) {
       }
       if (fin.status !== 0) {
         log(`${job.identifier} finalisasi GAGAL: ${lastLine.slice(0, 300)}`);
+        job.blockReason = ('finalisasi QA gagal: ' + lastLine).slice(0, 200); try { job.blockAgentEntry = readJsonLoose(path.join(ROOT, 'workspace', 'failover-state.json'))?.[STAGE_AGENT[STAGES[job.stageIndex]]]?.entry ?? null; } catch { /* tanpa catatan model */ }
         await comment(job.masterIssueId, `DIBLOKIR pada finalisasi: ${lastLine.slice(0, 400)}`);
         await parkMaster(job);
         job.phase = 'blocked';
@@ -806,6 +807,13 @@ async function advanceJob(job, net, occupied, state) {
   // step() menganggap "tidak ada issue tahap" = tidak ada yang dikerjakan. Buat ulang issue tahap itu (maks 3x per job agar tidak berulang-ulang bila Paperclip menolak).
   if (job.phase === 'running' && job.stageIndex >= 0 && !job.stageIssueId && net.hold !== true && (job.stageRevives ?? 0) < 3) {
     const stageName = STAGES[job.stageIndex];
+    // Tahap terakhir (QA) yang SUDAH menulis vonisnya: yang macet hanya finalisasi (menunggu keputusan owner/penilaian ulang), bukan QA. Ulangi finalisasi dari hasil QA yang ada, jangan menjalankan agen QA lagi.
+    if (stageName === 'qa' && existsSync(outPathFor(runKeyOf(job), 'qa'))) {
+      log('pemulihan mandiri: ' + job.identifier + ' finalisasi diulang dari hasil QA yang sudah ada (tanpa menjalankan QA lagi)');
+      const merged = { ...job, phase: 'done', stageIssueId: null };
+      await applyActions(merged, [{ type: 'finish', text: 'Finalisasi diulang (pemulihan mandiri / keputusan owner).' }], {});
+      return merged;
+    }
     job.stageRevives = (job.stageRevives ?? 0) + 1;
     log('pemulihan mandiri: ' + job.identifier + ' tahap ' + STAGE_AGENT[stageName] + ' tidak punya issue tahap; dibuat ulang (ke-' + job.stageRevives + ')');
     const id = await createStage(job, stageName);
@@ -829,6 +837,7 @@ async function advanceJob(job, net, occupied, state) {
 
 const SLEEP_GAP_MS = 4 * 60_000;
 let lastHealMs = 0;
+let lastReconcileMs = 0;
 async function sustainTick(state, net) {
   const now = Date.now();
   const cfg = readJsonLoose(SETTINGS_FILE) ?? {};
@@ -841,6 +850,15 @@ async function sustainTick(state, net) {
     for (const ag of agentsToHeal({ agents: Array.isArray(list) ? list : [], activeAgentName: activeName, nowMs: now })) {
       await j('/agents/' + ag.id + '/resume', jb('POST', {}));
       log('pemulihan mandiri: agen ' + ag.name + ' berstatus error dibersihkan');
+    }
+  }
+  // 1b) job tercatat TERBLOKIR padahal produksinya sudah diserahkan ke owner (finalisasi berhasil sesudah blokir: dijalankan ulang manual, atau berhasil pada percobaan berikutnya):
+  // samakan state dengan kenyataan di Paperclip supaya TV/Office View tidak menampilkan TERBLOKIR dan pemulihan tidak mengulang finalisasi.
+  if (net?.hold !== true && now - lastReconcileMs >= 3 * 60_000) {
+    lastReconcileMs = now;
+    for (const h of (state.history ?? []).filter((x) => x.phase === 'blocked' && x.masterIssueId).slice(-6)) {
+      const mi = await j('/issues/' + h.masterIssueId).catch(() => null);
+      if (mi && ['in_review', 'done'].includes(mi.status)) { h.phase = 'done'; delete h.blockReason; delete h.blockStage; log('pemulihan mandiri: ' + h.identifier + ' tercatat terblokir tetapi sudah diserahkan ke owner (' + mi.status + '); status diluruskan'); }
     }
   }
   // 2) pemulihan mandiri untuk job TERBLOKIR (tanpa sesi Claude): semua yang layak ditinjau, terbaru dulu, satu tindakan per putaran.
@@ -887,13 +905,19 @@ async function applyCommands(state) {
   for (const n of readdirSync(CMD_DIR).filter((x) => x.endsWith('.json')).sort()) {
     const f = path.join(CMD_DIR, n); const c = readJsonLoose(f);
     try { unlinkSync(f); } catch { /* sudah hilang */ }
-    if (!c || !/^EDU-[0-9]+$/.test(c.id ?? '') || !['recheck', 'retry'].includes(c.type)) continue;
+    if (!c || !/^EDU-[0-9]+$/.test(c.id ?? '') || !['recheck', 'retry', 'accept-owner'].includes(c.type)) continue;
     if (state.job && !isFinished(state.job)) { try { writeFileSync(f, JSON.stringify(c)); } catch { /* dicoba lagi putaran berikutnya */ } continue; } // masih ada job aktif: tunda
     const blocked = [...(state.history ?? [])].filter((x) => x.identifier === c.id && x.phase === 'blocked').sort((x, y) => (y.endedMs ?? 0) - (x.endedMs ?? 0))[0];
     if (!blocked || blocked.stageIndex < 0) { log('perintah ' + c.type + ' ' + c.id + ': tidak ada job terblokir pada suatu tahap'); continue; }
+    if (c.type === 'accept-owner' && STAGES[blocked.stageIndex] !== 'qa') { log('perintah accept-owner ' + c.id + ': hanya untuk job terblokir pada tahap QA'); continue; }
     state.history = state.history.filter((x) => x.masterIssueId !== blocked.masterIssueId);
     delete blocked.endedMs; delete blocked.abandoned;
     blocked.phase = 'running';
+    if (c.type === 'accept-owner') {
+      // Owner menerima konten apa adanya walau QA menolak: catatan override ditulis, lalu finalisasi diteruskan ke antrean approval (owner tetap memutuskan; tidak memposting).
+      writeOverride(runDirOf(OUTPUTS, runKeyOf(blocked)), { note: c.note || 'Owner: selesaikan konten; QA menolak setelah jatah revisi habis, owner yang memutuskan di antrean approval' });
+      blocked.stageStartedMs = Date.now();
+    }
     if (c.type === 'retry') {
       blocked.stageStartedMs = Date.now(); blocked.stageRetries = 0;
       blocked.stageIssueId = await createStage(blocked, STAGES[blocked.stageIndex]);
@@ -980,13 +1004,13 @@ async function once() {
 
 {
   // --recheck/--retry saat orkestrator --watch HIDUP: antrekan (workspace/commands/*.json) supaya diterapkan oleh proses yang memegang state.
-  const which = ['--recheck', '--retry'].find((x) => a.includes(x));
+  const which = ['--recheck', '--retry', '--accept-owner'].find((x) => a.includes(x));
   const want = a.find((x) => /^EDU-[0-9]+$/.test(x));
   const lockPid = (() => { try { return Number(readFileSync(path.join(ROOT, 'workspace', 'orchestrator.lock'), 'utf8').trim()); } catch { return 0; } })();
   const live = lockPid > 0 && lockPid !== process.pid && (() => { try { process.kill(lockPid, 0); return true; } catch { return false; } })();
   if (which && want && live && !a.includes('--direct')) {
     mkdirSync(path.join(ROOT, 'workspace', 'commands'), { recursive: true });
-    writeFileSync(path.join(ROOT, 'workspace', 'commands', Date.now() + '-' + which.slice(2) + '-' + want + '.json'), JSON.stringify({ type: which.slice(2), id: want, at: Date.now() }));
+    writeFileSync(path.join(ROOT, 'workspace', 'commands', Date.now() + '-' + which.slice(2) + '-' + want + '.json'), JSON.stringify({ type: which.slice(2), id: want, at: Date.now(), note: arg('--note', '') }));
     console.log('perintah ' + which.slice(2) + ' ' + want + ' diantrekan; diterapkan orkestrator pada putaran berikutnya');
     process.exit(0);
   }

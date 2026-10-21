@@ -50,6 +50,7 @@ export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = (
     const buf = Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body), 'utf8');
     if (dryRun) { st.stats.uploaded += 1; st.sentBytes += buf.length; return true; }
     if (!url || !secret) throw new Error('MIRROR_URL / MIRROR_INGEST_SECRET belum diatur di .env');
+    if ((st.suspendedUntil ?? 0) > now()) throw new Error('toko Blob ditangguhkan; unggahan ditahan');
     const r = await fetchImpl(`${url.replace(/\/$/, '')}/api/ingest?key=${encodeURIComponent(key)}`, { method: 'POST', headers: { 'x-ingest-secret': secret, 'content-type': contentType, 'content-length': String(buf.length) }, body: buf, signal: AbortSignal.timeout(40_000) });
     if (!r.ok) {
       const txt = (await r.text()).slice(0, 160);

@@ -107,8 +107,14 @@ async function main() {
     if (r.ok !== true) throw new Error(`gagal melampirkan ${key}`);
   }
   // 2. deterministic verification records (code, not LLM)
+  // Jendela tanggal dihitung sejak VERIFIKASI dilakukan, bukan sejak finalisasi: bila produksi tertunda (laptop mati, Paperclip/plugin putus, kuota model) berhari-hari,
+  // berita yang valid saat diverifikasi tidak boleh gugur hanya karena waktu menunggu. Pergeseran = hari penuh sejak berkas verifikasi diterima (tercatat di log).
+  const verifiedAt = (() => { for (const n of ['verification-result.json.accepted', 'verification-result.json']) { try { return statSync(path.join(dir, n)).mtimeMs; } catch { /* coba berkas berikutnya */ } } return Date.now(); })();
+  const delayDays = Math.max(0, Math.ceil((Date.now() - verifiedAt) / 86_400_000) - 1 + 1); // dibulatkan ke atas + toleransi bawaan jendela plugin (kandidat yang lolos saat diverifikasi harus tetap lolos)
+  const windowDays = (verification.windowDays ?? 7) + delayDays;
+  if (delayDays > 0) log(`jendela tanggal digeser +${delayDays} hari (verifikasi dilakukan ${delayDays} hari lalu; produksi tertunda)`);
   for (const t of verificationTargets(verification, research)) {
-    const r = await tool('verify_candidate', { issueId: id, url: t.url, published_at: t.published_at, windowDays: verification.windowDays ?? 7 }, 'Verifier');
+    const r = await tool('verify_candidate', { issueId: id, url: t.url, published_at: t.published_at, windowDays }, 'Verifier');
     log(`verify ${t.candidateId}: ${r.ok === true ? `url=${r.checks?.urlReachable?.ok} tanggal=${r.checks?.dateWithinWindow?.ok}` : JSON.stringify(r).slice(0, 160)}`);
   }
   // 3. render seal (the plugin RPC is capped at ~30 s on this machine; the worker keeps going, so we wait for the render to settle)
