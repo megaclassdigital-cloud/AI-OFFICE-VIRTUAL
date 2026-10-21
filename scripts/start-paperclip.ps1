@@ -66,13 +66,25 @@ function Repair-Plugins {
         return
     }
     if ($plugins -isnot [System.Array] -and $plugins.PSObject.Properties.Name -contains 'plugins') { $plugins = $plugins.plugins }
+    $repairLog = Join-Path $LogDir 'plugin-repair.log'
     foreach ($pl in $plugins) {
         $key = if ($pl.key) { $pl.key } else { $pl.pluginKey }
-        if ($pl.status -eq 'error') {
-            Write-Host "Plugin '$key' berstatus error setelah boot. Mengaktifkan ulang (mesin sudah tenang)..."
-            Push-Location $env:TEMP
-            & npx --yes "paperclipai@$PaperclipVersion" plugin enable $key 2>&1 | ForEach-Object { Write-Host "  $_" }
-            Pop-Location
+        # error / disabled / upgrade_pending semuanya dapat dipulihkan lewat `plugin enable`; sampai 3 percobaan (impor dingin SDK bisa melewati batas 15 dtk saat mesin sibuk).
+        if ($pl.status -in @('error', 'disabled', 'upgrade_pending')) {
+            for ($try = 1; $try -le 3; $try++) {
+                Write-Host "Plugin '$key' berstatus $($pl.status). Mengaktifkan ulang (percobaan $try)..."
+                Push-Location $env:TEMP
+                $out = (& npx --yes "paperclipai@$PaperclipVersion" plugin enable $key 2>&1 | ForEach-Object { "$_" }) -join ' '
+                Pop-Location
+                Start-Sleep -Seconds 12
+                $now = $null
+                try { $all = Invoke-RestMethod -Uri 'http://127.0.0.1:3177/api/plugins' -TimeoutSec 20; if ($all -isnot [System.Array] -and $all.PSObject.Properties.Name -contains 'plugins') { $all = $all.plugins }; $now = ($all | Where-Object { ($_.key -eq $key) -or ($_.pluginKey -eq $key) } | Select-Object -First 1) } catch { }
+                $line = "$(Get-Date -Format o) $key percobaan ${try}: status sebelum=$($pl.status) sesudah=$($now.status) :: $($out.Substring(0, [Math]::Min(160, $out.Length)))"
+                Write-Host "  $line"; try { Add-Content -LiteralPath $repairLog -Value $line } catch { }
+                if ($now.status -eq 'ready') { break }
+                if ($now -and $now.status -notin @('error', 'disabled', 'upgrade_pending')) { break }
+                $pl = $now
+            }
         }
     }
 }

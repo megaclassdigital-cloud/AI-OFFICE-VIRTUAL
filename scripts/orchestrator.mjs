@@ -802,6 +802,16 @@ function maybePrefetchAssets(job) {
 }
 
 async function advanceJob(job, net, occupied, state) {
+  // Pemulihan mandiri: job 'running' tanpa issue tahap (pembuatan issue gagal tepat saat Paperclip putus, atau perintah recheck pada job yang issue-nya hilang) tidak akan pernah maju:
+  // step() menganggap "tidak ada issue tahap" = tidak ada yang dikerjakan. Buat ulang issue tahap itu (maks 3x per job agar tidak berulang-ulang bila Paperclip menolak).
+  if (job.phase === 'running' && job.stageIndex >= 0 && !job.stageIssueId && net.hold !== true && (job.stageRevives ?? 0) < 3) {
+    const stageName = STAGES[job.stageIndex];
+    job.stageRevives = (job.stageRevives ?? 0) + 1;
+    log('pemulihan mandiri: ' + job.identifier + ' tahap ' + STAGE_AGENT[stageName] + ' tidak punya issue tahap; dibuat ulang (ke-' + job.stageRevives + ')');
+    const id = await createStage(job, stageName);
+    if (id) { job.stageIssueId = id; job.stageStartedMs = Date.now(); job.stageRetries = 0; try { await parkMaster(job); } catch { /* master tetap boleh terbuka */ } }
+    return job;
+  }
   try { maybePrefetchAssets(job); } catch { /* percepat saja; gerbang tetap bekerja tanpa ini */ }
   const facts = await gatherFacts(job, state);
   facts.offline = net.hold === true;

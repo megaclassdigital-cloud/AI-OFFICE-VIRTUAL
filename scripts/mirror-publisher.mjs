@@ -51,7 +51,12 @@ export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = (
     if (dryRun) { st.stats.uploaded += 1; st.sentBytes += buf.length; return true; }
     if (!url || !secret) throw new Error('MIRROR_URL / MIRROR_INGEST_SECRET belum diatur di .env');
     const r = await fetchImpl(`${url.replace(/\/$/, '')}/api/ingest?key=${encodeURIComponent(key)}`, { method: 'POST', headers: { 'x-ingest-secret': secret, 'content-type': contentType, 'content-length': String(buf.length) }, body: buf, signal: AbortSignal.timeout(40_000) });
-    if (!r.ok) throw new Error(`unggah ${key} -> ${r.status} ${(await r.text()).slice(0, 80)}`);
+    if (!r.ok) {
+      const txt = (await r.text()).slice(0, 160);
+      // Toko Blob ditangguhkan / kuota habis: jangan menghujani lagi; coba lagi 6 jam kemudian (kuota baru di awal bulan atau setelah paket dinaikkan).
+      if (/suspended|quota|limit exceeded|payment/i.test(txt)) st.suspendedUntil = now() + 6 * 3_600_000;
+      throw new Error(`unggah ${key} -> ${r.status} ${txt.slice(0, 80)}`);
+    }
     st.sentBytes += buf.length;
     st.usage = bumpUsage(st.usage, now()); if (persist) { try { writeJsonAtomic(USAGE_FILE, st.usage); } catch { /* hitung ulang di memori */ } }
     return true;
@@ -76,7 +81,8 @@ export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = (
   /** Satu siklus. Mengembalikan ringkasan. Tidak pernah melempar. */
   async function cycle() {
     const t0 = now(); st.stats = { uploaded: 0, skipped: 0, failed: 0 }; st.sentBytes = 0;
-    if (!memoryOk(freemem())) { log('RAM bebas menipis: siklus dilewati (agen didahulukan)'); return { skipped: 'ram' }; }
+    if (!memoryOk(freemem())) { if (due('ramlog', 600_000)) { mark('ramlog'); log('RAM bebas menipis: siklus dilewati (agen didahulukan); pesan ini dicatat sekali per 10 menit'); } return { skipped: 'ram' }; }
+    if (!dryRun && (st.suspendedUntil ?? 0) > now()) { if (due('suspendlog', 3_600_000)) { mark('suspendlog'); log('toko Vercel Blob ditangguhkan/kuota habis; publisher menunggu (dicoba lagi ' + new Date(st.suspendedUntil).toISOString() + ')'); } return { skipped: 'ditangguhkan' }; }
     // Kuota tulis Blob bulanan: habis => berhenti sampai bulan baru; >=80% => semua jeda x4.
     const bud = budgetState(st.usage, now(), maxPuts());
     if (!bud.ok) { if (due('budgetlog', 3_600_000)) { mark('budgetlog'); log(`kuota tulis Blob bulan ini habis (${bud.puts}/${bud.max}); publisher berhenti sampai bulan baru (naikkan maxPutsPerMonth di workspace/mirror/settings.json bila paket mengizinkan)`); } return { skipped: 'kuota', puts: bud.puts }; }
@@ -181,7 +187,7 @@ async function main() {
     if (s.enabled === false || existsSync(path.join(DIR, 'PAUSE'))) { await sleep(15_000); continue; }
     const r = await pub.cycle();
     if (r.uploaded || r.failed) log(`siklus: ${r.uploaded} diunggah, ${r.skipped} tak berubah, ${r.failed} gagal, ${Math.round((r.bytes ?? 0) / 1024)} KB, ${r.ms} ms${r.working ? ' (agen bekerja)' : ''}`);
-    await sleep(r.skipped === 'tidur' || r.skipped === 'kuota' ? 20_000 : 5_000);
+    await sleep(r.skipped === 'ram' ? 30_000 : typeof r.skipped === 'string' ? 20_000 : 5_000);
   }
 }
 
