@@ -377,12 +377,26 @@ function startMirrorBar() {
   const bar = document.createElement('div'); bar.id = 'mirrorbar'; bar.setAttribute('role', 'status'); document.getElementById('stage')?.append(bar);
   const fmt = (s) => (s < 90 ? `${s} dtk` : s < 5400 ? `${Math.round(s / 60)} menit` : `${Math.round(s / 3600)} jam`);
   const tick = async () => {
+    if (mirrorIdle) { bar.className = 'stale'; bar.textContent = 'Monitor dijeda karena tidak ada aktivitas (hemat kuota). Gerakkan mouse atau ketuk layar untuk melanjutkan.'; return; }
     try {
       const m = await jget('/api/mirror/meta'); const age = Math.max(0, Math.round((Date.now() - m.publishedAt) / 1000));
-      bar.className = age > 120 ? 'stale' : ''; bar.textContent = age > 120 ? `⚠ Laptop tidak mengirim data sejak ${fmt(age)} lalu (mati/offline/publisher berhenti). Tampilan = keadaan terakhir.` : `Monitor kedua · salinan dari laptop, diperbarui ${fmt(age)} lalu · hanya-baca`;
+      const limit = Math.max(120, Math.round((m.nextInMs ?? 0) / 1000 * 1.5) + 60); // laptop mengirim "hidup" tiap nextInMs bila tak ada perubahan
+      bar.className = age > limit ? 'stale' : ''; bar.textContent = age > limit ? `⚠ Menunggu laptop (data terakhir ${fmt(age)} lalu). Monitor hemat kuota: laptop baru mengirim setelah monitor dibuka, ±1 menit. Bila lebih lama, laptop mati/offline.` : `Monitor kedua · salinan dari laptop, diperbarui ${fmt(age)} lalu · hanya-baca`;
     } catch { bar.className = 'stale'; bar.textContent = 'Monitor kedua · belum ada data dari laptop'; }
   };
-  tick(); setInterval(tick, 10_000);
+  tick(); setInterval(tick, 20_000);
+}
+
+// Hemat kuota Vercel: tab monitor yang dibiarkan terbuka tanpa disentuh 5 menit berhenti memanggil server (semua polling sudah menghormati document.hidden).
+// Setiap gerakan/ketukan melanjutkan. Hanya aktif pada monitor kedua (mirror).
+let mirrorIdle = false;
+function startMirrorSaver() {
+  const real = Object.getOwnPropertyDescriptor(Document.prototype, 'hidden');
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => real.get.call(document) || mirrorIdle });
+  let lastAct = Date.now();
+  const wake = () => { lastAct = Date.now(); if (mirrorIdle) { mirrorIdle = false; document.dispatchEvent(new Event('visibilitychange')); } };
+  for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, wake, { passive: true });
+  setInterval(() => { if (!mirrorIdle && Date.now() - lastAct > 5 * 60_000) mirrorIdle = true; }, 15_000);
 }
 
 async function init() {
@@ -391,7 +405,7 @@ async function init() {
     const who = await jget('/api/access/whoami');
     document.documentElement.dataset.role = who.role === 'review' ? 'review' : 'owner';
     if (who.role === 'review') { const sub = document.querySelector('.brandline span'); if (sub) sub.textContent += who.mirror ? ' · Monitor kedua (hanya-baca)' : ' · Mode review (hanya-baca)'; }
-    if (who.mirror) startMirrorBar();
+    if (who.mirror) { document.documentElement.dataset.mirror = '1'; startMirrorSaver(); startMirrorBar(); }
   } catch { document.documentElement.dataset.role = 'owner'; }
   app.layout = await jget('/api/layout');
   app.sprites = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => new Promise((res) => {
@@ -404,12 +418,13 @@ async function init() {
   await startLive();
   // Polling hemat: tab tersembunyi tidak memanggil server sama sekali; data yang tidak butuh hitungan detik dibaca lebih jarang.
   const visible = (fn) => () => { if (!document.hidden) fn(); };
-  setInterval(visible(pollLive), 1000);
-  pollPublisher(); setInterval(visible(pollPublisher), 15000);
-  pollAutonomy(); setInterval(visible(pollAutonomy), 20000);
+  const slowMirror = document.documentElement.dataset.mirror === '1'; // monitor kedua: data berubah paling cepat tiap ~30 dtk, tak perlu 1 dtk
+  setInterval(visible(pollLive), slowMirror ? 5000 : 1000);
+  pollPublisher(); setInterval(visible(pollPublisher), slowMirror ? 45000 : 15000);
+  pollAutonomy(); setInterval(visible(pollAutonomy), slowMirror ? 60000 : 20000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { pollLive(); pollPublisher(); pollAutonomy(); } });
   const pollBoard = async () => { try { app.boardItems = (await jget('/api/inspect/board?limit=3')).items ?? []; } catch { /* TV tetap menampilkan data terakhir */ } };
-  pollBoard(); setInterval(visible(pollBoard), 20000);
+  pollBoard(); setInterval(visible(pollBoard), slowMirror ? 90000 : 20000);
   requestAnimationFrame(frame);
 }
 

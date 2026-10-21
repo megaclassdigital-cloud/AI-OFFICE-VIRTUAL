@@ -3,19 +3,23 @@
 // Prinsip: tidak boleh mengganggu pekerjaan agen. Hanya MEMBACA (GET ke Office View lokal; tidak pernah menulis ke Paperclip/orkestrator/agen),
 // berjalan sebagai proses terpisah dengan prioritas rendah, permintaan berurutan dengan jeda, jadwal melambat saat sepi, berhenti sejenak bila RAM menipis.
 // Pemakaian: node scripts/mirror-publisher.mjs [--watch] [--once] [--dry-run] [--status]
-// Konfigurasi di .env: MIRROR_URL (https://<proyek>.vercel.app), MIRROR_INGEST_SECRET. Pengaturan: workspace/mirror/settings.json (enabled, maxProd).
+// Konfigurasi di .env: MIRROR_URL (https://<proyek>.vercel.app), MIRROR_INGEST_SECRET. Pengaturan: workspace/mirror/settings.json (enabled, maxProd, maxPutsPerMonth).
+// HEMAT KUOTA Vercel Blob (tulis = operasi "advanced", terbatas per bulan): (1) TIDUR bila tidak ada yang membuka monitor (laptop menanyakan /api/ingest?demand=1 tiap ~40 dtk;
+// fungsi menjawab "viewing" bila ada permintaan pengunjung dalam 3 menit); (2) dokumen panas (snapshot+events+network+autopost+autonomy+meta) = SATU unggahan; (3) batas tulis
+// bulanan (bawaan 1500, tercatat di workspace/mirror/usage.json): >=80% jeda x4, habis => berhenti sampai bulan baru; (4) penyegaran paksa satu siklus tiap 6 jam walau tidur.
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readJsonSafe, writeJsonAtomic } from './safe-json.mjs';
 import { sanitizeForMirror } from '../apps/office-view/gate.mjs';
-import { hashOf, findImagePaths, mergeEvents, intervals, prodDue, memoryOk, ACTIVE_STATUS } from './mirror/plan.mjs';
+import { hashOf, findImagePaths, mergeEvents, intervals, prodDue, memoryOk, bumpUsage, budgetState, ACTIVE_STATUS } from './mirror/plan.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = path.join(ROOT, 'workspace', 'mirror');
 const STATE_FILE = path.join(DIR, 'state.json');
 const SETTINGS_FILE = path.join(DIR, 'settings.json');
+const USAGE_FILE = path.join(DIR, 'usage.json');
 const LOCAL = process.env.MIRROR_LOCAL ?? 'http://127.0.0.1:3190';
 const AGENTS = ['Manager', 'Researcher', 'Verifier', 'Copywriter', 'Designer', 'QA'];
 const argv = process.argv.slice(2); const has = (f) => argv.includes(f);
@@ -29,8 +33,10 @@ function readEnv() {
 }
 
 export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = () => os.freemem(), env = readEnv, dryRun = false, gapMs = 250, readImage = null, persist = true } = {}) {
-  const st = { ring: null, hashes: {}, images: {}, last: {}, itemHash: {}, board: null, working: false, sentBytes: 0, stats: { uploaded: 0, skipped: 0, failed: 0 } };
-  const saved = persist ? readJsonSafe(STATE_FILE, null) : null; if (saved) { st.hashes = saved.hashes ?? {}; st.images = saved.images ?? {}; }
+  const st = { ring: null, hashes: {}, images: {}, last: {}, itemHash: {}, board: null, working: false, sentBytes: 0, viewingAt: 0, hotHash: null, usage: null, stats: { uploaded: 0, skipped: 0, failed: 0 } };
+  const saved = persist ? readJsonSafe(STATE_FILE, null) : null; if (saved) { st.hashes = saved.hashes ?? {}; st.images = saved.images ?? {}; st.hotHash = saved.hotHash ?? null; }
+  st.usage = persist ? readJsonSafe(USAGE_FILE, null) : null;
+  const maxPuts = () => Number((persist ? readJsonSafe(SETTINGS_FILE, {}) : {})?.maxPutsPerMonth) || 1500;
   const due = (name, ms) => now() - (st.last[name] ?? 0) >= ms;
   const mark = (name) => { st.last[name] = now(); };
 
@@ -46,7 +52,16 @@ export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = (
     if (!url || !secret) throw new Error('MIRROR_URL / MIRROR_INGEST_SECRET belum diatur di .env');
     const r = await fetchImpl(`${url.replace(/\/$/, '')}/api/ingest?key=${encodeURIComponent(key)}`, { method: 'POST', headers: { 'x-ingest-secret': secret, 'content-type': contentType, 'content-length': String(buf.length) }, body: buf, signal: AbortSignal.timeout(40_000) });
     if (!r.ok) throw new Error(`unggah ${key} -> ${r.status} ${(await r.text()).slice(0, 80)}`);
-    st.sentBytes += buf.length; return true;
+    st.sentBytes += buf.length;
+    st.usage = bumpUsage(st.usage, now()); if (persist) { try { writeJsonAtomic(USAGE_FILE, st.usage); } catch { /* hitung ulang di memori */ } }
+    return true;
+  }
+  /** Tanya fungsi Vercel apakah ada yang sedang membuka monitor (satu GET kecil; bukan operasi Blob). */
+  async function pollDemand() {
+    const { MIRROR_URL: url, MIRROR_INGEST_SECRET: secret } = env(); if (!url || !secret) return;
+    const r = await fetchImpl(`${url.replace(/\/$/, '')}/api/ingest?demand=1`, { headers: { 'x-ingest-secret': secret }, signal: AbortSignal.timeout(15_000) });
+    if (!r.ok) throw new Error(`demand -> ${r.status}`);
+    const j = await r.json(); if (j?.viewing) st.viewingAt = now();
   }
   /** Unggah dokumen JSON hanya bila isinya berubah sejak unggahan sukses terakhir. */
   async function publish(key, route, body) {
@@ -62,30 +77,41 @@ export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = (
   async function cycle() {
     const t0 = now(); st.stats = { uploaded: 0, skipped: 0, failed: 0 }; st.sentBytes = 0;
     if (!memoryOk(freemem())) { log('RAM bebas menipis: siklus dilewati (agen didahulukan)'); return { skipped: 'ram' }; }
-    const iv = intervals({ anyWorking: st.working });
+    // Kuota tulis Blob bulanan: habis => berhenti sampai bulan baru; >=80% => semua jeda x4.
+    const bud = budgetState(st.usage, now(), maxPuts());
+    if (!bud.ok) { if (due('budgetlog', 3_600_000)) { mark('budgetlog'); log(`kuota tulis Blob bulan ini habis (${bud.puts}/${bud.max}); publisher berhenti sampai bulan baru (naikkan maxPutsPerMonth di workspace/mirror/settings.json bila paket mengizinkan)`); } return { skipped: 'kuota', puts: bud.puts }; }
+    // TIDUR bila tak ada yang membuka monitor. Penyegaran paksa tiap 6 jam supaya data lama tidak terlalu basi.
+    if (!dryRun && due('demand', 40_000)) { mark('demand'); await guarded('demand', pollDemand); }
+    const forced = !st.last.keepFresh || now() - st.last.keepFresh >= 6 * 3_600_000;
+    const viewing = dryRun || now() - st.viewingAt < 180_000;
+    if (!viewing && !forced) return { skipped: 'tidur', puts: bud.puts };
+    if (forced) { st.last.keepFresh = now(); }
+    const iv = intervals({ anyWorking: st.working, slow: bud.slow });
     const docs = {};
 
-    // 1) peristiwa + snapshot: dari memori server Office View (tanpa Paperclip), sering
-    if (due('events', iv.events)) {
-      mark('events');
-      await guarded('events', async () => {
+    // 1) DOKUMEN PANAS: snapshot + events + network + autopost + autonomy + meta digabung jadi SATU unggahan (hemat operasi tulis Blob)
+    if (due('hot', iv.hot) || forced) {
+      mark('hot');
+      await guarded('hot', async () => {
         const snap = await local('/api/snapshot'); await sleep(gapMs);
         st.working = (snap.events ?? []).some((e) => e.type === 'agent.state' && e.state === 'working');
         const ev = await local(`/api/events?since=${st.ring?.epoch === snap.epoch ? st.ring.seq : 0}`);
         st.ring = mergeEvents(st.ring, { ...ev, epoch: snap.epoch });
-        docs.snapshot = await publish('doc/snapshot', '/api/snapshot', snap);
-        docs.events = await publish('doc/events', '/api/events', st.ring);
+        const clean = { snapshot: sanitizeForMirror('/api/snapshot', snap), events: sanitizeForMirror('/api/events', st.ring) };
+        for (const [k, route] of [['network', '/api/network'], ['autopost', '/api/inspect/autopost'], ['autonomy', '/api/inspect/autonomy']]) {
+          try { clean[k] = sanitizeForMirror(route, await local(route)); } catch (e) { log(`${k}: ${String(e.message).slice(0, 100)}`); }
+          await sleep(gapMs);
+        }
+        const h = hashOf(clean);
+        if (st.hotHash !== h || now() - (st.last.hotUp ?? 0) >= iv.heartbeat) {
+          const hot = { meta: { publishedAt: now(), working: st.working, nextInMs: iv.heartbeat, version: 2 }, ...clean };
+          try { await upload('doc/hot', hot, 'application/json'); st.hotHash = h; st.last.hotUp = now(); st.stats.uploaded += 1; }
+          catch (e) { st.stats.failed += 1; log(`GAGAL hot: ${e.message}`); }
+        } else st.stats.skipped += 1;
+        docs.snapshot = clean.snapshot; docs.events = clean.events; docs.autopost = clean.autopost; docs.autonomy = clean.autonomy;
       });
     }
-    // 2) status ringan: baca berkas/memori, tidak memanggil Paperclip
-    if (due('light', iv.light)) {
-      mark('light');
-      for (const [key, route] of [['doc/network', '/api/network'], ['doc/autopost', '/api/inspect/autopost'], ['doc/autonomy', '/api/inspect/autonomy']]) {
-        await guarded(key, async () => { docs[key] = await publish(key, route, await local(route)); await sleep(gapMs); });
-      }
-    }
-    // 3) papan (memanggil Paperclip): jarang
-    if (due('board3', iv.board3)) { mark('board3'); await guarded('board3', async () => { st.board3 = await publish('doc/board3', '/api/inspect/board', await local('/api/inspect/board?limit=3')); }); }
+    // 3) papan (memanggil Paperclip): jarang. (board3 tidak diunggah lagi: fungsi memotong dari board.)
     if (due('board', iv.board) || !st.board) {
       mark('board');
       await guarded('board', async () => { st.board = await publish('doc/board', '/api/inspect/board', await local('/api/inspect/board')); docs.board = st.board; });
@@ -110,7 +136,10 @@ export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = (
     // 5) agen + approval (Paperclip): jarang
     if (due('agent', iv.agent)) {
       mark('agent');
-      for (const n of AGENTS) await guarded(`agent ${n}`, async () => { docs[`agent/${n}`] = await publish(`doc/agent/${n.toLowerCase()}`, '/api/inspect/agent', await local(`/api/inspect/agent?name=${n}`)); await sleep(gapMs); });
+      // seis agen = SATU dokumen (hemat operasi tulis)
+      const all = {};
+      for (const n of AGENTS) await guarded(`agent ${n}`, async () => { all[n.toLowerCase()] = sanitizeForMirror('/api/inspect/agent', await local(`/api/inspect/agent?name=${n}`)); await sleep(gapMs); });
+      if (Object.keys(all).length === AGENTS.length) docs.agents = await publish('doc/agents', '/api/inspect/agents', all);
     }
     if (due('approvals', iv.approvals)) { mark('approvals'); await guarded('approvals', async () => { docs.approvals = await publish('doc/approvals', '/api/inspect/approvals', await local('/api/inspect/approvals')); }); }
     // 6) berkas statis: tata letak dan replay (jarang berubah)
@@ -128,12 +157,8 @@ export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = (
         await upload(`img/${p}`, buf, 'image/png'); st.images[p] = imageSig(p); st.stats.uploaded += 1; await sleep(gapMs);
       });
     }
-    // 8) meta: bukti hidup + usia data (UI memperingatkan bila basi)
-    if (due('meta', iv.meta)) {
-      mark('meta');
-      await guarded('meta', async () => { try { await upload('doc/meta', { publishedAt: now(), cycleMs: now() - t0, working: st.working, pendingImages: Math.max(0, need.length - 6), version: 1 }, 'application/json'); } catch (e) { st.stats.failed += 1; log(`GAGAL meta: ${e.message}`); } });
-    }
-    if (!dryRun && persist) { mkdirSync(DIR, { recursive: true }); writeJsonAtomic(STATE_FILE, { hashes: st.hashes, images: st.images, at: now() }); }
+    // 8) meta (bukti hidup + usia data) kini ada di dokumen panas (doc/hot.meta): tidak ada unggahan terpisah.
+    if (!dryRun && persist) { mkdirSync(DIR, { recursive: true }); writeJsonAtomic(STATE_FILE, { hashes: st.hashes, images: st.images, hotHash: st.hotHash, at: now() }); }
     const out = { ms: now() - t0, ...st.stats, bytes: st.sentBytes, imagesPending: Math.max(0, need.length - 6), working: st.working };
     return out;
   }
@@ -144,7 +169,7 @@ export function createPublisher({ fetchImpl = fetch, now = Date.now, freemem = (
 }
 
 async function main() {
-  if (has('--status')) { const s = readJsonSafe(STATE_FILE, null); const e = readEnv(); console.log(JSON.stringify({ konfigurasi: { MIRROR_URL: e.MIRROR_URL ?? null, ingestSecret: e.MIRROR_INGEST_SECRET ? 'ada' : 'belum', lokal: LOCAL }, terakhir: s?.at ? new Date(s.at).toISOString() : null, dokumen: Object.keys(s?.hashes ?? {}).length, gambar: Object.keys(s?.images ?? {}).length }, null, 2)); return; }
+  if (has('--status')) { const s = readJsonSafe(STATE_FILE, null); const e = readEnv(); console.log(JSON.stringify({ konfigurasi: { MIRROR_URL: e.MIRROR_URL ?? null, ingestSecret: e.MIRROR_INGEST_SECRET ? 'ada' : 'belum', lokal: LOCAL }, terakhir: s?.at ? new Date(s.at).toISOString() : null, dokumen: Object.keys(s?.hashes ?? {}).length, gambar: Object.keys(s?.images ?? {}).length, kuotaTulisBulanIni: budgetState(readJsonSafe(USAGE_FILE, null), Date.now(), Number(readJsonSafe(SETTINGS_FILE, {})?.maxPutsPerMonth) || 1500) }, null, 2)); return; }
   const settings = readJsonSafe(SETTINGS_FILE, null);
   if (!settings) { mkdirSync(DIR, { recursive: true }); writeJsonAtomic(SETTINGS_FILE, { enabled: true, maxProd: 6 }); }
   const pub = createPublisher({ dryRun: has('--dry-run') });
@@ -156,7 +181,7 @@ async function main() {
     if (s.enabled === false || existsSync(path.join(DIR, 'PAUSE'))) { await sleep(15_000); continue; }
     const r = await pub.cycle();
     if (r.uploaded || r.failed) log(`siklus: ${r.uploaded} diunggah, ${r.skipped} tak berubah, ${r.failed} gagal, ${Math.round((r.bytes ?? 0) / 1024)} KB, ${r.ms} ms${r.working ? ' (agen bekerja)' : ''}`);
-    await sleep(5_000);
+    await sleep(r.skipped === 'tidur' || r.skipped === 'kuota' ? 20_000 : 5_000);
   }
 }
 

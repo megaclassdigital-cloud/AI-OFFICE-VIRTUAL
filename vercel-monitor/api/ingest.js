@@ -1,11 +1,17 @@
 // /api/ingest — satu-satunya jalur tulis. Hanya laptop yang memegang MIRROR_INGEST_SECRET. Satu dokumen/gambar per permintaan (maks 4 MB).
-import { getStore, validKey, safeEq, send, readBody } from './_lib.js';
+import { getStore, validKey, safeEq, send, readBody, viewerActive, clearMemo } from './_lib.js';
 
 const TYPES = { json: 'application/json; charset=utf-8', png: 'image/png' };
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return send(res, 405, { error: 'hanya POST' });
   const secret = process.env.MIRROR_INGEST_SECRET;
+  // GET ?demand=1: laptop menanyakan apakah ada pengunjung (tanpa menyentuh Blob). Publisher tidur bila tidak ada => hemat kuota tulis.
+  if (req.method === 'GET') {
+    if (!secret) return send(res, 503, { error: 'MIRROR_INGEST_SECRET belum diatur' });
+    if (!safeEq(req.headers['x-ingest-secret'] ?? '', secret)) return send(res, 401, { error: 'ditolak' });
+    return send(res, 200, { viewing: viewerActive() });
+  }
+  if (req.method !== 'POST') return send(res, 405, { error: 'hanya POST/GET' });
   if (!secret) return send(res, 503, { error: 'MIRROR_INGEST_SECRET belum diatur' });
   if (!safeEq(req.headers['x-ingest-secret'] ?? '', secret)) return send(res, 401, { error: 'ditolak' });
   const url = new URL(req.url, 'http://x');
@@ -17,5 +23,6 @@ export default async function handler(req, res) {
   if (kind === 'json') { try { JSON.parse(body.toString('utf8')); } catch { return send(res, 400, { error: 'JSON tidak valid' }); } }
   else if (!(body.length > 8 && body[0] === 0x89 && body[1] === 0x50 && body[2] === 0x4e && body[3] === 0x47)) return send(res, 400, { error: 'bukan PNG' });
   try { await getStore().put(key, body, TYPES[kind]); } catch (e) { return send(res, 502, { error: 'penyimpanan gagal: ' + String(e.message).slice(0, 120) }); }
+  clearMemo(); // instance ini menyajikan data baru segera
   return send(res, 200, { ok: true, key, bytes: body.length });
 }

@@ -51,6 +51,23 @@ export const getStore = () => (process.env.MIRROR_FS_DIR ? fsStore(process.env.M
 
 export const getJson = async (store, key) => { const r = await store.get(key); if (!r) return null; try { return JSON.parse(r.buf.toString('utf8')); } catch { return null; } };
 
+// ───────── hemat kuota Blob ─────────
+// Pembacaan Blob (get) dihitung kuota. Banyak tab/polling meminta dokumen yang sama: simpan di memori instance fungsi (TTL pendek) dan gabungkan permintaan yang sedang berjalan.
+const memo = globalThis.__aaoMemo ??= new Map();
+export async function cachedJson(store, key, ttlMs, nowMs = Date.now()) {
+  const hit = memo.get(key);
+  if (hit && nowMs - hit.at < ttlMs) return hit.p;
+  const p = getJson(store, key).catch((e) => { memo.delete(key); throw e; });
+  memo.set(key, { at: nowMs, p });
+  if (memo.size > 200) for (const k of memo.keys()) { memo.delete(k); if (memo.size <= 150) break; }
+  return p;
+}
+export const clearMemo = () => memo.clear();
+// Sinyal "ada yang membuka monitor": diisi setiap permintaan data pengunjung, dibaca laptop lewat /api/ingest?demand=1 (publisher tidur bila tak ada pengunjung).
+export const VIEW_WINDOW_MS = 180_000;
+export const markViewer = (nowMs = Date.now()) => { globalThis.__aaoViewerAt = nowMs; };
+export const viewerActive = (nowMs = Date.now()) => nowMs - (globalThis.__aaoViewerAt ?? 0) < VIEW_WINDOW_MS;
+
 // ───────── HTTP kecil ─────────
 export const send = (res, code, body, type = 'application/json; charset=utf-8', extra = {}) => {
   res.statusCode = code;

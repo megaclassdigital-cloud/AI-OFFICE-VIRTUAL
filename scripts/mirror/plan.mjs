@@ -29,13 +29,29 @@ export function mergeEvents(ring, incoming, max = 300) {
 export const ACTIVE_STATUS = new Set(['berjalan', 'menunggu_aset', 'terblokir', 'perlu_revisi']);
 
 /**
- * Jadwal penyegaran (ms). Hemat beban Paperclip: dokumen yang butuh pembacaan Paperclip (production, agent, approvals, board) dibaca jarang;
- * peristiwa/snapshot (dari memori server, tanpa Paperclip) sering. Saat tidak ada agen bekerja, semuanya melambat.
+ * Jadwal penyegaran (ms). KUOTA Vercel Blob kecil (operasi tulis = "advanced", ribuan per bulan): publisher hanya bekerja saat monitor DIBUKA (demand),
+ * dokumen panas digabung jadi SATU unggahan, jadwal renggang. slow=true (kuota bulanan >=80%) melipatempatkan semua jeda.
+ * hot = snapshot+events+network+autopost+autonomy+meta dalam satu dokumen; heartbeat = jeda maksimum unggahan "hidup" bila isi tak berubah.
  */
-export function intervals({ anyWorking }) {
-  return anyWorking
-    ? { events: 8_000, light: 30_000, board3: 40_000, board: 120_000, approvals: 90_000, agent: 90_000, prodActive: 60_000, prodIdle: 20 * 60_000, static: 30 * 60_000, meta: 15_000 }
-    : { events: 20_000, light: 60_000, board3: 120_000, board: 300_000, approvals: 300_000, agent: 600_000, prodActive: 120_000, prodIdle: 30 * 60_000, static: 60 * 60_000, meta: 30_000 };
+export function intervals({ anyWorking, slow = false }) {
+  const m = slow ? 4 : 1;
+  const base = anyWorking
+    ? { hot: 30_000, board: 300_000, approvals: 300_000, agent: 600_000, prodActive: 180_000, prodIdle: 60 * 60_000, static: 6 * 3_600_000, heartbeat: 240_000 }
+    : { hot: 90_000, board: 600_000, approvals: 600_000, agent: 1_800_000, prodActive: 600_000, prodIdle: 2 * 3_600_000, static: 6 * 3_600_000, heartbeat: 480_000 };
+  return Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v * m]));
+}
+
+/** Penghitung tulis Blob per bulan (kalender UTC). Murni: mengembalikan state baru. */
+export function bumpUsage(usage, nowMs, n = 1) {
+  const month = new Date(nowMs).toISOString().slice(0, 7);
+  const u = usage?.month === month ? usage : { month, puts: 0 };
+  return { month, puts: u.puts + n };
+}
+/** ok=false bila kuota habis; slow=true bila >=80% terpakai. */
+export function budgetState(usage, nowMs, max = 1500) {
+  const month = new Date(nowMs).toISOString().slice(0, 7);
+  const puts = usage?.month === month ? usage.puts : 0;
+  return { puts, max, ok: puts < max, slow: puts >= max * 0.8 };
 }
 
 /** Dokumen produksi yang perlu disegarkan sekarang: konten aktif sering, lainnya bila item di board berubah atau sudah lama. */

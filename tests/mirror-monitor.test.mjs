@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { scrubString, scrubDeep, shortId } from '../scripts/mirror/scrub.mjs';
-import { findImagePaths, mergeEvents, intervals, prodDue, memoryOk, hashOf } from '../scripts/mirror/plan.mjs';
+import { findImagePaths, mergeEvents, intervals, prodDue, memoryOk, hashOf, bumpUsage, budgetState } from '../scripts/mirror/plan.mjs';
+import { clearMemo } from '../vercel-monitor/api/_lib.js';
 import { createPublisher } from '../scripts/mirror-publisher.mjs';
 import { inSync } from '../scripts/build-monitor-site.mjs';
 import { createDevServer } from '../vercel-monitor/dev-server.mjs';
@@ -39,8 +40,10 @@ describe('perencana publisher', () => {
   });
   it('jadwal melambat saat tidak ada agen bekerja (hemat beban Paperclip)', () => {
     const a = intervals({ anyWorking: true }); const i = intervals({ anyWorking: false });
-    for (const k of ['events', 'board', 'agent', 'approvals', 'prodActive']) expect(i[k], k).toBeGreaterThan(a[k]);
+    for (const k of ['hot', 'board', 'agent', 'approvals', 'prodActive']) expect(i[k], k).toBeGreaterThan(a[k]);
+    const sl = intervals({ anyWorking: true, slow: true }); for (const k of Object.keys(a)) expect(sl[k], k).toBe(a[k] * 4); // kuota >=80%: semua jeda x4
     expect(a.agent).toBeGreaterThanOrEqual(60_000); // Paperclip dibaca paling cepat tiap menit
+    expect(a.hot).toBeGreaterThanOrEqual(30_000); // satu unggahan panas paling cepat tiap 30 dtk (kuota tulis Blob)
   });
   it('prodDue: konten baru/berubah/aktif dibaca; yang tenang dan tak berubah tidak', () => {
     const iv = intervals({ anyWorking: true }); const now = 10_000_000;
@@ -49,9 +52,17 @@ describe('perencana publisher', () => {
     expect(prodDue({ items, lastRead: {}, itemHash: {}, nowMs: now, iv })).toEqual(['EDU-2', 'EDU-1']);
     const lastRead = { 'EDU-2': now - 10_000, 'EDU-1': now - 10_000 }; const itemHash = { 'EDU-2': same(items[0]), 'EDU-1': same(items[1]) };
     expect(prodDue({ items, lastRead, itemHash, nowMs: now, iv })).toEqual([]);
-    expect(prodDue({ items, lastRead: { ...lastRead, 'EDU-2': now - 61_000 }, itemHash, nowMs: now, iv })).toEqual(['EDU-2']); // aktif => 60 dtk
+    expect(prodDue({ items, lastRead: { ...lastRead, 'EDU-2': now - 181_000 }, itemHash, nowMs: now, iv })).toEqual(['EDU-2']); // aktif => 180 dtk
     expect(prodDue({ items, lastRead, itemHash: { ...itemHash, 'EDU-1': 'lain' }, nowMs: now, iv })).toEqual(['EDU-1']);
     expect(prodDue({ items: Array.from({ length: 9 }, (_, i) => ({ prod: `EDU-${i}`, createdAt: `2026-10-${10 + i}` })), lastRead: {}, itemHash: {}, nowMs: now, iv, maxProd: 3 })).toHaveLength(3);
+  });
+  it('kuota tulis bulanan: hitung per bulan UTC, 80% => lambat, habis => berhenti, bulan baru => mulai lagi', () => {
+    const t = Date.parse('2026-10-21T10:00:00Z'); let u = null;
+    for (let i = 0; i < 1200; i++) u = bumpUsage(u, t);
+    expect(budgetState(u, t, 1500)).toMatchObject({ puts: 1200, ok: true, slow: true });
+    expect(budgetState(bumpUsage(u, t, 300), t, 1500).ok).toBe(false);
+    expect(budgetState(bumpUsage(null, t, 10), t, 1500)).toMatchObject({ ok: true, slow: false });
+    expect(budgetState(u, Date.parse('2026-11-01T00:00:01Z'), 1500)).toMatchObject({ puts: 0, ok: true });
   });
   it('memoryOk: berhenti bila RAM bebas < 500 MB', () => { expect(memoryOk(400 * 1024 * 1024)).toBe(false); expect(memoryOk(2 * 1024 ** 3)).toBe(true); });
 });
@@ -67,6 +78,7 @@ describe('monitor Vercel (fungsi api/*)', () => {
   beforeEach(async () => {
     dir = mkdtempSync(path.join(os.tmpdir(), 'mirror-'));
     Object.assign(process.env, SECRETS, { MIRROR_FS_DIR: dir });
+    clearMemo(); globalThis.__aaoViewerAt = 0;
     srv = createDevServer(); await new Promise((r) => srv.listen(0, '127.0.0.1', r)); base = `http://127.0.0.1:${srv.address().port}`; cookie = null;
     return () => { srv.close(); rmSync(dir, { recursive: true, force: true }); delete process.env.MIRROR_FS_DIR; };
   });
@@ -86,6 +98,26 @@ describe('monitor Vercel (fungsi api/*)', () => {
     expect((await ingest('img/runs/EDU-1/render/a.png', Buffer.from('bukan png'))).status).toBe(400);
     expect((await ingest('doc/x', '{"a":1}')).status).toBe(200);
     expect((await ingest('img/runs/EDU-1/render/a.png', PNG)).status).toBe(200);
+  });
+  it('dokumen panas: snapshot/events/meta/autopost disajikan dari satu dokumen; pembacaan berulang tidak menyentuh penyimpanan lagi (cache memori)', async () => {
+    await ingest('doc/hot', JSON.stringify({ meta: { publishedAt: 123, nextInMs: 240000 }, snapshot: { epoch: 1, seq: 9, events: [] }, events: { epoch: 1, seq: 9, connected: true, events: [{ seq: 4 }, { seq: 9 }] }, network: { offline: false }, autopost: { status: null, recent: [] }, autonomy: { status: null } }));
+    await login(); const j = async (p) => (await call(p)).json();
+    expect((await j('/api/mirror/meta')).publishedAt).toBe(123);
+    expect((await j('/api/snapshot')).seq).toBe(9);
+    expect((await j('/api/events?since=5')).events.map((e) => e.seq)).toEqual([9]);
+    expect((await j('/api/inspect/autopost')).recent).toEqual([]);
+    expect(await j('/api/status')).toEqual({ connected: true, lastOkAt: 123 });
+    // ganti isi di penyimpanan LANGSUNG (tanpa lewat ingest yang membersihkan cache): jawaban tetap dari memori selama TTL
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(path.join(dir, encodeURIComponent('mirror/doc/hot')), JSON.stringify({ meta: { publishedAt: 999 }, snapshot: { seq: 1 } }));
+    expect((await j('/api/mirror/meta')).publishedAt).toBe(123);
+  });
+  it('sinyal pengunjung: /api/ingest?demand=1 butuh rahasia; false sebelum ada pengunjung, true sesudah pengunjung membaca data', async () => {
+    const demand = (secret) => call('/api/ingest?demand=1', { headers: { 'x-ingest-secret': secret }, noCookie: true });
+    expect((await demand('salah')).status).toBe(401);
+    expect(await (await demand(SECRETS.MIRROR_INGEST_SECRET)).json()).toEqual({ viewing: false });
+    await login(); await call('/api/status');
+    expect(await (await demand(SECRETS.MIRROR_INGEST_SECRET)).json()).toEqual({ viewing: true });
   });
   it('ingest terlalu besar ditolak (413)', async () => {
     expect((await ingest('doc/besar', Buffer.alloc(4_100_000, 97))).status).toBe(413);
@@ -128,6 +160,7 @@ describe('publisher (laptop)', () => {
       if (u.includes('/api/inspect/image')) return { ok: true, status: 200, arrayBuffer: async () => PNG };
       return json({ ok: true, path: 'D:\\AI-Memory\\x' });
     }
+    if (u.includes('demand=1')) return json({ viewing: !!mkFetch.viewing });
     return { ok: true, status: 200, text: async () => '{}' };
   };
   const env = () => ({ MIRROR_URL: 'https://monitor.example.app', MIRROR_INGEST_SECRET: 'rahasia' });
@@ -136,10 +169,21 @@ describe('publisher (laptop)', () => {
     const log = []; const pub = createPublisher({ persist: false, fetchImpl: mkFetch(log), env, gapMs: 0, readImage: () => PNG });
     const r = await pub.cycle();
     expect(r.failed).toBe(0); expect(r.uploaded).toBeGreaterThan(5);
-    const local = log.filter((l) => l.url.startsWith('http://127.0.0.1:3190')); const remote = log.filter((l) => !l.url.startsWith('http://127.0.0.1:3190'));
+    const local = log.filter((l) => l.url.startsWith('http://127.0.0.1:3190')); const remote = log.filter((l) => !l.url.startsWith('http://127.0.0.1:3190') && !l.url.includes('demand=1'));
     expect(local.every((l) => l.method === 'GET')).toBe(true);
     expect(remote.every((l) => l.method === 'POST' && l.url.startsWith('https://monitor.example.app/api/ingest?key='))).toBe(true);
     expect(remote.some((l) => l.url.includes('img%2Fruns%2FEDU-1%2Frender%2Fslide-01.png'))).toBe(true);
+  });
+  it('tidur bila tak ada pengunjung (siklus pertama memaksa penyegaran), bangun saat ada pengunjung; kuota habis => berhenti', async () => {
+    mkFetch.viewing = false; const log = []; const pub = createPublisher({ persist: false, fetchImpl: mkFetch(log), env, gapMs: 0, readImage: () => PNG });
+    const r1 = await pub.cycle(); expect(r1.uploaded).toBeGreaterThan(0); // pertama kali: penyegaran paksa
+    const n1 = log.filter((l) => l.method === 'POST').length;
+    Object.keys(pub.state.last).forEach((k) => { if (k !== 'keepFresh') pub.state.last[k] = 0; }); pub.state.last.prod = {};
+    const r2 = await pub.cycle(); expect(r2.skipped).toBe('tidur'); expect(log.filter((l) => l.method === 'POST').length).toBe(n1); // tak ada unggahan
+    mkFetch.viewing = true; pub.state.last.demand = 0;
+    const r3 = await pub.cycle(); expect(typeof r3.skipped).toBe('number'); expect(log.filter((l) => l.method === 'POST').length).toBeGreaterThan(n1);
+    pub.state.usage = bumpUsage(null, Date.now(), 1600); // kuota bulan ini habis
+    const r4 = await pub.cycle(); expect(r4.skipped).toBe('kuota');
   });
   it('isi yang diunggah sudah bersih: tanpa kutipan komentar, jalur lokal, dan UUID', async () => {
     const bodies = []; const f = mkFetch([]);
@@ -154,7 +198,7 @@ describe('publisher (laptop)', () => {
     await pub.cycle(); const n1 = log.filter((l) => l.method === 'POST').length;
     Object.keys(pub.state.last).forEach((k) => { pub.state.last[k] = 0; }); pub.state.last.prod = {};
     await pub.cycle(); const n2 = log.filter((l) => l.method === 'POST').length;
-    expect(n2 - n1).toBeLessThanOrEqual(2); // hanya meta (cap waktu) yang boleh berubah
+    expect(n2 - n1).toBeLessThanOrEqual(2); // hanya dokumen panas (meta/cap waktu) yang boleh berubah
     const log2 = []; await createPublisher({ persist: false, fetchImpl: mkFetch(log2), env, gapMs: 0, dryRun: true, readImage: () => PNG }).cycle();
     expect(log2.some((l) => l.method === 'POST')).toBe(false);
   });
