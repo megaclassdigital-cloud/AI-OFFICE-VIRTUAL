@@ -18,6 +18,7 @@ import { validate } from '../schemas/validate.mjs';
 import { contentOf, revisionOf, runDirOf, nextRunKey, writeRunMeta, runKeyForMaster, labelOf, latestRunKey, CONTENT_RE, masterLabelMap, humanizeIds, revisiTitle } from './run-registry.mjs';
 import { writeContentHistory } from './run-index.mjs';
 import { writeOverride, readValidOverride } from './owner-override.mjs';
+import { awayExpired } from './away-core.mjs';
 import { planTidy, applyTidy } from './tidy-workspace.mjs';
 import { renderManagerContext, startOfDayWib } from './manager-context.mjs';
 import { appendOutbox, buildPlanMessage, speakerName } from './manager-outbox.mjs';
@@ -943,6 +944,11 @@ async function once() {
   }
   state.lastOnceMs = tickNow;
   const settings = readJsonLoose(SETTINGS_FILE) ?? {};
+  // Mode pergi berbatas waktu (scripts/away-mode.mjs on --hours N): sesudah batas lewat, lanjutkan sendiri (mis. perangkat dinyalakan lagi).
+  try {
+    const awayF = path.join(ROOT, 'workspace', 'away.json'); const away = existsSync(awayF) ? readJsonLoose(awayF) : null;
+    if (awayExpired(away, Date.now())) { settings.paused = false; writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2)); unlinkSync(awayF); log('mode pergi berakhir (batas waktu lewat): pekerjaan dilanjutkan'); }
+  } catch { /* gagal membaca/menulis tidak boleh menghentikan tick */ }
   if (settings.paused === true) {
     // JEDA owner: tidak ada pekerjaan baru; jam tahap/perencanaan dibekukan (seperti offline) supaya tidak ada batas waktu yang lewat; agent yang sedang bekerja menyelesaikan run-nya sendiri.
     const nowMs = Date.now();

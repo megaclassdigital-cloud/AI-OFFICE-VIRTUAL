@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readJsonSafe, writeJsonAtomic } from './safe-json.mjs';
+import { inWarmup } from './away-core.mjs';
 import { decideAutoBrief, buildAutoBrief, isAutoBrief, mergeSettings, autoOutcomes, DEFAULTS, AUTO_MARKER } from './autonomy-core.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -43,8 +44,14 @@ function spawnInsights(log) {
  * Satu putaran. state = state orkestrator (job, followers, pending, history). Mengembalikan { acted, code, reason }.
  * Tidak melempar galat ke orkestrator: tanggung jawab pemanggil membungkus try/catch sebagai pengaman tambahan.
  */
+const BOOT_MS = Date.now(); // saat proses ini dinyalakan (boot, mati listrik, restart)
 export function autonomyTick({ state, nowMs = Date.now(), paused = false, offline = false, log = () => {} }) {
   mkdirSync(DIR, { recursive: true });
+  // Masa pemanasan: sesudah dinyalakan, beri sistem waktu stabil sebelum menyusun brief baru yang memakai token (mencegah brief otomatis saat boot tak terduga/RAM sesak).
+  if (!paused && inWarmup(BOOT_MS, nowMs)) {
+    try { writeJsonAtomic(F.status, { ...(readJsonSafe(F.status, {}) ?? {}), at: nowMs, code: 'pemanasan', reason: 'Sistem baru dinyalakan: menunggu stabil sebelum menyusun brief', acted: false }); } catch { /* informasi saja */ }
+    return { acted: false, code: 'pemanasan', reason: 'menunggu sistem stabil setelah dinyalakan' };
+  }
   if (!existsSync(F.settings)) writeJsonAtomic(F.settings, { ...DEFAULTS });
   const settings = mergeSettings(readJsonSafe(F.settings, {}) ?? {});
   const prev = readJsonSafe(F.status, {}) ?? {};
