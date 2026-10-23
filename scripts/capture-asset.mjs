@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { PROFILE_DIR } from './browser-login.mjs';
 import { openSearchChrome } from './autopost/social-login.mjs';
 import { acquireBrowser, releaseBrowser } from './autopost/browser-lock.mjs';
+import { notifyOwner } from './notify.mjs';
 import { pickSource, extractImageUrls, extractTitle, isPublicHttpsUrl } from './source-image.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync } from 'node:fs';
 
@@ -188,12 +189,42 @@ export function scoreResult(req, item) {
 }
 export const MIN_SCORE = { photo: 0.5, product: 0.6, brand: 1 };
 
+// ALTERNATIF saat Google meminta CAPTCHA: jendela Chrome pencarian (biasanya di luar layar) DIMUNCULKAN dan owner diberi tahu; owner menyelesaikan verifikasinya sendiri,
+// lalu pencarian dilanjutkan otomatis. CAPTCHA tidak pernah dilewati oleh kode. Bila owner tidak menyelesaikannya dalam batas waktu, jendela disembunyikan lagi dan perilaku lama
+// berlaku (mesin diblokir, lanjut ke Bing; produksi ditahan menunggu aset). Dibatasi sekali per 30 menit supaya jendela tidak muncul terus saat owner tidak ada.
+export const CAPTCHA = { enabled: false, waitMs: Number(process.env.AAO_CAPTCHA_WAIT_MS ?? 240_000), cooldownMs: 30 * 60_000, file: path.join(root, 'workspace', 'captcha-surfaced.json') };
+async function moveWindow(page, bounds) {
+  const s = await page.context().newCDPSession(page);
+  try { const { windowId } = await s.send('Browser.getWindowForTarget'); await s.send('Browser.setWindowBounds', { windowId, bounds }); } finally { await s.detach().catch(() => {}); }
+}
+export async function surfaceCaptcha(page, { sleep = (ms) => new Promise((r) => setTimeout(r, ms)), blocked = isBlocked, notify = notifyOwner } = {}) {
+  if (!CAPTCHA.enabled || process.env.AAO_CAPTCHA_SURFACE === '0') return false;
+  let last = 0; try { last = JSON.parse(readFileSync(CAPTCHA.file, 'utf8')).at ?? 0; } catch { /* belum pernah */ }
+  if (Date.now() - last < CAPTCHA.cooldownMs) return false;
+  try { writeFileSync(CAPTCHA.file, JSON.stringify({ at: Date.now() })); } catch { /* cooldown kosmetik */ }
+  try {
+    await moveWindow(page, { left: 80, top: 60, width: 1100, height: 800, windowState: 'normal' });
+    await page.bringToFront();
+    notify('AI Agent Office: verifikasi Google dibutuhkan', 'Designer butuh gambar asli. Selesaikan CAPTCHA di jendela Chrome yang muncul (' + Math.round(CAPTCHA.waitMs / 60_000) + ' menit); pencarian lanjut otomatis.');
+    console.error('CAPTCHA Google: jendela dimunculkan; menunggu owner menyelesaikan verifikasi (maks ' + Math.round(CAPTCHA.waitMs / 60_000) + ' menit)...');
+    const t0 = Date.now();
+    while (Date.now() - t0 < CAPTCHA.waitMs) { await sleep(3000); if (!(await blocked(page))) { console.error('CAPTCHA selesai; pencarian dilanjutkan.'); return true; } }
+    return false;
+  } catch (e) { console.error('menampilkan jendela CAPTCHA gagal: ' + String(e?.message ?? e).slice(0, 100)); return false; }
+  finally { try { await moveWindow(page, { left: -32000, top: 0, width: 1280, height: 900, windowState: 'normal' }); } catch { /* jendela sudah tertutup */ } }
+}
+
 /** Google Images: pratinjau besar hasil teratas yang layak. */
 async function googleOne(page, req, q, outFile) {
-  await page.goto(`https://www.google.com/search?tbm=isch&hl=id&q=${encodeURIComponent(q)}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  const searchUrl = `https://www.google.com/search?tbm=isch&hl=id&q=${encodeURIComponent(q)}`;
+  await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await dismissConsent(page);
   await page.waitForTimeout(1500);
-  if (await isBlocked(page)) return { status: 'blocked', reason: 'Google meminta verifikasi (CAPTCHA/unusual traffic); tidak dilewati.' };
+  if (await isBlocked(page)) {
+    if (!(await surfaceCaptcha(page))) return { status: 'blocked', reason: 'Google meminta verifikasi (CAPTCHA/unusual traffic); tidak dilewati.' };
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }); await page.waitForTimeout(1500); // verifikasi selesai: ulangi pencarian
+    if (await isBlocked(page)) return { status: 'blocked', reason: 'Google masih meminta verifikasi setelah ditangani owner.' };
+  }
   // kandidat grid: gambar + teks judul/sumber di dekatnya; diberi skor relevansi (merek: nama merek + kata logo)
   const grid = await page.evaluate(() => [...document.images].map((img, idx) => {
     const r = img.getBoundingClientRect();
@@ -338,6 +369,7 @@ export async function main(argv) {
             for (let i = 0; i < 20 && !acquireBrowser(String(process.pid), Date.now(), 'search'); i++) await new Promise((r) => setTimeout(r, 3000)); // profil pencarian sendiri; kunci hanya mencegah dua pengambilan aset bersamaan
             chromeSession = await openSearchChrome({ offscreen: true });
             context = chromeSession.ctx; page = await context.newPage();
+            CAPTCHA.enabled = true; // Chrome biasa (bukan cadangan Playwright): jendelanya bisa dimunculkan untuk CAPTCHA
             return;
           } catch (e) {
             console.error('Chrome biasa gagal dibuka (' + String(e.message).slice(0, 80) + '); memakai cara lama.');
