@@ -135,6 +135,15 @@ export function decideAutoHandoff({ job, auto, nowMs, anotherActive, settings = 
   return { handoff: true, code: 'serahkan-ke-owner' };
 }
 
+/**
+ * Issue tahap yang diblokir Paperclip ("original assignee is not invokable") padahal produksinya SEDANG berjalan dengan issue tahap yang lebih baru: issue lama itu sudah
+ * DIGANTIKAN dan hanya membuat agen (mis. QA) tampak "butuh manusia" di Pojok Bug. Aman dibatalkan walau komentar terakhirnya milik agen. Murni.
+ */
+export function supersededBlockedStage({ title, status, id, liveStageIds, runningProds }) {
+  const m = /^(EDU-[0-9]+) · [A-Za-z]+/.exec(String(title ?? ''));
+  return !!m && status === 'blocked' && !(liveStageIds?.has(id)) && !!runningProds?.has(m[1]);
+}
+
 /** Umpan balik untuk Designer saat gambar tak tersedia. */
 export function fallbackFeedback(missing, minutes) {
   const list = (missing ?? []).map((m) => `- ${m.file}${m.reason ? ` (${String(m.reason).slice(0, 100)})` : ''}`).join('\n');

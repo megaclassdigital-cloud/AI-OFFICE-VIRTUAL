@@ -28,7 +28,7 @@ import { resolveRouting, buildRevisionBrief, routingDirFor, managerFile, cancelF
 import { prefetchRunning, prefetchDoneFor, requestsSig, shouldPrefetch, startPrefetch } from './asset-prefetch.mjs';
 import { autonomyTick } from './autonomy.mjs';
 import { isAutoBrief } from './autonomy-core.mjs';
-import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback, parseFinalizeReturn, pruneToSchema, needsSessionReset, decideAutoRecheck, decideAutoHandoff } from './sustain-core.mjs';
+import { decideAutoRetry, agentsToHeal, holdFallbackDecision, fallbackFeedback, parseFinalizeReturn, pruneToSchema, needsSessionReset, decideAutoRecheck, decideAutoHandoff, supersededBlockedStage } from './sustain-core.mjs';
 import { staleFiles } from './recapture-stale-assets.mjs';
 import { normalizeSlots } from './normalize-design-slots.mjs';
 import { imageSlotsUsed, matchRequests, manifestVerdict, checkAssets, holdMessage, inboxSignature, shouldRetryCapture, readHold, writeHold } from './asset-gate.mjs';
@@ -507,11 +507,14 @@ async function tidyBlocked(state) {
   lastTidyMs = Date.now();
   const liveStageIds = new Set([state.job, ...(state.followers ?? [])].filter((x) => x?.phase === 'running' && x.stageIssueId).map((x) => x.stageIssueId));
   const doneProds = new Set([...(state.history ?? []), ...(state.job ? [state.job] : [])].filter((x) => x.phase === 'done').map((x) => x.identifier));
+  const runningProds = new Set([state.job, ...(state.followers ?? [])].filter((x) => x?.phase === 'running').map((x) => x.identifier));
   const issues = await j(`/companies/${company.id}/issues`);
   let restored = 0; let cancelled = 0;
   for (const i of issues) {
     const m = String(i.title).match(/^(EDU-[0-9]+) · [A-Za-z]+/);
     if (!m || i.status !== 'blocked' || liveStageIds.has(i.id)) continue;
+    // Issue tahap lama yang sudah digantikan issue tahap baru produksi yang sedang berjalan: batalkan (tanpa memeriksa komentar) supaya QA/agen lain tidak terjebak di Pojok Bug.
+    if (supersededBlockedStage({ title: i.title, status: i.status, id: i.id, liveStageIds, runningProds })) { await j('/issues/' + i.id, jb('PATCH', { status: 'cancelled', assigneeAgentId: null })).catch(() => {}); cancelled += 1; continue; }
     // Blokir yang SENGAJA dari agen (mis. disposisi QA "fail") tidak boleh dibalik: hanya blokir akibat pemulihan otomatis Paperclip yang dipulihkan.
     // Pengecualian: produksi yang SUDAH SELESAI. Komentar terakhir agen di situ hanyalah laporan selesai tahapnya (bukan blokir sengaja); blokir datang belakangan dari
     // pemulihan Paperclip (mis. setelah laptop tidur) dan membuat agen terjebak di Pojok Bug, jadi tetap dikembalikan ke in_review.
