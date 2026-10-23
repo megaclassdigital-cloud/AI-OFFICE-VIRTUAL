@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { createOwner } from '../apps/office-view/owner.mjs';
 import { makeAway, awayView, noteFailure, resumeHold, TOKEN_BREAKER, RESUME_HOLD_MS } from '../scripts/away-core.mjs';
@@ -61,9 +61,14 @@ describe('tombol Matikan aman (HTTP /api/owner/away)', () => {
     expect((await post('/api/owner/away', { action: 'on', power: 'format-c' })).status).toBe(400);
     expect((await post('/api/owner/away', { action: 'on' }, { origin: 'http://evil.example' })).status).toBe(403);
     expect(ran).toEqual([]);
-    expect((await post('/api/owner/away', { action: 'on', hours: 9, power: 'sleep' })).status).toBe(200);
-    expect((await post('/api/owner/away', { action: 'on' })).status).toBe(200);
+    // keadaan bersih (tes sebelumnya meninggalkan away.json/jeda): hanya satu "on" yang menjalankan away-mode
+    for (const rel of [['workspace', 'away.json'], ['workspace', 'orchestrator-settings.json'], ['workspace', 'launcher-status.json']]) rmSync(path.join(root, ...rel), { force: true });
+    const first = await (await post('/api/owner/away', { action: 'on', hours: 9, power: 'sleep' })).json();
+    expect(first).toMatchObject({ ok: true, started: true });
+    wr(['workspace', 'away.json'], makeAway({ nowMs: Date.now(), hours: 9 })); // away-mode menulisnya segera setelah dimulai
+    const second = await (await post('/api/owner/away', { action: 'on' })).json(); // klik ganda
+    expect(second).toMatchObject({ ok: true, started: false, already: true });
     expect((await post('/api/owner/away', { action: 'off' })).status).toBe(200);
-    expect(ran).toEqual([['on', '--hours', '9', '--power', 'sleep'], ['on'], ['off']]);
+    expect(ran).toEqual([['on', '--hours', '9', '--power', 'sleep'], ['off']]);
   });
 });

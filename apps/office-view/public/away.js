@@ -15,7 +15,22 @@ const info = await getJson('/api/owner/info');
 if (info?.enabled) init();
 
 function init() {
-  const btn = h('button', { type: 'button', id: 'bAway', title: 'Matikan sistem dengan aman sebelum menutup/mematikan laptop (tidak memakai token)', onclick: () => openModal() }, '🌙 Matikan aman');
+  // Satu tombol, dua keadaan: normal = "Matikan aman"; sesudah dimatikan/dijeda berubah jadi "Lanjut kerja" (tidak bisa ditekan dua kali untuk mematikan).
+  let phaseNow = 'normal';
+  const btn = h('button', { type: 'button', id: 'bAway', onclick: async () => {
+    if (phaseNow === 'normal') return openModal();
+    if (phaseNow === 'aman') return; // sedang berhenti: tidak ada yang bisa dibatalkan lagi
+    btn.disabled = true; await post('/api/owner/away', { action: 'off' }); setTimeout(() => { btn.disabled = false; refreshBanner(); }, 1500);
+  } });
+  function applyBtn(phase) {
+    phaseNow = phase;
+    const normal = phase === 'normal';
+    btn.className = normal ? '' : 'owner-approve';
+    btn.disabled = phase === 'aman';
+    btn.textContent = normal ? '🌙 Matikan aman' : phase === 'aman' ? '✅ Aman ditutup' : phase === 'menguras' ? '✖ Batalkan, lanjut kerja' : '▶ Lanjut kerja';
+    btn.title = normal ? 'Matikan sistem dengan aman sebelum menutup/mematikan laptop (tidak memakai token)' : phase === 'aman' ? 'Semua pekerjaan selesai; sistem berhenti sebentar lagi' : 'Cabut jeda dan lanjutkan pekerjaan';
+  }
+  applyBtn('normal');
   $('#bar .ctl')?.prepend(btn);
 
   // ───── spanduk: mode pergi / jeda aktif ─────
@@ -25,6 +40,7 @@ function init() {
   async function refreshBanner() {
     if (document.hidden) return;
     const s = await getJson('/api/owner/away');
+    if (s) applyBtn(s.phase); // server tidak menjawab: biarkan keadaan terakhir (jangan membuka tombol "Matikan" secara keliru)
     if (!s || !['pergi', 'jeda', 'jeda-otomatis', 'menguras'].includes(s.phase)) { banner.hidden = true; return; }
     const text = s.phase === 'menguras' ? `🌙 Sedang mematikan aman… menunggu: ${(s.waiting ?? []).join(', ') || 'pekerjaan berjalan'}. Jangan tutup laptop dulu.`
       : s.phase === 'jeda-otomatis' ? `⏸ Dijeda otomatis (pemutus token): ${s.autoPause?.reason ?? 'terlalu banyak kegagalan beruntun'}. Tidak ada token terpakai.`
@@ -33,7 +49,8 @@ function init() {
     const go = h('button', { type: 'button', class: 'owner-approve', onclick: async () => { go.disabled = true; await post('/api/owner/away', { action: 'off' }); setTimeout(refreshBanner, 1500); } }, s.phase === 'menguras' ? '✖ Batalkan, lanjut bekerja' : '▶ Lanjutkan');
     banner.replaceChildren(h('span', {}, text), go); banner.hidden = false;
   }
-  refreshBanner(); setInterval(refreshBanner, 15_000);
+  // Cepat (3 dtk) selama pengeringan supaya tombol dan jendela segera mengikuti; sisanya 15 dtk.
+  (function loop() { refreshBanner().finally(() => setTimeout(loop, ['menguras', 'aman'].includes(phaseNow) ? 3000 : 15_000)); })();
 
   // ───── jendela "Matikan aman" ─────
   const overlay = h('div', { id: 'awayModal', hidden: true, role: 'dialog', 'aria-label': 'Matikan aman' });
@@ -43,6 +60,7 @@ function init() {
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) close(); });
 
   function openModal() {
+    if (phaseNow !== 'normal') return; // sudah dimatikan/dijeda: tombol utama kini "Lanjut kerja"
     const hoursSel = h('select', { 'aria-label': 'Lanjut otomatis setelah', class: 'owner-stage' }, [['0', 'Sementara: saya lanjutkan sendiri'], ['9', 'Semalaman: lanjut otomatis 9 jam lagi'], ['2', '2 jam'], ['4', '4 jam'], ['6', '6 jam'], ['12', '12 jam'], ['24', '24 jam']].map(([v, t]) => h('option', { value: v }, t)));
     const powerSel = h('select', { 'aria-label': 'Aksi Windows setelah aman', class: 'owner-stage' }, [['', 'Biarkan Windows menyala (saya tutup sendiri)'], ['sleep', 'Tidurkan Windows setelah aman'], ['shutdown', 'Matikan Windows setelah aman (45 dtk untuk membatalkan)']].map(([v, t]) => h('option', { value: v }, t)));
     const msg = h('div', { class: 'owner-msg', role: 'status' });
@@ -51,6 +69,7 @@ function init() {
       start.disabled = true; msg.className = 'owner-msg'; msg.textContent = 'Memulai…';
       const r = await post('/api/owner/away', { action: 'on', hours: Number(hoursSel.value), power: powerSel.value || null });
       if (!r.ok) { start.disabled = false; msg.className = 'owner-msg bad'; msg.textContent = r.data?.error ?? 'Gagal memulai.'; return; }
+      applyBtn('menguras'); // tombol utama langsung berubah jadi "Batalkan, lanjut kerja"
       msg.textContent = ''; watch(progress, msg);
     } }, 'Mulai matikan aman');
     overlay.replaceChildren(h('div', { class: 'away-card' },
