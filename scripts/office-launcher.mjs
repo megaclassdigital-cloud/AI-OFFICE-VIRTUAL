@@ -209,6 +209,14 @@ function busyWork() {
  * tunggu agen yang berjalan dan pekerjaan kode (render/finalisasi/ambil aset) selesai (maks 20 menit), lalu hentikan semuanya. Status "safeToClose" ditulis
  * 10 detik SEBELUM proses mati supaya UI sempat menampilkan "aman ditutup". Aksi Windows (matikan/tidur) hanya bila diminta owner di away.json.
  */
+/** Perintah "cancel-shutdown" (tombol Batalkan/Lanjutkan di UI) selama pengeringan: dibaca di sini karena siklus utama tertahan oleh safeShutdown. Baris lain tetap untuk handleCommand. */
+function takeCancelRequest() {
+  let raw; try { raw = readFileSync(COMMAND_FILE, 'utf8'); } catch { return false; }
+  const lines = raw.split(/\r?\n/).filter(Boolean); let cancel = false; const rest = [];
+  for (const l of lines) { let c = null; try { c = JSON.parse(l); } catch { /* baris rusak dibuang */ } if (c?.cmd === 'cancel-shutdown') cancel = true; else if (c) rest.push(l); }
+  if (cancel) { try { if (rest.length) writeFileSync(COMMAND_FILE, rest.join(NL) + NL); else unlinkSync(COMMAND_FILE); } catch { /* abaikan */ } }
+  return cancel;
+}
 async function safeShutdown() {
   stopping = true;
   log('Mematikan dengan aman: jeda dan menunggu agent/pekerjaan yang sedang berjalan');
@@ -221,6 +229,13 @@ async function safeShutdown() {
     // Admin Publikasi yang tidak sedang memposting dihentikan lebih dulu supaya tidak memulai posting baru selama menunggu.
     const ap = comp.get('autopost'); if (ap && !busy.some((b) => b.startsWith('Admin Publikasi'))) killComponent(ap);
     const waiting = [...run, ...busy];
+    if (takeCancelRequest()) {
+      // Owner membatalkan sebelum selesai: lanjutkan seperti biasa (komponen yang sempat dihentikan dinyalakan lagi oleh siklus pengawas).
+      setPaused(false); try { unlinkSync(f('workspace', 'away.json')); } catch { /* tidak ada */ }
+      stopping = false; log('Mematikan aman DIBATALKAN owner: pekerjaan dilanjutkan');
+      writeStatus(evaluateHealth((await probe()).input), { shutting: false });
+      return;
+    }
     writeStatus(evaluateHealth((await probe()).input), { shutting: true, waiting, safeToClose: false });
     if (!waiting.length) break;
     if (Date.now() - t0 > 20 * 60_000) { timedOut = true; break; }

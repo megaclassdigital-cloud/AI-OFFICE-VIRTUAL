@@ -25,11 +25,12 @@ function init() {
   async function refreshBanner() {
     if (document.hidden) return;
     const s = await getJson('/api/owner/away');
-    if (!s || !['pergi', 'jeda', 'jeda-otomatis'].includes(s.phase)) { banner.hidden = true; return; }
-    const text = s.phase === 'jeda-otomatis' ? `⏸ Dijeda otomatis (pemutus token): ${s.autoPause?.reason ?? 'terlalu banyak kegagalan beruntun'}. Tidak ada token terpakai.`
+    if (!s || !['pergi', 'jeda', 'jeda-otomatis', 'menguras'].includes(s.phase)) { banner.hidden = true; return; }
+    const text = s.phase === 'menguras' ? `🌙 Sedang mematikan aman… menunggu: ${(s.waiting ?? []).join(', ') || 'pekerjaan berjalan'}. Jangan tutup laptop dulu.`
+      : s.phase === 'jeda-otomatis' ? `⏸ Dijeda otomatis (pemutus token): ${s.autoPause?.reason ?? 'terlalu banyak kegagalan beruntun'}. Tidak ada token terpakai.`
       : s.phase === 'pergi' ? `🌙 Mode pergi aktif sejak ${fmtTime(s.away.since)}${s.away.until ? `; lanjut otomatis ${fmtTime(s.away.until)}` : ''}. Tidak ada pekerjaan/token berjalan.`
       : '⏸ Pekerjaan dijeda. Tidak ada pekerjaan baru yang dimulai.';
-    const go = h('button', { type: 'button', class: 'owner-approve', onclick: async () => { go.disabled = true; await post('/api/owner/away', { action: 'off' }); setTimeout(refreshBanner, 1500); } }, '▶ Lanjutkan');
+    const go = h('button', { type: 'button', class: 'owner-approve', onclick: async () => { go.disabled = true; await post('/api/owner/away', { action: 'off' }); setTimeout(refreshBanner, 1500); } }, s.phase === 'menguras' ? '✖ Batalkan, lanjut bekerja' : '▶ Lanjutkan');
     banner.replaceChildren(h('span', {}, text), go); banner.hidden = false;
   }
   refreshBanner(); setInterval(refreshBanner, 15_000);
@@ -69,7 +70,7 @@ function init() {
       if (!s) { if (seen && ++misses >= 2) { progress.replaceChildren(h('p', { class: 'away-ok' }, '✅ Sistem sudah berhenti. Aman menutup atau mematikan laptop.')); msg.textContent = ''; return; } if (!seen && ++misses >= 6) { msg.className = 'owner-msg bad'; msg.textContent = 'Tidak bisa menghubungi server.'; return; } }
       else {
         misses = 0; if (['menguras', 'aman'].includes(s.phase)) seen = true;
-        if (s.phase === 'menguras') progress.replaceChildren(h('p', {}, '⏳ Menunggu pekerjaan yang sedang berjalan selesai…'), h('ul', {}, (s.waiting ?? []).map((w) => h('li', {}, w))), h('p', { class: 'sub' }, 'Jangan tutup laptop dulu.'));
+        if (s.phase === 'menguras') progress.replaceChildren(h('p', {}, '⏳ Menunggu pekerjaan yang sedang berjalan selesai…'), h('ul', {}, (s.waiting ?? []).map((w) => h('li', {}, w))), h('p', { class: 'sub' }, 'Jangan tutup laptop dulu.'), h('button', { type: 'button', class: 'ghost sm', onclick: async () => { await post('/api/owner/away', { action: 'off' }); close(); setTimeout(refreshBanner, 1500); } }, '✖ Batalkan, lanjut bekerja'));
         else if (s.phase === 'aman') progress.replaceChildren(h('p', { class: 'away-ok' }, '✅ Semua pekerjaan selesai. Sistem berhenti dalam ±10 detik; laptop aman ditutup setelah jendela ini berhenti merespons.'));
         else if (s.phase === 'pergi') progress.replaceChildren(h('p', {}, '⏳ Memulai penghentian…'));
       }

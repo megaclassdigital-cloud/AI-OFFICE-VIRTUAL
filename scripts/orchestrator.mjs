@@ -869,6 +869,19 @@ async function sustainTick(state, net) {
       log('pemulihan mandiri: agen ' + ag.name + ' berstatus error dibersihkan');
     }
   }
+  // 1a) QA tertinggal "paused" oleh finalisasi yang mati mendadak (penanda workspace/finalize-qa-pause.json): resume sendiri. Jeda buatan owner (tanpa penanda) tidak disentuh.
+  try {
+    const pm = path.join(ROOT, 'workspace', 'finalize-qa-pause.json');
+    if (existsSync(pm) && net?.hold !== true) {
+      const mark = readJsonLoose(pm) ?? {};
+      const alive = (() => { try { process.kill(Number(mark.pid), 0); return Number(mark.pid) > 0; } catch { return false; } })();
+      if (!alive || Date.now() - Number(mark.at ?? 0) > 15 * 60_000) {
+        const qa = agentByName('QA');
+        if (qa && mark.agentId === qa.id) { const cur = await j('/agents/' + qa.id); if (cur?.status === 'paused') { await j('/agents/' + qa.id + '/resume', jb('POST', {})); log('pemulihan mandiri: agen QA tertinggal dijeda oleh finalisasi yang terhenti; dilanjutkan'); } }
+        try { unlinkSync(pm); } catch { /* sudah hilang */ }
+      }
+    }
+  } catch (e) { log('pemulihan jeda QA galat: ' + String(e?.message ?? e).slice(0, 100)); }
   // 1b) job tercatat TERBLOKIR padahal produksinya sudah diserahkan ke owner (finalisasi berhasil sesudah blokir: dijalankan ulang manual, atau berhasil pada percobaan berikutnya):
   // samakan state dengan kenyataan di Paperclip supaya TV/Office View tidak menampilkan TERBLOKIR dan pemulihan tidak mengulang finalisasi.
   if (net?.hold !== true && now - lastReconcileMs >= 3 * 60_000) {

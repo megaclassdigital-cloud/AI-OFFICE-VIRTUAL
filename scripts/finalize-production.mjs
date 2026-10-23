@@ -4,7 +4,7 @@
 // Steps (code, not LLM): attach docs -> verify_candidate per verified candidate -> render_carousel (seal) -> qa_submit_result -> handoff_to_owner.
 // The QA *judgement* (textOk/designOk) always comes from the QA agent's own accepted result; this script never invents it.
 // Usage: node scripts/finalize-production.mjs EDU-27 [--text-ok true --design-ok true]   (flags only override a missing QA judgement)
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readValidOverride, llmWithOverride, overrideComment } from './owner-override.mjs';
@@ -81,7 +81,11 @@ async function main() {
 
   // Handoff harus bertransisi dari in_progress. QA dipause sementara supaya penugasan ini tidak membangunkannya (pola yang sama dengan e2e-fixture).
   const wasQaStatus = qaAgent.status;
-  if (wasQaStatus !== 'paused') await j(`/agents/${qaAgent.id}/pause`, jb({}));
+  // PENANDA JEDA: bila proses ini mati mendadak di tengah (RAM habis, orkestrator di-restart, batas waktu) blok "finally" di bawah tidak berjalan dan QA tertinggal berstatus
+  // "paused manual" selamanya: semua tahap QA berikutnya langsung terblokir ("original assignee is not invokable"). Penanda ini memungkinkan orkestrator memulihkannya sendiri
+  // (membedakan jeda milik finalisasi dari jeda yang sengaja dibuat owner).
+  const pauseMark = path.join(ROOT, 'workspace', 'finalize-qa-pause.json');
+  if (wasQaStatus !== 'paused') { try { writeFileSync(pauseMark, JSON.stringify({ at: Date.now(), pid: process.pid, agentId: qaAgent.id })); } catch { /* pemulihan tanpa penanda tetap manual */ } await j(`/agents/${qaAgent.id}/pause`, jb({})); }
   try {
   await fetch(`${API}/issues/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assigneeAgentId: qaAgent.id, status: 'in_progress' }) });
   // 1. documents on the production issue
@@ -155,7 +159,7 @@ async function main() {
   console.log(JSON.stringify({ ok: ho.ok === true, status: ho.status, contentHash: ho.contentHash, issue: prod, issueId: id }));
   return ho.ok === true ? 0 : 1;
   } finally {
-    if (wasQaStatus !== 'paused') await j(`/agents/${qaAgent.id}/resume`, jb({})).catch(() => {});
+    if (wasQaStatus !== 'paused') { await j(`/agents/${qaAgent.id}/resume`, jb({})).catch(() => {}); try { unlinkSync(pauseMark); } catch { /* sudah hilang */ } }
   }
 }
 

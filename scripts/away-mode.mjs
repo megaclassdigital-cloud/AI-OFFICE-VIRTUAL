@@ -34,6 +34,7 @@ if (mode === 'on') {
   try { unlinkSync(AWAY); } catch { /* sudah tidak ada */ }
   try { unlinkSync(W('auto-pause.json')); } catch { /* tidak ada jeda otomatis */ }
   setPaused(false);
+  if (launcherAlive()) appendFileSync(CMD, JSON.stringify({ cmd: 'cancel-shutdown', key: null, at: Date.now() }) + '\n'); // membatalkan pengeringan yang sedang berjalan (tidak berefek bila tidak ada)
   if (launcherAlive()) console.log('Jeda dicabut. Pekerjaan dilanjutkan.');
   else {
     const p = spawn(process.execPath, [path.join(ROOT, 'scripts', 'office-launcher.mjs'), '--no-open'], { cwd: ROOT, detached: true, stdio: 'ignore', windowsHide: true }); p.unref();
