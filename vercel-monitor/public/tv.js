@@ -20,13 +20,15 @@ const dlUrl = (p) => `${img(p)}&download=1`;
 async function downloadAll(slides) { for (const s of slides) { const a = document.createElement('a'); a.href = dlUrl(s.image); a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((r) => setTimeout(r, 450)); } }
 const TABS = [['all', '📚 Semua Konten'], ['show', '🎞️ Tayangan'], ['manager', '🧭 Manager'], ['researcher', '🔎 Researcher'], ['verifier', '🛡️ Verifier'], ['copywriter', '✍️ Copywriter'], ['designer', '🎨 Designer'], ['qa', '✅ QA'], ['publikasi', '📣 Publikasi'], ['otonom', '🤖 Otonom']];
 
+// Tab yang memakai dokumen produksi (besar); 'Semua Konten', Publikasi, dan Otonom hanya butuh papan/status ringan.
+const NEEDS_PROD = (tab) => !['all', 'publikasi', 'otonom'].includes(tab);
 const st = { prod: null, rev: '', tab: 'all', data: null, slide: 0, sig: '', board: [] };
 const sel = h('select', { id: 'tvProd', 'aria-label': 'Pilih produksi', onchange: () => { st.prod = sel.value; st.rev = ''; st.slide = 0; load(true); } });
 const revSel = h('select', { id: 'tvRev', 'aria-label': 'Pilih versi', hidden: true, onchange: () => { st.rev = revSel.value; st.slide = 0; load(true); } });
 const chip = h('span', { class: 'tv-chip' });
 const main = h('main', { id: 'tvMain' });
 const stages = h('footer', { id: 'tvStages' });
-const tabs = h('nav', { class: 'tv-tabs', role: 'tablist' }, TABS.map(([k, l]) => h('button', { type: 'button', role: 'tab', 'data-tab': k, onclick: () => { st.tab = k; render(); } }, l)));
+const tabs = h('nav', { class: 'tv-tabs', role: 'tablist' }, TABS.map(([k, l]) => h('button', { type: 'button', role: 'tab', 'data-tab': k, onclick: () => { st.tab = k; render(); if (NEEDS_PROD(k)) load(false); } }, l)));
 const overlay = h('div', { id: 'tv', hidden: true, role: 'dialog', 'aria-label': 'Dashboard Papan Tayang' },
   h('div', { class: 'tv-bezel' },
     h('header', {}, h('div', { class: 'tv-title' }, '📺 PAPAN TAYANG'), sel, revSel, chip, h('button', { type: 'button', class: 'tv-x', title: 'Tutup (Esc)', onclick: () => close() }, '✕')),
@@ -44,7 +46,7 @@ addEventListener('keydown', (e) => {
   else if (st.tab === 'show' && e.key === 'ArrowRight') go(1); else if (st.tab === 'show' && e.key === 'ArrowLeft') go(-1);
 });
 overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-setInterval(() => { if (!overlay.hidden) load(false); }, 8000);
+setInterval(() => { if (!overlay.hidden && !document.hidden) load(false); }, 15000);
 
 async function load(force) {
   let board = { items: [] };
@@ -62,7 +64,10 @@ async function load(force) {
     if (!st.prod || !board.items.some((i) => i.prod === st.prod)) st.prod = board.items[0]?.prod ?? null;
     sel.value = st.prod ?? '';
   }
+  const bsig = JSON.stringify(board.items);
+  const boardChanged = bsig !== st.bsig; st.bsig = bsig;
   if (!st.prod) { st.data = null; render(); return; }
+  if (!NEEDS_PROD(st.tab) && !force) { if (boardChanged) render(); return; } // tanpa mengambil/membandingkan dokumen produksi yang besar
   let d; try { d = await jget(`/api/inspect/production?prod=${encodeURIComponent(st.prod)}${st.rev !== '' ? `&rev=${encodeURIComponent(st.rev)}` : ''}`); } catch { d = null; }
   const sig = JSON.stringify(d);
   if (sig === st.sig && !force) return;
@@ -176,7 +181,7 @@ function allContents() {
   if (!items.length) return empty('Belum ada konten.');
   return h('div', {}, st.stale ? h('div', { class: 'tv-warn' }, '⚠ Koneksi ke server/Paperclip bermasalah: menampilkan daftar terakhir yang tersimpan. Semua konten tetap ada; status bisa tertinggal sampai tersambung lagi.') : null, lead(`${items.length} konten. Klik kartu untuk membuka tayangannya.`),
     h('div', { class: 'tv-all' }, items.map((i) => h('button', { type: 'button', class: 'tv-item', onclick: () => { st.prod = i.prod; st.rev = ''; st.slide = 0; st.tab = 'show'; sel.value = i.prod; load(true); }, title: i.title },
-      i.cover ? h('div', { class: 'cv' }, h('img', { src: img(i.cover), alt: '', loading: 'lazy' }), i.coverFrom ? h('span', { class: 'cvnote' }, `gambar ${i.coverFrom}`) : null) : h('div', { class: 'ph' }, 'belum ada gambar'),
+      i.cover ? h('div', { class: 'cv' }, h('img', { src: img(i.cover), alt: '', loading: 'lazy', decoding: 'async', fetchpriority: 'low' }), i.coverFrom ? h('span', { class: 'cvnote' }, `gambar ${i.coverFrom}`) : null) : h('div', { class: 'ph' }, 'belum ada gambar'),
       h('div', { class: 'meta' },
         h('div', { class: 'row' }, h('b', {}, i.label ?? i.prod), h('span', { class: `tv-chip ${i.status?.tone ?? ''}` }, statusText(i.status))),
         h('div', { class: 'ttl' }, i.title),
@@ -193,7 +198,7 @@ function show(d) {
     h('button', { type: 'button', class: 'nav', onclick: () => go(-1), 'aria-label': 'Slide sebelumnya' }, '‹'),
     h('a', { href: img(cur.image), target: '_blank', rel: 'noopener', title: 'Buka ukuran penuh' }, h('img', { src: img(cur.image), alt: `Slide ${cur.index}` })),
     h('button', { type: 'button', class: 'nav', onclick: () => go(1), 'aria-label': 'Slide berikutnya' }, '›'));
-  const thumbs = h('div', { class: 'tv-thumbs' }, slides.map((s, i) => h('button', { type: 'button', class: i === st.slide ? 'on' : '', onclick: () => { st.slide = i; render(); } }, h('img', { src: img(s.image), alt: `Slide ${s.index}`, loading: 'lazy' }))));
+  const thumbs = h('div', { class: 'tv-thumbs' }, slides.map((s, i) => h('button', { type: 'button', class: i === st.slide ? 'on' : '', onclick: () => { st.slide = i; render(); } }, h('img', { src: img(s.image), alt: `Slide ${s.index}`, loading: 'lazy', decoding: 'async' }))));
   const k = d.stats ?? {};
   const kpi = h('div', { class: 'tv-kpi' }, [['🎞️', k.slides, 'slide'], ['🔎', k.candidates, 'kandidat'], ['🛡️', `${k.verified}/${k.candidates}`, 'terverifikasi'], ['🔗', k.sources, 'sumber'], ['✅', k.qa, 'QA']].map(([i, v, l]) => h('div', {}, h('b', {}, `${i} ${v}`), h('small', {}, l))));
   const hasTags = d.caption && (d.hashtags ?? []).some((t) => d.caption.includes(t));
@@ -280,7 +285,7 @@ function copywriter(d) {
 function designer(d) {
   const x = d.design; if (!x) return empty();
   return h('div', {}, lead(`Designer memilih tampilan ${x.variants.join(', ')} untuk ${x.slides.length} slide (hanya dari template brand kit).`),
-    h('div', { class: 'tv-grid' }, x.slides.map((s) => card(s.image ? h('img', { class: 'tv-mini', src: img(s.image), alt: `Slide ${s.index}`, loading: 'lazy' }) : null,
+    h('div', { class: 'tv-grid' }, x.slides.map((s) => card(s.image ? h('img', { class: 'tv-mini', src: img(s.image), alt: `Slide ${s.index}`, loading: 'lazy', decoding: 'async' }) : null,
       h('b', {}, `${s.index}. ${s.template}`, s.image ? h('a', { class: 'dlx', href: dlUrl(s.image), download: '', title: 'Unduh gambar slide ini' }, ' ⬇') : null), h('p', { class: 'sub' }, s.variant + (s.icon ? ` · ikon ${s.icon}` : '')), s.emphasis.length ? h('p', { class: 'sub' }, 'Ditekankan: ' + s.emphasis.join(', ')) : null))));
 }
 function qaHistoryCards(d) {

@@ -164,6 +164,7 @@ html[data-role="review"] #netbanner { display: none !important; } /* monitor ked
 .tv-all{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
 .tv-item{display:flex;flex-direction:column;text-align:left;background:var(--card,#171b24);color:inherit;border:1px solid var(--line,#262c38);border-radius:10px;padding:0;overflow:hidden;cursor:pointer;font:inherit}
 .tv-item:hover,.tv-item:focus-visible{outline:2px solid #60a5fa}
+.tv-item{content-visibility:auto;contain-intrinsic-size:330px 560px}
 .tv-item img,.tv-item .ph{width:100%;aspect-ratio:4/5;object-fit:cover;background:#0f1218;display:flex;align-items:center;justify-content:center;color:#6b7a93;font-size:.8rem}
 .tv-item .meta{padding:8px 10px;display:grid;gap:4px}
 .tv-item .row{display:flex;gap:8px;align-items:center;justify-content:space-between}

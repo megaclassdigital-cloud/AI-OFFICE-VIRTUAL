@@ -4,7 +4,7 @@
 // Pemakaian: node apps/office-view/server.mjs [--port 3190] [--paperclip http://127.0.0.1:3177] [--open] [--poll-ms 2000]
 
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -36,7 +36,7 @@ const owner = a.includes('--enable-owner') ? createOwner({ base: PAPERCLIP, port
 
 // Inspeksi hanya-baca (memori agen, approval, berkas hasil) untuk dock UI; selalu aktif, hanya GET.
 const inspector = createInspector({ cacheFile: path.join(repoRoot, 'workspace', 'board-cache.json'), base: PAPERCLIP, outputRoot: path.join(repoRoot, 'workspace', 'agent'), stateFile: path.join(repoRoot, 'workspace', 'orchestrator-state.json') });
-const sendBuffer = (res, code, type, buf, filename) => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', ...(filename ? { 'content-disposition': `attachment; filename="${String(filename).replace(/[^A-Za-z0-9._-]/g, '_')}"` } : {}) }); res.end(buf); };
+const sendBuffer = (res, code, type, buf, filename, etag) => { res.writeHead(code, { 'content-type': type, 'cache-control': etag ? 'no-cache' : 'no-store', ...(etag ? { etag } : {}), ...(filename ? { 'content-disposition': `attachment; filename="${String(filename).replace(/[^A-Za-z0-9._-]/g, '_')}"` } : {}) }); res.end(buf); };
 
 // Rahasia akses review dibaca dari .env tiap 5 dtk (tanpa restart setelah setup-review-access.mjs); nilai di proses ini menang bila ada.
 let envCache = { at: 0, vals: {} };
@@ -87,9 +87,14 @@ export const server = http.createServer(async (req, res) => {
     const rel = p === '/' ? '/index.html' : decodeURIComponent(p);
     const file = path.join(pub, rel);
     if (!file.startsWith(pub + path.sep)) return J(res, 403, { error: 'dilarang' });
+    // Berkas statis (JS/CSS/sprite): ETag dari ukuran+waktu ubah, divalidasi tiap muat (304 tanpa membaca berkas) alih-alih no-store yang mengunduh ulang semuanya.
+    const fst = await stat(file).catch(() => null);
+    if (!fst || !fst.isFile()) return J(res, 404, { error: 'tidak ada' });
+    const etag = `W/"${fst.size}-${Math.floor(fst.mtimeMs)}"`;
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304, { etag, 'cache-control': 'no-cache' }); return res.end(); }
     const buf = await readFile(file).catch(() => null);
     if (!buf) return J(res, 404, { error: 'tidak ada' });
-    res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-store' });
+    res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-cache', etag });
     res.end(buf);
   } catch (e) {
     json(res, 500, { error: String(e?.message ?? e) });

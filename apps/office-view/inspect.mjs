@@ -43,6 +43,25 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     return j;
   };
   let cache = null; let cachedAt = 0;
+  // Daftar SEMUA issue Paperclip (ratusan, beberapa MB) dipakai board, produksi, dan master: satu panggilan dibagi dalam jendela 6 dtk (dan permintaan serentak digabung).
+  let issuesMemo = null;
+  const issuesCached = async () => {
+    if (issuesMemo && now() - issuesMemo.at < 6000) return issuesMemo.p;
+    const { companyId } = await ctx();
+    const p = api(`/companies/${companyId}/issues`).catch((e) => { issuesMemo = null; throw e; });
+    issuesMemo = { at: now(), p };
+    return p;
+  };
+  // Dokumen handoff hanya berubah bila issue master berubah (updatedAt): jangan memanggil Paperclip per konten pada setiap muat ulang papan.
+  const handoffMemo = new Map();
+  async function handoffOf(master) {
+    const c = handoffMemo.get(master.id);
+    if (c && c.upd === master.updatedAt && (c.handoff || now() - c.at < 30_000)) return c.handoff;
+    let handoff = null;
+    try { const dl = await api(`/issues/${master.id}/documents`); const d = (Array.isArray(dl) ? dl : dl.documents ?? []).find((x) => x.key === 'handoff'); if (d) { try { handoff = JSON.parse(d.body); } catch { handoff = {}; } } } catch { /* tanpa dokumen */ }
+    handoffMemo.set(master.id, { upd: master.updatedAt, at: now(), handoff });
+    return handoff;
+  }
   async function ctx() {
     if (cache && now() - cachedAt < 8000) return cache;
     const company = (await api('/companies')).find((c) => companyMatch.test(c.name));
@@ -169,12 +188,8 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     return null;
   }
   async function masterOf(masterIdentifier, issues = null) {
-    const { companyId } = await ctx();
-    const master = (issues ?? (await api(`/companies/${companyId}/issues`))).find((i) => i.identifier === masterIdentifier) ?? null;
-    let handoff = null;
-    if (master && (!issues || !['cancelled', 'backlog'].includes(master.status))) {
-      try { const dl = await api(`/issues/${master.id}/documents`); const d = (Array.isArray(dl) ? dl : dl.documents ?? []).find((x) => x.key === 'handoff'); if (d) { try { handoff = JSON.parse(d.body); } catch { handoff = {}; } } } catch { /* tanpa dokumen */ }
-    }
+    const master = (issues ?? (await issuesCached())).find((i) => i.identifier === masterIdentifier) ?? null;
+    const handoff = master && !['cancelled', 'backlog'].includes(master.status) ? await handoffOf(master) : null;
     return { master, handoff };
   }
   async function activeJob() {
@@ -183,9 +198,9 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     return s?.job ?? null;
   }
   /** Job aktif (terdepan atau di jalur paralel) untuk sebuah issue master. */
-  async function activeJobFor(masterIdentifier) {
+  async function activeJobFor(masterIdentifier, stateObj = undefined) {
     if (!stateFile) return null;
-    const s = await readJsonSafe(stateFile);
+    const s = stateObj !== undefined ? stateObj : await readJsonSafe(stateFile);
     const live = [s?.job, ...(s?.followers ?? [])].find((j) => j && j.identifier === masterIdentifier);
     if (live) return live;
     // Job yang sudah TERBLOKIR dipindah ke riwayat: tetap tampil sebagai "terblokir" (dengan alasannya), bukan "draf" yang menyesatkan.
@@ -218,7 +233,17 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     return { status: 200, body: { ...view, blockReason, blockStage: aj?.phase === 'blocked' && aj.stageIndex >= 0 ? aj.stageIndex : null, status: applyLive(view.status, posted), posted: posted ?? null, runKey, revision: revisionOf(runKey), label: labelOf(runKey), versions: run.versions } };
   }
   /** Papan Tayang: tiga konten terbaru (versi terbaru tiap konten) dengan sampul dan status. */
-  async function boardView(limit = 0) {
+  // Papan dibangun dari banyak berkas + Paperclip: hasilnya dipakai bersama selama 6 dtk (TV, dock, dan kanvas memuatnya bersamaan; permintaan serentak digabung).
+  const boardMemo = new Map();
+  function boardView(limit = 0) {
+    const c = boardMemo.get(limit);
+    if (c && now() - c.at < 6000) return c.p;
+    const p = buildBoard(limit).catch((e) => { boardMemo.delete(limit); throw e; });
+    boardMemo.set(limit, { at: now(), p });
+    return p;
+  }
+  async function buildBoard(limit = 0) {
+    const stateObj = stateFile ? await readJsonSafe(stateFile) : null;
     const dirs = (await readdir(path.join(outputRoot, 'runs'), { withFileTypes: true }).catch(() => [])).filter((e) => e.isDirectory() && CONTENT_RE.test(e.name));
     const withTime = await Promise.all(dirs.map(async (e) => {
       const key = latestRunKey(outputRoot, e.name);
@@ -227,7 +252,7 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
     const items = [];
     // Daftar penuh: SEMUA konten (tidak ada yang hilang dari TV), terbaru dibuat di atas. limit>0 = hanya yang paling baru aktif (papan di kanvas).
     let issueList = null;
-    if (!limit) { try { const { companyId } = await ctx(); issueList = await api(`/companies/${companyId}/issues`); } catch { issueList = null; } }
+    if (!limit) { try { issueList = await issuesCached(); } catch { issueList = null; } }
     const ordered = withTime.sort((a, b) => b.t - a.t);
     for (const { prod, runKey } of limit ? ordered.slice(0, limit) : ordered) {
       const masterIdentifier = masterIdentifierOf(outputRoot, runKey);
@@ -242,7 +267,7 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
       const createdMs = Date.parse(master?.createdAt ?? '') || orderStat?.birthtimeMs || orderStat?.mtimeMs || runStat?.birthtimeMs || runStat?.mtimeMs || 0;
       const holdB = await readHold(runDirOf(outputRoot, runKey));
       const fbB = slides.length ? null : await prevSlidesFor(prod, runKey);
-      items.push({ createdAt: createdMs ? new Date(createdMs).toISOString() : null,  prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? fbB?.files?.[0] ?? null, coverFrom: slides.length ? null : (fbB?.label ?? null), slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: applyLive(productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier), unknown, holdCount: holdB?.missing?.length ?? 0 }), await readJsonSafe(path.join(runDirOf(outputRoot, runKey), 'posted.json'))) });
+      items.push({ createdAt: createdMs ? new Date(createdMs).toISOString() : null,  prod, runKey, revision: revisionOf(runKey), label: labelOf(runKey), title: cleanTitle(order?.title ?? carousel?.topic ?? prod), cover: slides[0] ?? fbB?.files?.[0] ?? null, coverFrom: slides.length ? null : (fbB?.label ?? null), slides: slides.length, caption: carousel?.caption ? String(carousel.caption).split(String.fromCharCode(10))[0].slice(0, 140) : null, status: applyLive(productionStatus({ master, hasHandoff: !!handoff, job: await activeJobFor(masterIdentifier, stateObj), unknown, holdCount: holdB?.missing?.length ?? 0 }), await readJsonSafe(path.join(runDirOf(outputRoot, runKey), 'posted.json'))) });
     }
     if (!limit) items.sort((a, b) => Date.parse(b.createdAt ?? 0) - Date.parse(a.createdAt ?? 0));
     // Riwayat tidak boleh hilang dari TV: simpan snapshot terakhir yang baik. Saat Paperclip error, status per konten memakai snapshot (bukan "tidak diketahui");
@@ -302,9 +327,12 @@ export function createInspector({ base, outputRoot, cacheFile = null, stateFile 
         if (!abs) r = { status: 403, body: { error: 'path ditolak' } };
         else if (!st || !st.isFile() || st.size > MAX_IMG) r = { status: 404, body: { error: 'tidak ada atau terlalu besar' } };
         else {
+          // ETag dari ukuran+waktu ubah: browser memvalidasi (304, tanpa membaca/mengirim PNG 1-2 MB) alih-alih mengunduh ulang tiap DOM dibangun ulang.
+          const etag = `W/"${st.size}-${Math.floor(st.mtimeMs)}"`;
+          if (res.req?.headers?.['if-none-match'] === etag) { res.writeHead(304, { etag, 'cache-control': 'no-cache' }); res.end(); return true; }
           // ?download=1 -> diunduh sebagai SATU berkas gambar (nama: <produksi>-slide-NN.png), bukan gabungan.
           const name = path.basename(abs); const prodId = (q('path').match(/^runs[/](EDU-[0-9]+)[/]/) ?? [])[1];
-          sendBuffer(res, 200, 'image/png', await readFile(abs), q('download') === '1' ? `${prodId ? prodId + '-' : ''}${name}` : undefined);
+          sendBuffer(res, 200, 'image/png', await readFile(abs), q('download') === '1' ? `${prodId ? prodId + '-' : ''}${name}` : undefined, etag);
           return true;
         }
       } else r = { status: 404, body: { error: 'rute tidak ada' } };
