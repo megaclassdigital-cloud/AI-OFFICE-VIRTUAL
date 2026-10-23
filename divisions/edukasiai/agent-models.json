@@ -137,6 +137,17 @@
     ],
     "Copywriter": [
       {
+        "id": "haiku",
+        "provider": "claude-haiku",
+        "label": "Claude Haiku 4.5 (OAuth, effort medium)",
+        "adapterType": "claude_local",
+        "adapterConfig": {
+          "model": "claude-haiku-4-5",
+          "effort": "medium",
+          "engine": "cli"
+        }
+      },
+      {
         "id": "g35",
         "label": "Gemini 3.5 flash",
         "adapterType": "opencode_local",

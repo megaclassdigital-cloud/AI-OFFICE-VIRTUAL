@@ -119,6 +119,8 @@ describe('Haiku untuk peran penilaian (Researcher, Verifier, QA)', () => {
       expect(cfg.exclusiveProviders.includes(first.provider)).toBe(false);
       expect(cfg.agents[name].length).toBeGreaterThan(1); // cadangan gratis tetap ada
     }
-    for (const name of ['Copywriter', 'Designer']) expect(cfg.agents[name].some((e) => e.id === 'haiku')).toBe(false);
+    // Keputusan owner 23 Okt 2026: Copywriter memakai Haiku lebih dulu (model gratis menghasilkan carousel.json cacat); Designer tetap di model gratis.
+    expect(cfg.agents.Designer.some((e) => e.id === 'haiku')).toBe(false);
+    expect(cfg.agents.Copywriter[0].id).toBe('haiku'); expect(cfg.agents.Copywriter.length).toBeGreaterThan(1);
   });
 });

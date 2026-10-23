@@ -10,7 +10,7 @@ import { writeJsonAtomic, readJsonSafe } from './safe-json.mjs';
 import { writeHeartbeat, waitForPaperclip, isConnectionError } from './heartbeat.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FAIL_RE = /acpx_session_init_failed|ensure_session|internal error|quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|high demand|spikes in demand|capacity|terminal service failure|acpx_turn_failed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
+const FAIL_RE = /acpx_session_init_failed|ensure_session|internal error|quota|rate.?limit|too many requests|\b429\b|exhausted|resource_exhausted|usage limit|limit reached|hit your (?:\w+ )?limit|reached your (?:\w+ )?limit|limit .{0,30}resets|billing|insufficient|credit|not logged in|login required|authentication required|unauthori[sz]ed|\b401\b|token (has )?expired|overloaded|high demand|spikes in demand|capacity|terminal service failure|acpx_turn_failed|model.{0,40}(not found|not available|unavailable|does not exist)/i;
 
 export const isFailoverError = (text) => FAIL_RE.test(String(text ?? ''));
 
