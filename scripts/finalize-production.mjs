@@ -22,6 +22,17 @@ export function llmFromQaResult(q, override = {}) {
   return null;
 }
 
+/**
+ * Pure: API dokumen Paperclip (format markdown) mengubah escape \n \r \t di dalam teks menjadi karakter kontrol sungguhan, sehingga JSON yang disimpan lewat PUT rusak
+ * ("Bad control character in string literal"). Tulis escape itu sebagai \uXXXX (nilai setelah JSON.parse sama persis) supaya tidak disentuh. Dibuktikan pada EDU-171 (23 Okt 2026).
+ */
+export function escapeControlForDoc(jsonText) {
+  const BS = String.fromCharCode(92);
+  const MAP = { n: BS + 'u000a', r: BS + 'u000d', t: BS + 'u0009' };
+  // Pasangan escape dibaca berurutan, jadi "\\\\n" (garis miring ganda lalu huruf n) tidak salah terbaca sebagai baris baru.
+  return String(jsonText).replace(/\\([\s\S])/g, (m, c) => MAP[c] ?? m);
+}
+
 /** Pure: which candidates need a verify_candidate record, with the published date taken from the research output. */
 export function verificationTargets(verification, research) {
   const byId = new Map((research?.candidates ?? []).map((c) => [c.id, c]));
@@ -101,7 +112,7 @@ async function main() {
       // (percobaan finalisasi sebelumnya sempat melampirkan versi lama): perbarui sebagai REVISI BARU lewat API dokumen (riwayat revisi tetap tersimpan, tidak ada yang hilang).
       // Setelah handoff ke owner dokumen dikunci: hentikan seperti semula (buat produksi baru, jangan menimpa konten yang sudah diajukan).
       if (docList.some((d) => d.key === 'handoff')) throw new Error(`dokumen ${key} sudah ada di issue produksi dan berbeda; buat produksi baru, bukan menimpa`);
-      const put = await fetch(`${API}/issues/${id}/documents/${key}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ title: have.title ?? key, format: have.format ?? 'markdown', body: JSON.stringify(body), baseRevisionId: have.latestRevisionId }), 'utf8') });
+      const put = await fetch(`${API}/issues/${id}/documents/${key}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ title: have.title ?? key, format: have.format ?? 'markdown', body: escapeControlForDoc(JSON.stringify(body)), baseRevisionId: have.latestRevisionId }), 'utf8') });
       if (!put.ok) throw new Error(`dokumen ${key} berbeda dan pembaruan revisi gagal (HTTP ${put.status}); buat produksi baru`);
       log(`attach ${key}: diperbarui sebagai revisi baru (belum diserahkan ke owner)`);
       continue;
