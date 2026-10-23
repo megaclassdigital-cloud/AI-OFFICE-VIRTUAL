@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // away-mode.mjs — "Mode pergi": owner menutup/mematikan perangkat sementara TANPA memakai token model.
-//   node scripts/away-mode.mjs on [--hours 8] [--note "teks"]   jeda semua pekerjaan baru, tunggu agen yang sedang bekerja selesai (maks 20 menit), lalu hentikan seluruh stack
+//   node scripts/away-mode.mjs on [--hours 8] [--note "teks"] [--power shutdown|sleep]   jeda semua pekerjaan baru, tunggu agen yang sedang bekerja selesai (maks 20 menit), lalu hentikan seluruh stack
 //   node scripts/away-mode.mjs off                                lanjutkan (hapus jeda); bila pengawas tidak berjalan, nyalakan
 //   node scripts/away-mode.mjs status
 // Aman terhadap mati listrik/boot ulang: jeda tersimpan di workspace/orchestrator-settings.json, jadi sesudah perangkat menyala lagi agen TIDAK bekerja dan
@@ -21,7 +21,7 @@ const setPaused = (v) => { mkdirSync(W(), { recursive: true }); const s = readJs
 const launcherAlive = () => { const s = readJson(LAUNCHER_STATUS); if (!s?.pid || s.overall === 'mati') return false; try { process.kill(s.pid, 0); return Date.now() - (s.at ?? 0) < 120_000; } catch { return false; } };
 
 if (mode === 'on') {
-  const rec = makeAway({ nowMs: Date.now(), hours: arg('--hours', 0), note: arg('--note', '') });
+  const rec = makeAway({ nowMs: Date.now(), hours: arg('--hours', 0), note: arg('--note', ''), power: arg('--power', null) });
   mkdirSync(W(), { recursive: true }); writeFileSync(AWAY, JSON.stringify(rec, null, 2) + '\n');
   setPaused(true); // tidak ada pekerjaan/brief baru mulai sekarang; jam tahap dibekukan
   if (launcherAlive()) {
@@ -32,6 +32,7 @@ if (mode === 'on') {
   console.log(rec.until ? `Lanjut otomatis setelah ${new Date(rec.until).toLocaleString('id-ID')}.` : 'Tanpa batas waktu: lanjutkan dengan "node scripts/away-mode.mjs off" (atau LANJUT-KERJA.cmd).');
 } else if (mode === 'off') {
   try { unlinkSync(AWAY); } catch { /* sudah tidak ada */ }
+  try { unlinkSync(W('auto-pause.json')); } catch { /* tidak ada jeda otomatis */ }
   setPaused(false);
   if (launcherAlive()) console.log('Jeda dicabut. Pekerjaan dilanjutkan.');
   else {

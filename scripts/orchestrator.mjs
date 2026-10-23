@@ -18,7 +18,7 @@ import { validate } from '../schemas/validate.mjs';
 import { contentOf, revisionOf, runDirOf, nextRunKey, writeRunMeta, runKeyForMaster, labelOf, latestRunKey, CONTENT_RE, masterLabelMap, humanizeIds, revisiTitle } from './run-registry.mjs';
 import { writeContentHistory } from './run-index.mjs';
 import { writeOverride, readValidOverride } from './owner-override.mjs';
-import { awayExpired } from './away-core.mjs';
+import { awayExpired, resumeHold, noteFailure, RESUME_HOLD_MS, TOKEN_BREAKER } from './away-core.mjs';
 import { planTidy, applyTidy } from './tidy-workspace.mjs';
 import { renderManagerContext, startOfDayWib } from './manager-context.mjs';
 import { appendOutbox, buildPlanMessage, speakerName } from './manager-outbox.mjs';
@@ -658,6 +658,7 @@ async function applyActions(job, actions, facts) {
     }
     else if (act.type === 'rewakeManager') { job.handledRuns = facts.succeeded; await comment(job.masterIssueId, `Work order belum valid: ${act.errors.join('; ')}. Perbaiki file ${orderPathFor(job.identifier)}, baca ulang, lalu complete_stage lagi.`); }
     else if (act.type === 'retryStage') {
+      failure('retry ' + job.identifier + ' ' + String(act.reason ?? '').slice(0, 80));
       // Galat sementara penyedia model: pulihkan agent bila status error, tunggu sebentar, lalu buat issue tahap baru.
       const ag = agentByName(STAGE_AGENT[act.stage]);
       const cur = await j('/agents/' + ag.id);
@@ -715,7 +716,7 @@ async function applyActions(job, actions, facts) {
       notifyOwner('AI Agent Office: butuh gambar asli', 'Produksi ' + job.identifier + ' ditahan; lihat komentar atau TV.');
       log(job.identifier + ' DITAHAN menunggu aset gambar asli');
     }
-    else if (act.type === 'block') { job.blockReason = String(act.reason ?? '').slice(0, 200); try { job.blockAgentEntry = readJsonLoose(path.join(ROOT, 'workspace', 'failover-state.json'))?.[STAGE_AGENT[STAGES[job.stageIndex]]]?.entry ?? null; } catch { /* tanpa catatan model */ } await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
+    else if (act.type === 'block') { failure('blokir ' + job.identifier + ' ' + String(act.reason ?? '').slice(0, 80)); job.blockReason = String(act.reason ?? '').slice(0, 200); try { job.blockAgentEntry = readJsonLoose(path.join(ROOT, 'workspace', 'failover-state.json'))?.[STAGE_AGENT[STAGES[job.stageIndex]]]?.entry ?? null; } catch { /* tanpa catatan model */ } await comment(job.masterIssueId, `DIBLOKIR: ${act.reason}. Butuh keputusan owner.`); await parkMaster(job); log(`${job.identifier} DIBLOKIR: ${act.reason}`); }
   }
 }
 
@@ -837,6 +838,21 @@ async function advanceJob(job, net, occupied, state) {
 }
 
 const SLEEP_GAP_MS = 4 * 60_000;
+const BOOT_MS = Date.now();
+// PEMUTUS TOKEN: kegagalan/percobaan-ulang tahap yang menumpuk (model limit, Paperclip goyah, laptop tidur) membakar token tanpa hasil. Bila terlalu banyak dalam jendela waktu,
+// sistem menjeda DIRI SENDIRI (sama seperti jeda owner), memberi tahu owner, dan menunggu tombol Lanjutkan di UI. Tidak ada token terpakai selama jeda.
+let recentFails = [];
+function failure(why) {
+  const r = noteFailure(recentFails, Date.now()); recentFails = r.fails;
+  if (!r.trip || DRY) return;
+  recentFails = [];
+  try {
+    const s = readJsonLoose(SETTINGS_FILE) ?? {}; s.paused = true; writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2));
+    writeFileSync(path.join(ROOT, 'workspace', 'auto-pause.json'), JSON.stringify({ at: Date.now(), reason: TOKEN_BREAKER.maxFails + ' kegagalan/percobaan-ulang dalam ' + TOKEN_BREAKER.windowMs / 60_000 + ' menit (terakhir: ' + String(why ?? '').slice(0, 120) + ')' }, null, 2));
+    log('PEMUTUS TOKEN: terlalu banyak kegagalan beruntun; sistem dijeda otomatis (tidak ada token terpakai). Lanjutkan lewat tombol di UI atau LANJUT-KERJA.cmd');
+    notifyOwner('AI Agent Office: dijeda otomatis', 'Terlalu banyak kegagalan beruntun; agen dijeda supaya token tidak terbuang. Tekan Lanjutkan di UI setelah masalahnya (model limit/RAM/internet) beres.');
+  } catch { /* pemutus gagal menulis: percobaan berikutnya mencoba lagi */ }
+}
 let lastHealMs = 0;
 let lastReconcileMs = 0;
 async function sustainTick(state, net) {
@@ -872,7 +888,7 @@ async function sustainTick(state, net) {
       const d = decideAutoRetry({ job: cand, nowMs: now, paperclipOk: net?.hold !== true, anotherActive: false, agentEntryNow: entryNow(cand) });
       if (!d.retry) continue;
       const stageName = STAGES[cand.stageIndex];
-      revive(cand); cand.autoRetries = d.attempt;
+      revive(cand); cand.autoRetries = d.attempt; failure('coba-ulang mandiri ' + cand.identifier);
       if (needsSessionReset(cand.blockReason)) { const ag = agentByName(STAGE_AGENT[stageName]); if (ag) await j('/agents/' + ag.id + '/runtime-state/reset-session', jb('POST', {})).catch(() => {}); }
       cand.stageIssueId = await createStage(cand, stageName);
       await parkMaster(cand);
@@ -941,6 +957,7 @@ async function once() {
     state.followers = state.followers.map((j) => (isFinished(j) ? j : shift(j)));
     state.pending = state.pending.map((p) => (p.ready || p.hold ? p : shift(p)));
     log('Selang ' + Math.round((tickNow - state.lastOnceMs) / 60_000) + ' menit sejak tick terakhir (laptop tidur/standby?): jam tahap digeser, batas waktu tidak dihitung selama itu');
+    state.resumeUntilMs = tickNow + RESUME_HOLD_MS; // bangun dari tidur: jaringan/Paperclip belum stabil; tahan tahap baru sebentar (kegagalan di sini bukan salah agen dan membakar token)
   }
   state.lastOnceMs = tickNow;
   const settings = readJsonLoose(SETTINGS_FILE) ?? {};
@@ -963,7 +980,9 @@ async function once() {
   }
   if (state.pausedLogged) { delete state.pausedLogged; log('jeda dicabut: pekerjaan dilanjutkan'); }
   try { await applyCommands(state); } catch (e) { log('perintah antrean galat: ' + String(e?.message ?? e).slice(0, 160)); }
-  const net = await checkNetwork(state.job);
+  const net0 = await checkNetwork(state.job);
+  // Penahan setelah proses dinyalakan / bangun dari tidur: dianggap seperti offline (jam tahap beku, tidak ada tahap baru) selama beberapa menit pertama.
+  const net = resumeHold({ bootMs: BOOT_MS, resumeUntilMs: state.resumeUntilMs ?? 0, nowMs: Date.now() }) ? { ...net0, hold: true } : net0;
   try { await tidyBlocked(state); } catch { /* pembersihan hanya kosmetik; jangan pernah mengganggu alur */ }
   try { tidyFiling(state); } catch { /* perapian berkas hanya kosmetik */ }
   try { await processRoutings(); } catch (e) { log('routing revisi galat: ' + String(e?.message ?? e).slice(0, 160)); }

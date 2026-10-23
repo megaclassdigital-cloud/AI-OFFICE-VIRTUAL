@@ -195,26 +195,51 @@ async function runningAgents() {
 }
 function setPaused(v) { const s = readJson(SETTINGS_FILE, {}); s.paused = v; mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true }); writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2) + NL); }
 
-/** Matikan aman: jeda (tidak ada pekerjaan baru, jam dibekukan), tunggu agent yang berjalan selesai (maks 20 menit), lalu hentikan semuanya. */
+/** Pekerjaan kode yang TIDAK boleh dipotong di tengah (render, finalisasi, ambil aset, memposting): ditandai komponen lewat detak jantung (busy + busyUntil). */
+function busyWork() {
+  const out = [];
+  for (const [name, label] of [['orchestrator', 'Orkestrator'], ['autopost', 'Admin Publikasi']]) {
+    const hb = readHeartbeat(ROOT, name);
+    if (hb?.busy && Number(hb.busyUntil) > Date.now()) out.push(label + ': ' + hb.busy);
+  }
+  return out;
+}
+/**
+ * Matikan aman: jeda (tidak ada pekerjaan/brief baru, jam dibekukan), hentikan Admin Publikasi begitu TIDAK sedang memposting (jangan pernah memotong posting),
+ * tunggu agen yang berjalan dan pekerjaan kode (render/finalisasi/ambil aset) selesai (maks 20 menit), lalu hentikan semuanya. Status "safeToClose" ditulis
+ * 10 detik SEBELUM proses mati supaya UI sempat menampilkan "aman ditutup". Aksi Windows (matikan/tidur) hanya bila diminta owner di away.json.
+ */
 async function safeShutdown() {
   stopping = true;
-  log('Mematikan dengan aman: jeda dan menunggu agent yang sedang bekerja');
+  log('Mematikan dengan aman: jeda dan menunggu agent/pekerjaan yang sedang berjalan');
   setPaused(true);
   const t0 = Date.now();
+  let timedOut = false;
   for (;;) {
     const run = await runningAgents();
-    writeStatus(evaluateHealth((await probe()).input), { shutting: true, waiting: run });
-    if (!run.length || Date.now() - t0 > 20 * 60_000) break;
+    const busy = busyWork();
+    // Admin Publikasi yang tidak sedang memposting dihentikan lebih dulu supaya tidak memulai posting baru selama menunggu.
+    const ap = comp.get('autopost'); if (ap && !busy.some((b) => b.startsWith('Admin Publikasi'))) killComponent(ap);
+    const waiting = [...run, ...busy];
+    writeStatus(evaluateHealth((await probe()).input), { shutting: true, waiting, safeToClose: false });
+    if (!waiting.length) break;
+    if (Date.now() - t0 > 20 * 60_000) { timedOut = true; break; }
     await sleep(5000);
   }
-  stopAll(true);
+  log(timedOut ? 'Batas tunggu 20 menit habis; tetap dimatikan' : 'Semua pekerjaan selesai; aman dimatikan');
+  writeStatus(evaluateHealth((await probe()).input), { shutting: true, waiting: [], safeToClose: true, timedOut });
+  await sleep(10_000);
+  stopAll(true, readJson(f('workspace', 'away.json'), null)?.power ?? null);
 }
-function stopAll(stopPaperclipToo) {
+function stopAll(stopPaperclipToo, power = null) {
   stopping = true;
   for (const c of comp.values()) killComponent(c);
   if (stopPaperclipToo) { try { spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', f('scripts', 'start-paperclip.ps1'), '-Stop'], { cwd: ROOT, windowsHide: true, timeout: 60_000 }); } catch { /* abaikan */ } }
   try { writeFileSync(STATUS_FILE, JSON.stringify({ at: Date.now(), overall: 'mati', summary: 'Dimatikan', components: [], problems: [], paused: readJson(SETTINGS_FILE, {}).paused === true }, null, 2) + NL); } catch { /* abaikan */ }
   log('Semua dihentikan');
+  // Aksi Windows atas permintaan owner (tombol "Matikan aman"): 45 detik untuk membatalkan (shutdown /a). Tidur memakai SetSuspendState.
+  if (power === 'shutdown') { try { spawnSync('shutdown', ['/s', '/t', '45', '/c', 'AI Office: mode pergi. Batalkan dengan: shutdown /a'], { windowsHide: true, timeout: 15_000 }); log('Windows akan mati dalam 45 detik (shutdown /a untuk membatalkan)'); } catch { /* abaikan */ } }
+  else if (power === 'sleep') { try { spawnSync('rundll32.exe', ['powrprof.dll,SetSuspendState', '0,1,0'], { windowsHide: true, timeout: 15_000 }); } catch { /* abaikan */ } }
   process.exit(0);
 }
 async function handleCommand() {

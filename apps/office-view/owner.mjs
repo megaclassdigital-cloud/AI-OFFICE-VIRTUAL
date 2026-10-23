@@ -2,7 +2,8 @@
 // Semua keputusan tetap lewat decide() (hash paket + handoff + record bertanda tangan); modul ini hanya pintu HTTP-nya.
 // Loopback + same-origin + PIN (hash scrypt di .env) + pembatas percobaan salah. Tidak ada LLM di sini.
 import { readFile, readdir } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { awayView } from '../../scripts/away-core.mjs';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { verifyPin, readPinHash, createLimiter, hashPin, writePinHash, MIN_PIN } from '../../scripts/owner-pin.mjs';
@@ -25,6 +26,14 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
   const runFailover = deps.runFailover ?? ((args) => new Promise((resolve, reject) => {
     execFile(process.execPath, [path.join(repoRoot, 'scripts', 'manager-failover.mjs'), ...args], { cwd: repoRoot, timeout: 90_000, windowsHide: true, maxBuffer: 1 << 20 }, (err, stdout, stderr) => (err ? reject(new Error(String(stderr || err.message).slice(0, 300))) : resolve(String(stdout))));
   }));
+
+  // Mode pergi (tombol "Matikan aman"): menjalankan scripts/away-mode.mjs terpisah (proses ini ikut dimatikan pengawas setelah semua pekerjaan selesai). Dapat diganti di tes.
+  const runAway = deps.runAway ?? ((args) => { const p = spawn(process.execPath, [path.join(repoRoot, 'scripts', 'away-mode.mjs'), ...args], { cwd: repoRoot, detached: true, stdio: 'ignore', windowsHide: true }); p.on('error', () => {}); p.unref(); });
+  const readJsonFile = async (rel) => { try { return JSON.parse((await readFile(path.join(repoRoot, ...rel), 'utf8')).replace(/^\uFEFF/, '')); } catch { return null; } };
+  async function awayState() {
+    const [away, settings, autoPause, launcher] = await Promise.all([readJsonFile(['workspace', 'away.json']), readJsonFile(['workspace', 'orchestrator-settings.json']), readJsonFile(['workspace', 'auto-pause.json']), readJsonFile(['workspace', 'launcher-status.json'])]);
+    return awayView({ away, paused: settings?.paused === true, autoPause, launcher });
+  }
 
   const sameOrigin = (req) => {
     if (req.headers.host !== `127.0.0.1:${port}`) return false;
@@ -73,11 +82,28 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
         json(res, 200, { agent: 'Manager', ...out.Manager, now: now() });
         return true;
       }
+      if (u.pathname === '/api/owner/away' && req.method === 'GET') { json(res, 200, { now: now(), ...(await awayState()) }); return true; }
       if (u.pathname === '/api/owner/routing' && req.method === 'GET') { json(res, 200, { now: now(), pending: await pendingRoutings() }); return true; }
       if (req.method !== 'POST') { json(res, 405, { error: 'metode tidak didukung' }); return true; }
       if (!sameOrigin(req)) { json(res, 403, { error: 'origin ditolak' }); return true; }
       const body = await readBody(req);
 
+      // Matikan aman / lanjutkan. Tanpa PIN: aksi aman dan dapat dibalik (hanya menjeda pekerjaan); tetap loopback + same-origin.
+      if (u.pathname === '/api/owner/away') {
+        const { action } = body;
+        if (action === 'on') {
+          const hours = Number(body.hours ?? 0);
+          if (!Number.isFinite(hours) || hours < 0 || hours > 72) { json(res, 400, { error: 'jam harus 0-72 (0 = sampai Anda lanjutkan)' }); return true; }
+          if (body.power != null && !['shutdown', 'sleep'].includes(body.power)) { json(res, 400, { error: 'power harus shutdown atau sleep' }); return true; }
+          const args = ['on', ...(hours > 0 ? ['--hours', String(hours)] : []), ...(body.power ? ['--power', body.power] : [])];
+          runAway(args);
+          json(res, 200, { ok: true, started: true });
+          return true;
+        }
+        if (action === 'off') { runAway(['off']); json(res, 200, { ok: true }); return true; }
+        json(res, 400, { error: 'action harus on atau off' });
+        return true;
+      }
       if (u.pathname === '/api/owner/set-pin') {
         // Pengaturan PIN pertama kali dari panel; hanya selama belum ada PIN. Mengganti PIN = terminal (owner-pin.mjs set).
         if (readPinHash(envFile)) { json(res, 409, { error: 'PIN sudah diatur; untuk menggantinya jalankan "node scripts/owner-pin.mjs set" di terminal Anda' }); return true; }
