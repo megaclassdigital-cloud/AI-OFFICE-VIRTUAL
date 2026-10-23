@@ -207,8 +207,8 @@ function applyCam(zoom = cam.zoom, cx = cam.cx, cy = cam.cy) {
   const pct = $('zPct'); if (pct) pct.textContent = Math.round(cam.zoom * 100) + '%';
 }
 function fitCanvas() {
-  const r = cv.getBoundingClientRect(); const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const cap = Math.min(1, 2560 / Math.max(1, r.width * dpr));
+  const r = cv.getBoundingClientRect(); const dpr = Math.min(1.5, window.devicePixelRatio || 1); // GPU laptop ini terintegrasi dan berbagi RAM: resolusi kanvas dibatasi
+  const cap = Math.min(1, 1920 / Math.max(1, r.width * dpr));
   const w = Math.max(320, Math.round(r.width * dpr * cap)), h = Math.max(180, Math.round(r.height * dpr * cap));
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   cam.k0 = cv.width / W; applyCam();
@@ -234,7 +234,7 @@ function render() {
   if (!app.bgCache.has(key)) { for (const k of [...app.bgCache.keys()]) if (!k.endsWith('@' + S) || !k.startsWith(app.mode)) app.bgCache.delete(k); app.bgCache.set(key, drawStatic(L, app.mode, S)); }
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#141824'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.setTransform(cam.k, 0, 0, cam.k, cam.tx, cam.ty);
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'low';
   const vx = Math.max(0, -cam.tx / cam.k), vy = Math.max(0, -cam.ty / cam.k), vw = Math.min(W - vx, cv.width / cam.k), vh = Math.min(H - vy, cv.height / cam.k);
   ctx.drawImage(app.bgCache.get(key), vx * S, vy * S, vw * S, vh * S, vx, vy, vw, vh);
   // monitor menyala bila agent bekerja di mejanya
@@ -362,13 +362,20 @@ function stepSim(dt) {
   if (app.simClock >= app.simEndAt) { $('log').replaceChildren(); freshWorld('sim'); app.simIdx = 0; app.simClock = 0; app.simEndAt = Infinity; }
 }
 
-let last = performance.now();
+let last = performance.now(); let lastDraw = 0; let lastCamKey = ''; let lastMoveAt = 0;
+const covered = () => { const t = document.getElementById('tv'); return !!t && !t.hidden; }; // TV menutupi seluruh kanvas
 function frame(now) {
+  requestAnimationFrame(frame);
+  if (document.hidden || covered()) { last = now; return; } // tidak ada yang melihat kanvas: jangan menggambar dan jangan menggerakkan dunia
+  const camKey = cam.zoom + ',' + cam.cx + ',' + cam.cy;
+  if (camKey !== lastCamKey) { lastCamKey = camKey; lastMoveAt = now; }
+  const gap = now - lastMoveAt < 600 ? 14 : 33; // ±60 fps saat digeser/zoom, ±30 fps selebihnya (gerak karakter tetap halus)
+  if (now - lastDraw < gap) return;
+  lastDraw = now;
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   const k = app.mode === 'sim' ? (app.paused ? 0 : app.speed) : 1;
   if (app.world) { stepSim(dt * k); stepWorld(app.world, dt * k); }
   render();
-  requestAnimationFrame(frame);
 }
 
 // ───────── init ─────────
