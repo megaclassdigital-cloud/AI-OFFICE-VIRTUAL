@@ -190,8 +190,10 @@ async function runningAgents() {
   try {
     const cs = (await fetchJson(`${API}/api/companies`, 6000)).data ?? [];
     const co = cs.find((c) => /edukasi/i.test(c.name) && !/mega\s*class/i.test(c.name));
-    return ((await fetchJson(`${API}/api/companies/${co.id}/agents`, 6000)).data ?? []).filter((x) => x.status === 'running').map((x) => x.name);
-  } catch { return []; }
+    const list = (await fetchJson(`${API}/api/companies/${co.id}/agents`, 6000)).data;
+    if (!Array.isArray(list)) return null;
+    return list.filter((x) => x.status === 'running').map((x) => x.name);
+  } catch { return null; } // null = TIDAK TERBACA (Paperclip sesak/mati): bukan "tidak ada agen yang bekerja"
 }
 function setPaused(v) { const s = readJson(SETTINGS_FILE, {}); s.paused = v; mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true }); writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2) + NL); }
 
@@ -219,7 +221,11 @@ function takeCancelRequest() {
 }
 async function safeShutdown() {
   stopping = true;
-  log('Mematikan dengan aman: jeda dan menunggu agent/pekerjaan yang sedang berjalan');
+  const awayRec = readJson(f('workspace', 'away.json'), null);
+  const power = awayRec?.power ?? null;
+  // park (bawaan): jeda + kosongkan agen, Paperclip/UI/pengawas TETAP HIDUP; full atau matikan Windows: seluruh stack dihentikan.
+  const park = (awayRec?.mode ?? 'park') !== 'full' && power !== 'shutdown';
+  log(park ? 'Jeda aman: menunggu agent/pekerjaan yang sedang berjalan (Paperclip tetap hidup)' : 'Mematikan dengan aman: jeda dan menunggu agent/pekerjaan yang sedang berjalan');
   setPaused(true);
   const t0 = Date.now();
   let timedOut = false;
@@ -227,8 +233,8 @@ async function safeShutdown() {
     const run = await runningAgents();
     const busy = busyWork();
     // Admin Publikasi yang tidak sedang memposting dihentikan lebih dulu supaya tidak memulai posting baru selama menunggu.
-    const ap = comp.get('autopost'); if (ap && !busy.some((b) => b.startsWith('Admin Publikasi'))) killComponent(ap);
-    const waiting = [...run, ...busy];
+    if (!park) { const ap = comp.get('autopost'); if (ap && !busy.some((b) => b.startsWith('Admin Publikasi'))) killComponent(ap); }
+    const waiting = [...(run === null ? ['Membaca status agen…'] : run), ...busy]; // daftar agen tidak terbaca = belum tentu kering: tetap menunggu (sampai batas waktu)
     if (takeCancelRequest()) {
       // Owner membatalkan sebelum selesai: lanjutkan seperti biasa (komponen yang sempat dihentikan dinyalakan lagi oleh siklus pengawas).
       setPaused(false); try { unlinkSync(f('workspace', 'away.json')); } catch { /* tidak ada */ }
@@ -240,6 +246,14 @@ async function safeShutdown() {
     if (!waiting.length) break;
     if (Date.now() - t0 > 20 * 60_000) { timedOut = true; break; }
     await sleep(5000);
+  }
+  if (park) {
+    // Selesai dikosongkan: tetap menyala dan terjeda. UI memperlihatkan spanduk + tombol "Lanjut kerja" (langsung jalan, tanpa boot Paperclip).
+    log(timedOut ? 'Batas tunggu 20 menit habis; tetap dijeda (Paperclip tetap hidup)' : 'Semua pekerjaan selesai; dijeda (Paperclip dan UI tetap hidup)');
+    stopping = false;
+    writeStatus(evaluateHealth((await probe()).input), { shutting: false, parked: true, timedOut });
+    if (power === 'sleep') { await sleep(10_000); try { spawnSync('rundll32.exe', ['powrprof.dll,SetSuspendState', '0,1,0'], { windowsHide: true, timeout: 15_000 }); } catch { /* abaikan */ } }
+    return;
   }
   log(timedOut ? 'Batas tunggu 20 menit habis; tetap dimatikan' : 'Semua pekerjaan selesai; aman dimatikan');
   writeStatus(evaluateHealth((await probe()).input), { shutting: true, waiting: [], safeToClose: true, timedOut });

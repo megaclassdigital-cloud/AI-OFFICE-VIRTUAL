@@ -4,9 +4,11 @@ export const RESUME_HOLD_MS = 2 * 60_000;      // setelah boot/bangun dari tidur
 export const TOKEN_BREAKER = Object.freeze({ windowMs: 30 * 60_000, maxFails: 8 }); // >= maxFails kegagalan/percobaan-ulang tahap dalam windowMs => jeda otomatis
 
 /** Catatan mode pergi. hours <= 0 / tidak diberi = tanpa batas (sampai owner memanggil "off"). power: 'shutdown' | 'sleep' | null (aksi Windows setelah aman). */
-export function makeAway({ nowMs, hours = 0, note = '', power = null }) {
+export function makeAway({ nowMs, hours = 0, note = '', power = null, mode = 'park' }) {
   const h = Number(hours);
-  return { since: nowMs, until: Number.isFinite(h) && h > 0 ? nowMs + Math.round(h * 3_600_000) : null, note: String(note).slice(0, 200), power: ['shutdown', 'sleep'].includes(power) ? power : null };
+  const pw = ['shutdown', 'sleep'].includes(power) ? power : null;
+  // mode: 'park' = pekerjaan dijeda dan agen dikosongkan, Paperclip + UI TETAP HIDUP (lanjut instan, tampilan tetap terlihat); 'full' = seluruh stack mati (Paperclip ikut berhenti). Matikan Windows selalu 'full'.
+  return { since: nowMs, until: Number.isFinite(h) && h > 0 ? nowMs + Math.round(h * 3_600_000) : null, note: String(note).slice(0, 200), power: pw, mode: pw === 'shutdown' || mode === 'full' ? 'full' : 'park' };
 }
 /** Mode pergi berbatas waktu yang sudah lewat: orkestrator melanjutkan sendiri (mis. perangkat dinyalakan lagi sesudah batas). */
 export const awayExpired = (away, nowMs) => !!away && away.until != null && nowMs >= away.until;

@@ -21,13 +21,13 @@ const setPaused = (v) => { mkdirSync(W(), { recursive: true }); const s = readJs
 const launcherAlive = () => { const s = readJson(LAUNCHER_STATUS); if (!s?.pid || s.overall === 'mati') return false; try { process.kill(s.pid, 0); return Date.now() - (s.at ?? 0) < 120_000; } catch { return false; } };
 
 if (mode === 'on') {
-  const rec = makeAway({ nowMs: Date.now(), hours: arg('--hours', 0), note: arg('--note', ''), power: arg('--power', null) });
+  const rec = makeAway({ nowMs: Date.now(), hours: arg('--hours', 0), note: arg('--note', ''), power: arg('--power', null), mode: arg('--mode', 'park') });
   mkdirSync(W(), { recursive: true }); writeFileSync(AWAY, JSON.stringify(rec, null, 2) + '\n');
   setPaused(true); // tidak ada pekerjaan/brief baru mulai sekarang; jam tahap dibekukan
   if (launcherAlive()) {
     appendFileSync(CMD, JSON.stringify({ cmd: 'shutdown', key: null, at: Date.now() }) + '\n'); // pengawas: tunggu agen selesai (maks 20 mnt) lalu hentikan semuanya termasuk Paperclip
-    console.log('Mode pergi AKTIF. Pengawas menunggu agen yang sedang bekerja selesai (maks 20 menit), lalu mematikan semuanya.');
-    console.log('Aman menutup perangkat setelah status "Dimatikan" (node scripts/office-launcher.mjs --status) atau setelah ±20 menit.');
+    if (rec.mode === 'full') { console.log('Mode pergi AKTIF (matikan total). Pengawas menunggu agen yang sedang bekerja selesai (maks 20 menit), lalu mematikan semuanya.'); console.log('Aman menutup perangkat setelah status "Dimatikan" (node scripts/office-launcher.mjs --status).'); }
+    else console.log('Mode pergi AKTIF (jeda). Pengawas menunggu agen yang sedang bekerja selesai (maks 20 menit), lalu menjeda; Paperclip dan UI tetap hidup, Lanjut kerja langsung berjalan.');
   } else console.log('Mode pergi AKTIF (pengawas tidak sedang berjalan; tidak ada yang perlu dimatikan). Aman menutup perangkat.');
   console.log(rec.until ? `Lanjut otomatis setelah ${new Date(rec.until).toLocaleString('id-ID')}.` : 'Tanpa batas waktu: lanjutkan dengan "node scripts/away-mode.mjs off" (atau LANJUT-KERJA.cmd).');
 } else if (mode === 'off') {

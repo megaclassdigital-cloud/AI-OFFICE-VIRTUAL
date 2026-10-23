@@ -95,10 +95,11 @@ export function createOwner({ base, port, repoRoot, envFile = path.join(repoRoot
           const hours = Number(body.hours ?? 0);
           if (!Number.isFinite(hours) || hours < 0 || hours > 72) { json(res, 400, { error: 'jam harus 0-72 (0 = sampai Anda lanjutkan)' }); return true; }
           if (body.power != null && !['shutdown', 'sleep'].includes(body.power)) { json(res, 400, { error: 'power harus shutdown atau sleep' }); return true; }
+          if (body.mode != null && !['park', 'full'].includes(body.mode)) { json(res, 400, { error: 'mode harus park atau full' }); return true; }
           // Idempotent: klik ganda/permintaan ulang saat sudah dalam proses mematikan, aman ditutup, atau mode pergi TIDAK memulai proses kedua.
           const cur = await awayState();
           if (['menguras', 'aman', 'pergi'].includes(cur.phase)) { json(res, 200, { ok: true, started: false, already: true, phase: cur.phase }); return true; }
-          const args = ['on', ...(hours > 0 ? ['--hours', String(hours)] : []), ...(body.power ? ['--power', body.power] : [])];
+          const args = ['on', ...(hours > 0 ? ['--hours', String(hours)] : []), ...(body.power ? ['--power', body.power] : []), ...(body.mode ? ['--mode', body.mode] : [])];
           runAway(args);
           json(res, 200, { ok: true, started: true });
           return true;

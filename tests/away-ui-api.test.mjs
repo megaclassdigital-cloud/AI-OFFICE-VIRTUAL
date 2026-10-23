@@ -13,6 +13,9 @@ describe('away-core: ringkasan UI, pemutus token, penahan setelah boot/tidur', (
     expect(awayView({ autoPause: { reason: 'x' } }).phase).toBe('jeda-otomatis');
     const away = makeAway({ nowMs: 1, hours: 9, power: 'sleep' });
     expect(away.power).toBe('sleep'); expect(makeAway({ nowMs: 1, power: 'format-c' }).power).toBeNull();
+    // bawaan = jeda (Paperclip tetap hidup); matikan Windows selalu total
+    expect(away.mode).toBe('park'); expect(makeAway({ nowMs: 1 }).mode).toBe('park'); expect(makeAway({ nowMs: 1, mode: 'full' }).mode).toBe('full');
+    expect(makeAway({ nowMs: 1, power: 'shutdown', mode: 'park' }).mode).toBe('full'); expect(makeAway({ nowMs: 1, mode: 'aneh' }).mode).toBe('park');
     expect(awayView({ away }).phase).toBe('pergi');
     expect(awayView({ away, launcher: { shutting: true, waiting: ['QA', 'Admin Publikasi: posting'], safeToClose: false } })).toMatchObject({ phase: 'menguras', safeToClose: false, waiting: ['QA', 'Admin Publikasi: posting'] });
     expect(awayView({ away, launcher: { shutting: true, waiting: [], safeToClose: true } })).toMatchObject({ phase: 'aman', safeToClose: true });
@@ -59,6 +62,7 @@ describe('tombol Matikan aman (HTTP /api/owner/away)', () => {
     expect((await post('/api/owner/away', { action: 'on', hours: 100 })).status).toBe(400);
     expect((await post('/api/owner/away', { action: 'on', hours: -1 })).status).toBe(400);
     expect((await post('/api/owner/away', { action: 'on', power: 'format-c' })).status).toBe(400);
+    expect((await post('/api/owner/away', { action: 'on', mode: 'hapus' })).status).toBe(400);
     expect((await post('/api/owner/away', { action: 'on' }, { origin: 'http://evil.example' })).status).toBe(403);
     expect(ran).toEqual([]);
     // keadaan bersih (tes sebelumnya meninggalkan away.json/jeda): hanya satu "on" yang menjalankan away-mode
