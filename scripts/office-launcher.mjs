@@ -179,7 +179,7 @@ let lastStatusSig = '';
 function writeStatus(health, extra) {
   const settings = readJson(SETTINGS_FILE, {});
   const freeMB = Math.round(os.freemem() / 1048576);
-  const status = { at: Date.now(), startedAt, pid: process.pid, ui: UI, public: PUBLIC, memoryFreeMB: freeMB, lowMemory: freeMB < LOW_MEMORY_MB, overall: health.overall, summary: summaryLine({ ...health, paused: settings.paused === true }), paused: settings.paused === true, components: health.components.map((c) => ({ ...c, restarts: comp.get(c.key)?.restarts.length ?? 0, pid: comp.get(c.key)?.pid ?? null })), problems: health.problems, ...extra };
+  const status = { at: Date.now(), startedAt, paperclipStartedAt: paperclipRestartAt || null, pid: process.pid, ui: UI, public: PUBLIC, memoryFreeMB: freeMB, lowMemory: freeMB < LOW_MEMORY_MB, overall: health.overall, summary: summaryLine({ ...health, paused: settings.paused === true }), paused: settings.paused === true, components: health.components.map((c) => ({ ...c, restarts: comp.get(c.key)?.restarts.length ?? 0, pid: comp.get(c.key)?.pid ?? null })), problems: health.problems, ...extra };
   try { mkdirSync(path.dirname(STATUS_FILE), { recursive: true }); writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2) + NL); } catch { /* abaikan */ }
   const sig = `${health.overall}|${health.problems.join(';')}`;
   if (sig !== lastStatusSig) { log(`status: ${status.summary}${health.problems.length ? ' — ' + health.problems.join(' | ') : ''}`); lastStatusSig = sig; }
@@ -193,7 +193,7 @@ async function runningAgents() {
     const list = (await fetchJson(`${API}/api/companies/${co.id}/agents`, 6000)).data;
     if (!Array.isArray(list)) return null;
     return list.filter((x) => x.status === 'running').map((x) => x.name);
-  } catch { return null; } // null = TIDAK TERBACA (Paperclip sesak/mati): bukan "tidak ada agen yang bekerja"
+  } catch { return (await tcpOpen(3177)) ? null : []; } // port terbuka tetapi tidak menjawab = lambat, belum tentu kering (null); port tertutup = Paperclip tidak berjalan, tidak ada agen yang bisa bekerja
 }
 function setPaused(v) { const s = readJson(SETTINGS_FILE, {}); s.paused = v; mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true }); writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2) + NL); }
 
@@ -279,23 +279,28 @@ async function handleCommand() {
 async function runCommand(c) {
   log(`perintah dari tray: ${c.cmd}${c.key ? ' ' + c.key : ''}`);
   if (c.cmd === 'open') spawn('cmd', ['/c', 'start', '', UI], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
-  else if (c.cmd === 'restart') { const x = c.key ? comp.get(c.key) : null; if (x) { killComponent(x); x.nextStartAt = 0; x.failed = false; } else if (c.key === 'paperclip') { stopPaperclipProcs(); startPaperclip('perintah owner'); } }
+  else if (c.cmd === 'restart') { const x = c.key ? comp.get(c.key) : null; if (x) { killComponent(x); x.nextStartAt = 0; x.failed = false; } else if (c.key === 'paperclip') {
+    const booting = Date.now() - paperclipRestartAt < PAPERCLIP_STARTUP_GRACE_MS && paperclipDownSince !== null;
+    if (booting) { log('perintah restart Paperclip DIABAIKAN: Paperclip masih memulai (boot dingin 6-8 menit; ' + Math.round((Date.now() - paperclipRestartAt) / 60_000) + ' menit berlalu). Restart akan mengulang dari nol.'); }
+    else { stopPaperclipProcs(); startPaperclip('perintah owner'); }
+  } }
   else if (c.cmd === 'stop-now') stopAll(false);
   else if (c.cmd === 'shutdown') await safeShutdown();
 }
 
 // ───────── siklus utama ─────────
-let lastCycleAt = Date.now();
-async function cycle() {
+let lastCycleAt = Date.now(); // AKHIR siklus terakhir
+async function cycle() { try { await cycleInner(); } finally { lastCycleAt = Date.now(); } }
+async function cycleInner() {
   const nowMs = Date.now();
   // Bangun dari tidur/standby: selang siklus >45 dtk (normalnya 5 dtk). Semua koneksi lama basi; beri masa pemanasan dan jangan menilai komponen gagal
   // atau meluncurkan ulang Paperclip karena jam melompat.
   if (nowMs - lastCycleAt > 45_000) {
     log('Laptop bangun dari tidur/standby (selang ' + Math.round((nowMs - lastCycleAt) / 1000) + ' dtk): menyegarkan koneksi, masa pemanasan dimulai');
-    pcMisses = 0; paperclipDownSince = null; paperclipRestartAt = nowMs - PAPERCLIP_STARTUP_GRACE_MS + 120_000;
+    // Jangan memperpendek masa tunggu boot Paperclip yang SEDANG berjalan (boot dingin 6-8 menit): hanya bila start terakhir sudah lama.
+    pcMisses = 0; paperclipDownSince = null; paperclipRestartAt = Math.max(paperclipRestartAt, nowMs - PAPERCLIP_STARTUP_GRACE_MS + 120_000);
     for (const c of comp.values()) { c.badSince = null; if (isAlive(c)) c.startedAt = nowMs; }
   }
-  lastCycleAt = nowMs;
   const { pcOk, input } = await probe();
   const health = evaluateHealth(input);
 

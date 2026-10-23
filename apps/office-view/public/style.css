@@ -164,7 +164,8 @@ html[data-role="review"] #netbanner { display: none !important; } /* monitor ked
 .tv-all{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
 .tv-item{display:flex;flex-direction:column;text-align:left;background:var(--card,#171b24);color:inherit;border:1px solid var(--line,#262c38);border-radius:10px;padding:0;overflow:hidden;cursor:pointer;font:inherit}
 #awayBanner{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:60;display:flex;gap:12px;align-items:center;background:#1e3a8a;color:#fff;border:1px solid #3b82f6;border-radius:10px;padding:8px 14px;font-weight:600;max-width:min(92vw,900px);box-shadow:0 6px 24px rgba(0,0,0,.45)}
-#awayBanner[hidden],#awayModal[hidden]{display:none}
+#awayBanner[hidden],#awayModal[hidden],#bootBanner[hidden]{display:none}
+#bootBanner{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:55;background:#78350f;color:#fff;border-radius:10px;padding:8px 14px;font-weight:600;max-width:min(92vw,820px);box-shadow:0 6px 24px rgba(0,0,0,.45)}
 #awayModal{position:fixed;inset:0;z-index:70;background:rgba(5,8,15,.72);display:flex;align-items:center;justify-content:center;padding:16px}
 .away-card{background:#171b24;color:#e6ebf5;border:1px solid #2a3140;border-radius:14px;padding:18px;width:min(520px,94vw);display:grid;gap:10px}
 .away-head{display:flex;justify-content:space-between;align-items:center;font-size:1.1rem}

@@ -33,5 +33,8 @@ export function awayView({ away = null, paused = false, autoPause = null, launch
   else if (away) phase = 'pergi';
   else if (autoPause) phase = 'jeda-otomatis';
   else if (paused) phase = 'jeda';
-  return { phase, waiting, safeToClose, away, autoPause };
+  // Boot Paperclip (UI hidup lebih dulu; Paperclip butuh 6-8 menit di laptop ini): UI menampilkan lama boot supaya owner tidak me-restart di tengah jalan.
+  const pc = (launcher?.components ?? []).find((c) => c.key === 'paperclip');
+  const paperclip = pc ? { state: pc.state, startedAt: launcher?.paperclipStartedAt ?? null } : null;
+  return { phase, waiting, safeToClose, away, autoPause, paperclip };
 }

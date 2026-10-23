@@ -20,6 +20,12 @@ describe('away-core: ringkasan UI, pemutus token, penahan setelah boot/tidur', (
     expect(awayView({ away, launcher: { shutting: true, waiting: ['QA', 'Admin Publikasi: posting'], safeToClose: false } })).toMatchObject({ phase: 'menguras', safeToClose: false, waiting: ['QA', 'Admin Publikasi: posting'] });
     expect(awayView({ away, launcher: { shutting: true, waiting: [], safeToClose: true } })).toMatchObject({ phase: 'aman', safeToClose: true });
   });
+  it('awayView: ringkasan boot Paperclip untuk spanduk (lama boot), tanpa data bila pengawas belum menulis', () => {
+    expect(awayView({}).paperclip).toBeNull();
+    const l = { paperclipStartedAt: 1234, components: [{ key: 'paperclip', state: 'mati' }, { key: 'plugin', state: 'ok' }] };
+    expect(awayView({ launcher: l }).paperclip).toEqual({ state: 'mati', startedAt: 1234 });
+    expect(awayView({ launcher: { components: [{ key: 'paperclip', state: 'ok' }] } }).paperclip).toEqual({ state: 'ok', startedAt: null });
+  });
   it('noteFailure: menjeda hanya bila >= batas dalam jendela waktu; kegagalan lama kedaluwarsa', () => {
     let f = []; let trip = false;
     for (let i = 0; i < TOKEN_BREAKER.maxFails - 1; i++) ({ fails: f, trip } = noteFailure(f, i * 1000));

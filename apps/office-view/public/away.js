@@ -27,7 +27,7 @@ function init() {
     const normal = phase === 'normal';
     btn.className = normal ? '' : 'owner-approve';
     btn.disabled = phase === 'aman';
-    btn.textContent = normal ? '🌙 Matikan aman' : phase === 'aman' ? '✅ Aman ditutup' : phase === 'menguras' ? '✖ Batalkan, lanjut kerja' : '▶ Lanjut kerja';
+    btn.textContent = normal ? '🌙 Matikan aman' : phase === 'aman' ? '✅ Aman ditutup' : phase === 'menguras' ? '▶ Lanjut kerja (batalkan jeda)' : '▶ Lanjut kerja';
     btn.title = normal ? 'Matikan sistem dengan aman sebelum menutup/mematikan laptop (tidak memakai token)' : phase === 'aman' ? 'Semua pekerjaan selesai; sistem berhenti sebentar lagi' : 'Cabut jeda dan lanjutkan pekerjaan';
   }
   applyBtn('normal');
@@ -37,9 +37,19 @@ function init() {
   const banner = h('div', { id: 'awayBanner', role: 'status', hidden: true });
   document.body.append(banner);
   const fmtTime = (ms) => new Date(ms).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+  // Paperclip belum siap (boot dingin 6-8 menit): tampilkan lama boot dan larang restart di tengah jalan (itu mengulang boot dari nol dan membuat terasa makin lambat).
+  const boot = h('div', { id: 'bootBanner', role: 'status', hidden: true }); document.body.append(boot);
+  function bootBanner(s) {
+    const pc = s?.paperclip;
+    if (!pc || pc.state === 'ok' || !pc.startedAt) { boot.hidden = true; return; }
+    const min = Math.max(0, Math.round((Date.now() - pc.startedAt) / 60_000));
+    boot.textContent = `⏳ Paperclip sedang menyala (boot dingin 6-8 menit di laptop ini; sudah ${min} menit). Tampilan dan tombol sudah bisa dipakai. Jangan restart: itu mengulang dari nol.`;
+    boot.hidden = false;
+  }
   async function refreshBanner() {
     if (document.hidden) return;
     const s = await getJson('/api/owner/away');
+    bootBanner(s);
     if (s) applyBtn(s.phase); // server tidak menjawab: biarkan keadaan terakhir (jangan membuka tombol "Matikan" secara keliru)
     if (!s || !['pergi', 'jeda', 'jeda-otomatis', 'menguras'].includes(s.phase)) { banner.hidden = true; return; }
     const text = s.phase === 'menguras' ? `🌙 Sedang mematikan aman… menunggu: ${(s.waiting ?? []).join(', ') || 'pekerjaan berjalan'}. Jangan tutup laptop dulu.`
@@ -73,7 +83,7 @@ function init() {
       const mode = powerSel.value === 'shutdown' ? 'full' : modeSel.value;
       const r = await post('/api/owner/away', { action: 'on', hours: Number(hoursSel.value), power: powerSel.value || null, mode });
       if (!r.ok) { start.disabled = false; msg.className = 'owner-msg bad'; msg.textContent = r.data?.error ?? 'Gagal memulai.'; return; }
-      applyBtn('menguras'); // tombol utama langsung berubah jadi "Batalkan, lanjut kerja"
+      applyBtn('menguras'); refreshBanner(); // tombol utama langsung berubah jadi "Lanjut kerja" dan spanduk muncul tanpa menunggu putaran berikutnya
       msg.textContent = ''; watch(progress, msg, mode);
     } }, 'Mulai');
     overlay.replaceChildren(h('div', { class: 'away-card' },
